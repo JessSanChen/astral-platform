@@ -1,8 +1,9 @@
 # Evaluation: Humane Intelligence `hi-oss-ai-red-teaming` as the ASTRAL hackathon harness
 
-Status: draft for discussion (2026-10-29). Everything here is open to revision. The
-"MVP contract" in section 2 is **derived** from the hackathon proposal and the reframe doc;
-no written contract existed before this note, so treat section 2 as the first draft of one.
+Status: draft for discussion (2026-10-29, updated 2026-10-30). Section 2 scores the platform
+against the hackathon proposal (the MVP brief), restated as testable requirements. Decision
+taken 2026-10-30: build a custom harness; see `../hackathon-harness-mvp.md`. Section 6 is kept
+as a record of what a fork would have needed.
 
 ## 0. Verdict in one paragraph
 
@@ -14,9 +15,8 @@ gaps that matter are per-message author provenance (an admin can write into a pa
 transcript indistinguishably), hard deletion for the withdrawal window (soft-delete with a
 7-day restore window only), a redaction/submit step, pseudonymous identity (exports carry
 e-mails), the "workshop panel" second session, and any hook for our scanner. Some of those are
-small additions; two (provenance, hard delete) touch the data model. My recommendation is to
-adopt it as the harness **if** we accept a fork with roughly four focused changes (section 6),
-and to make that decision after the owners' Decisions list in section 7.
+small additions; two (provenance, hard delete) touch the data model. The trade-off between forking and
+building custom is in sections 6 and 7; the team chose custom.
 
 ## 1. What was inspected and run
 
@@ -62,7 +62,7 @@ The frontend was not run (needs a Node build; secondary to the API contract).
 | Sealed group | owner | group under the "No license" entry (or a custom licence with `protects_conversation_data`) | message rows stored as `92:v2:<ciphertext>` with `content_encrypted = t`; API still returns plaintext to authorised readers |
 | Withdraw | red-teamer | `DELETE …/conversations/{id}` | 204 soft delete; owner can list with `?deleted=true`; admin break-glass read now 404 |
 
-## 2. Derived MVP contract (draft)
+## 2. The MVP brief as testable requirements
 
 Sources: hackathon proposal sections "Event design", "Use of AI tools", "Biorisk and safety",
 "Data collection, retention and security"; reframe doc section 11. Items are phrased as
@@ -170,7 +170,7 @@ Probe results (all as expected except one wrong expectation of mine):
   for migrate/seed shell into compose.
 - Review verdict enum is `pending | approved | rejected`; the first run's 422 was my payload.
 
-## 6. If we fork: the minimal change set
+## 6. What a fork would have needed (for the record)
 
 Ordered by how much of the contract each unlocks.
 
