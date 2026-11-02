@@ -23,15 +23,12 @@ without touching code.
 | Role | Who | Can |
 |---|---|---|
 | participant | ~50 invitees | Open and continue their own sessions, use the workshop panel, redact and submit, withdraw a session during the window. Sees nothing of anyone else. |
-| admin | Colby, helpers | Provision and revoke participants, reissue login links, set track and grid cell, set or rotate the provider key, add or disable a model, pause a track, quarantine a session, see the aggregate dashboard. **Does not read transcript content** by default. |
-| hazard reviewer | one bio PhD on duty | Everything admin can, plus read the content of sessions the automated screen or a participant flagged. Every content read is logged. |
-| exporter | Jessica | Run the day-14 export. Could be an admin action; separated so a helper cannot pull the dataset by accident. |
+| admin | Jessica, Colby, helpers, the on-duty hazard reviewer | Provision and revoke participants, reissue login links, set track and grid cell, set or rotate the provider key, add or disable a model, pause a track, quarantine a session, see the aggregate dashboard, read session content, run the export. |
 
-Two admin flavours (with and without content access) is the one place I diverge from "just an
-admin role". The brief's own controls say participants have no access to each other's Track
-B/C transcripts and that model turns may be hazardous; a helper fixing a login should not be
-able to browse those. Collapsing it to one role is fine if the admin group is three trusted
-people, but then every admin content read must still be logged.
+One admin role for now (decided 2026-11-02). Two consequences: every admin content read and
+every export is written to the event log with who and which session, and the role check lives
+in one place so splitting admin into operator / hazard reviewer / exporter later is a data
+change, not a rewrite.
 
 ## 3. MVP by tier
 
@@ -52,7 +49,7 @@ people, but then every admin content read must still be logged.
 | M11 | Aggregate dashboard | Live: sessions and submissions per track, per model, per table; grid-cell coverage tally (the lunch rebalance input); tokens and estimated spend per participant and total; flagged and quarantined counts; error rate from the gateway. No content. |
 | M12 | Event log | Append-only, content-free: participant created/revoked, link issued, login, session opened, turn count milestones, submit, withdraw, flag, quarantine, track pause, key set, export run, content read (who, which session). |
 | M13 | Withdraw | Participant deletes any of their sessions via their link until the window closes (day 3). Hard delete of turns and derived rows, or crypto-shred by per-session key (D3). Event log keeps the fact of withdrawal only. |
-| M14 | Export | Day-14 export of accepted, redacted sessions as JSONL in ASTRAL's existing upload format, with a manifest and per-file hashes. Export of *everything* (for the offline hazard review) is the same code path with a different filter and a louder confirmation. Exporter role only. |
+| M14 | Export | Day-14 export of accepted, redacted sessions as JSONL in ASTRAL's existing upload format, with a manifest and per-file hashes. Export of *everything* (for the offline hazard review) is the same code path with a different filter and a louder confirmation. Admin only, with a confirmation step. |
 
 **Tier 2: needed for Tracks B and C to work as designed.** Build after Tier 1 passes the dry
 run; if time runs out, the event still runs with Track A plus unscored B.
@@ -96,7 +93,7 @@ and exports as general machinery; we do not need the generality.
 | # | Decision | Default if nobody objects |
 |---|---|---|
 | D1 | How magic links reach people without the harness seeing e-mails | Harness generates links per pseudonym; admin downloads a CSV of `pseudonym, link`; Colby mail-merges from the registration sheet. Harness never sends mail. |
-| D2 | One admin role or admin plus hazard reviewer | Two roles; content reads logged either way. |
+| D2 | One admin role or admin plus hazard reviewer | Decided: one role, content reads logged. Split later if needed. |
 | D3 | Hard delete or crypto-shred for withdrawal and day-30 destruction | Per-session content key, deleted on withdrawal; event-wide key deleted on day 30. Avoids chasing snapshots. |
 | D4 | Which models, and whether Anthropic is offered | Owner: Colby (the brief flags the standing rule about the private corpus). Harness supports any list. |
 | D5 | Where ASTRAL's keyword and embedding stages run | Imported as a library on the same VM if the dependency footprint allows; otherwise a tiny internal HTTP service. Needed for S2 and S4 only. |
