@@ -1,6 +1,6 @@
 # Hackathon harness: MVP scope
 
-Status: draft v1 (2026-10-30), for Jessica to cut down. Derived from the hackathon proposal
+Status: draft v2 (2026-11-02), for Jessica to cut down. Derived from the hackathon proposal
 ("the brief") and the decision to build a custom harness rather than fork Humane Intelligence's
 platform. Reviewer workflow is explicitly out of scope; hazard review happens offline on the
 exported data.
@@ -32,7 +32,9 @@ change, not a rewrite.
 
 ## 3. MVP by tier
 
-**Tier 1: the event cannot run without it.** Build first; dry-run gate at week 4.
+**Tier 1: Track A end to end.** Build first; dry-run gate at week 4. Decided 2026-11-02: the
+MVP is Track A only. Tracks B and C are in the event, and the data model carries `track` from
+day one, but their extras land in Tier 2.
 
 | # | Capability | Notes |
 |---|---|---|
@@ -51,18 +53,22 @@ change, not a rewrite.
 | M13 | Withdraw | Participant deletes any of their sessions via their link until the window closes (day 3). Hard delete of turns and derived rows, or crypto-shred by per-session key (D3). Event log keeps the fact of withdrawal only. |
 | M14 | Export | Day-14 export of accepted, redacted sessions as JSONL in ASTRAL's existing upload format, with a manifest and per-file hashes. Export of *everything* (for the offline hazard review) is the same code path with a different filter and a louder confirmation. Admin only, with a confirmation step. |
 
-**Tier 2: needed for Tracks B and C to work as designed.** Build after Tier 1 passes the dry
-run; if time runs out, the event still runs with Track A plus unscored B.
+**Tier 2: Track B and C support.** Build after Tier 1 passes the dry run. Decided 2026-11-02:
+proxy judge only, no leaderboards. Participants see their own proxy scores; prizes are decided
+from an admin view of the same scores at wrap.
 
 | # | Capability | Notes |
 |---|---|---|
 | S1 | Proxy rubric judge | On submit of a B or C session, one LLM call over *user turns only* scoring persona consistency, progression, naturalness 0-3 each. Shown to the participant in near real time. Prompt text diffed against the private rubric before the event (Colby). |
-| S2 | First-pass scanner feedback (Track C only) | On submit, run ASTRAL's keyword and embedding stages; store flagged/not flagged; show it to Track C participants as "stealth". Never run the LLM rubric stage or expose risk scores. Depends on the ASTRAL stages being callable from the VM (import or small HTTP service). |
-| S3 | Leaderboards | B and C: per-participant proxy totals, revealed at wrap. A: coverage count by table, visible all day, no per-session score. |
-| S4 | Automated evening screen | Batch job over all sessions: keyword + embedding stages plus a hazard-content classifier; flagged sessions routed to the reviewer view, rest put on a 72-hour hold. Output is a queue list, not a review UI. |
+| S2 | Proxy scores in the admin console | Per-participant and per-session proxy totals, filterable by track, for the wrap-up prize decision. Reuses M11. |
+| S3 | Automated evening screen | Batch job over all sessions: keyword + embedding stages plus a hazard-content classifier; flagged sessions routed to the reviewer view, rest put on a 72-hour hold. Output is a queue list, not a review UI. |
 
 **Tier 3: nice to have, defer unless cheap.**
 
+- Live first-pass scanner feedback for Track C (the brief's "stealth" signal). Deferred
+  2026-11-02 with the leaderboards. Note: without it Track C participants get no signal that
+  they evaded anything, so Track C becomes "attempt evasion blind" and stealth is computed
+  offline after the event. Revisit if S3 lands early, since both need the same scanner hook.
 - Task cards and persona packets served inside the app (otherwise PDFs).
 - Hourly encrypted snapshots to object storage (can be a cron on the VM, not app code).
 - Lunch rebalance tooling beyond the tally (manual reassignment in M10 is enough).
@@ -96,7 +102,7 @@ and exports as general machinery; we do not need the generality.
 | D2 | One admin role or admin plus hazard reviewer | Decided: one role, content reads logged. Split later if needed. |
 | D3 | Hard delete or crypto-shred for withdrawal and day-30 destruction | Per-session content key, deleted on withdrawal; event-wide key deleted on day 30. Avoids chasing snapshots. |
 | D4 | Which models, and whether Anthropic is offered | Owner: Colby (the brief flags the standing rule about the private corpus). Harness supports any list. |
-| D5 | Where ASTRAL's keyword and embedding stages run | Imported as a library on the same VM if the dependency footprint allows; otherwise a tiny internal HTTP service. Needed for S2 and S4 only. |
+| D5 | Where ASTRAL's keyword and embedding stages run | Imported as a library on the same VM if the dependency footprint allows; otherwise a tiny internal HTTP service. Needed for the evening screen (S3) only, now that live Track C feedback is deferred. |
 | D6 | Workshop paste detection threshold | Substring of ≥40 characters from any of the last 10 workshop outputs → `pasted`; participant can override at submit. |
 | D7 | Is the submit step allowed to be skipped for Track B/C | No; same flow, but redaction highlights will mostly be empty. |
 
