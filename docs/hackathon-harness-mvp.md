@@ -65,10 +65,6 @@ from an admin view of the same scores at wrap.
 
 **Tier 3: nice to have, defer unless cheap.**
 
-- Live first-pass scanner feedback for Track C (the brief's "stealth" signal). Deferred
-  2026-11-02 with the leaderboards. Note: without it Track C participants get no signal that
-  they evaded anything, so Track C becomes "attempt evasion blind" and stealth is computed
-  offline after the event. Revisit if S3 lands early, since both need the same scanner hook.
 - Task cards and persona packets served inside the app (otherwise PDFs).
 - Hourly encrypted snapshots to object storage (can be a cron on the VM, not app code).
 - Lunch rebalance tooling beyond the tally (manual reassignment in M10 is enough).
@@ -81,6 +77,8 @@ from an admin view of the same scores at wrap.
 - Multi-event lifecycle (draft / approve / publish). One event, one config file.
 - Image input, notes, annotations, saved views, notifications, metrics access levels.
 - Participant self-registration, password auth, OIDC.
+- Live scanner feedback to Track C participants (removed 2026-11-02). Stealth against the
+  first-pass stages is computed offline after the event.
 
 ## 5. Shape
 
