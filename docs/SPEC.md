@@ -189,14 +189,11 @@ schema is designed so either is a small change.
   page reloads, because results are stored in the database.
 - Judge runs are rate-limited per participant (default 20 per hour, admin
   adjustable) because they are expensive and not the point of the event.
-- Judge results are for participant learning only. They are stored, but the
+- Judge results are for participant learning only. Participants see the
+  results of their own runs and nobody else's. Results are stored, but the
   MVP admin console does not surface them and they play no role in prizes.
-
-> Open question (flagged in the chat reply): one answer said participants
-> should see judge output in a side panel and another said "judge results
-> should not be for participants to see". This spec assumes participants see
-> their own judge results and admins do not need them in the MVP. Correct me
-> if the opposite was intended.
+  "Judge" here always means an automated LLM or safety-model judge; there is
+  no human-judge functionality in the platform.
 
 ---
 
@@ -325,10 +322,9 @@ Each phase ends with something you can click.
 
 ## 10. Open questions
 
-1. Judge visibility (see 3.7 callout).
-2. Final model list: decide the week of the event from OpenRouter availability.
-3. Terms text: placeholder until you have real text.
-4. Should participants be able to see their own submission count? Default: yes,
+1. Final model list: decide the week of the event from OpenRouter availability.
+2. Terms text: placeholder until you have real text.
+3. Should participants be able to see their own submission count? Default: yes,
    a small number in the sidebar, no comparison to others.
-5. Do you want participants to be able to flag "I think the model's refusal
+4. Do you want participants to be able to flag "I think the model's refusal
    was wrong / the compliance was dangerous"? This is a cheap extra label.
