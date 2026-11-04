@@ -6,6 +6,7 @@ open-weight models through a familiar chat interface, label each
 conversation, and submit it. Everything is stored in Postgres for later
 experiments.
 
+- Build log and test instructions: [docs/BUILDLOG.md](docs/BUILDLOG.md)
 - Product spec: [docs/SPEC.md](docs/SPEC.md)
 - System design and explainers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
@@ -44,6 +45,9 @@ signs up.
 
 ## Build status
 
-Phase 1 complete: app scaffold, database schema and migrations, Better Auth
-email/password with the admin plugin, event-code-gated sign-up, and the
-onboarding redirect gate. See the build plan in `docs/SPEC.md` section 9.
+Phases 1 and 2 are complete: app scaffold, database schema, authentication,
+event-code-gated sign-up, and the profile and terms onboarding gate.
+
+See [docs/BUILDLOG.md](docs/BUILDLOG.md) for what each phase delivered and
+step-by-step instructions for testing it yourself. The remaining plan is in
+`docs/SPEC.md` section 9.
