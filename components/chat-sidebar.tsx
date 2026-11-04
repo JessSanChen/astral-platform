@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SignOutButton } from "@/components/sign-out-button";
 
@@ -12,6 +13,20 @@ export type SidebarConversation = {
   status: "draft" | "submitted";
   currentVersion: number;
 };
+
+/**
+ * A quiet spinner on the conversation being opened.
+ *
+ * There is deliberately no full-screen loading state: blanking the chat and
+ * replacing it with a skeleton on every click was jarring. Without one, the
+ * conversation you are reading stays on screen until the next one is ready,
+ * and this marks which one is on its way.
+ */
+function PendingDot() {
+  const { pending } = useLinkStatus();
+  if (!pending) return null;
+  return <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />;
+}
 
 export function ChatSidebar({
   conversations,
@@ -62,8 +77,22 @@ export function ChatSidebar({
                 active && "bg-muted font-medium",
               )}
             >
-              <span className="block truncate">{c.title}</span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
+              <span className="flex items-center gap-2">
+                {/* Submitted conversations are marked with a filled dot, so
+                    progress is visible at a glance down the list. */}
+                <span
+                  aria-hidden
+                  className={cn(
+                    "h-2 w-2 shrink-0 rounded-full",
+                    c.status === "submitted"
+                      ? "bg-accent"
+                      : "border border-muted-foreground/40",
+                  )}
+                />
+                <span className="min-w-0 flex-1 truncate">{c.title}</span>
+                <PendingDot />
+              </span>
+              <span className="mt-0.5 block pl-4 text-xs text-muted-foreground">
                 {c.status === "submitted"
                   ? `Submitted v${c.currentVersion}`
                   : "Draft"}

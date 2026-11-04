@@ -87,7 +87,7 @@ export function ChatView({
     stickToBottom.current = distanceFromBottom < 80;
   }, []);
 
-  const { messages, sendMessage, regenerate, stop, status, error } = useChat({
+  const { messages, setMessages, sendMessage, regenerate, stop, status, error } = useChat({
     id: conversationId,
     messages: initialMessages,
     transport: new DefaultChatTransport({
@@ -125,6 +125,33 @@ export function ChatView({
     scrollToBottom(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
+
+  // Catch up with the server once on open. The page is prefetched and cached
+  // so that switching conversations is instant, which means it can be a
+  // little behind: most visibly when a reply finished generating after the
+  // participant had already switched away. Replacing the list only when the
+  // server has more avoids disturbing anything in flight here.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/conversations/${conversationId}/messages`);
+        if (!res.ok || cancelled) return;
+        const { messages: serverMessages } = (await res.json()) as {
+          messages: UIMessage[];
+        };
+        if (cancelled) return;
+        setMessages((current) =>
+          serverMessages.length > current.length ? serverMessages : current,
+        );
+      } catch {
+        // Offline or interrupted: what is on screen is still usable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, setMessages]);
 
   // Follow new content as it arrives: the sent message, the thinking
   // indicator, each chunk of the reply, and the controls that appear once a

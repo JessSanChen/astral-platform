@@ -184,6 +184,22 @@ export async function POST(req: Request) {
     // Retaining the request body and messages is off by default. The research
     // dataset needs the exact payload sent to the provider, so opt in.
     include: { requestBody: true, requestMessages: true },
+    onAbort: async ({ steps }) => {
+      // Reached only if generation really is cut short. Keep whatever text
+      // arrived rather than discarding the turn.
+      const text = steps.map((st) => st.text ?? "").join("");
+      console.warn("[chat] generation aborted", { conversationId, chars: text.length });
+      await appendMessage({
+        conversationId,
+        role: "assistant",
+        content: text,
+        parts: [{ type: "text", text }],
+        modelId: convo.modelId,
+        finishReason: "aborted",
+        latencyMs: Date.now() - startedAt,
+      });
+      await touchConversation(conversationId);
+    },
     onError: async ({ error }) => {
       // An API-level refusal produces no visible text but is still a refusal
       // worth keeping, so record it as a message with an error payload.
@@ -262,6 +278,13 @@ export async function POST(req: Request) {
       await touchConversation(conversationId);
     },
   });
+
+  // Keep reading the model's output on the server even if the browser goes
+  // away, which happens whenever a participant switches conversations while
+  // a reply is still arriving. Without this the generation is abandoned
+  // mid-flight and the reply is lost; with it the reply finishes and is
+  // saved, so it is simply there when they come back.
+  void result.consumeStream();
 
   // Pass the provider's own wording through to the participant. Without this
   // every failure reads as a generic "something went wrong", which gives
