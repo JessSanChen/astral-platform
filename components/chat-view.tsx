@@ -6,7 +6,7 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useRouter } from "next/navigation";
-import { ArrowUp, RefreshCw, Square } from "lucide-react";
+import { ArrowUp, RefreshCw, Square, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ModelPicker } from "@/components/model-picker";
 import type { ModelOption } from "@/lib/models";
@@ -19,6 +19,10 @@ type Props = {
   models: ModelOption[];
   initialMessages: UIMessage[];
   locked: boolean; // true once the conversation has any messages
+  conversationStatus: "draft" | "submitted";
+  currentVersion: number;
+  labelsOpen: boolean;
+  onToggleLabels: () => void;
 };
 
 // Friendly text for the error codes our API returns.
@@ -39,7 +43,12 @@ function errorMessage(error: Error | undefined) {
   } catch {
     /* not JSON, fall through */
   }
-  return "Something went wrong talking to the model. Your message is still here, try sending it again.";
+  // The server passes the provider's own wording through, so show it rather
+  // than a generic line that tells nobody anything.
+  return (
+    error.message ||
+    "Something went wrong talking to the model. Try again, or pick another model."
+  );
 }
 
 export function ChatView({
@@ -49,6 +58,10 @@ export function ChatView({
   models,
   initialMessages,
   locked,
+  conversationStatus,
+  currentVersion,
+  labelsOpen,
+  onToggleLabels,
 }: Props) {
   const router = useRouter();
   const [input, setInput] = useState("");
@@ -70,6 +83,14 @@ export function ChatView({
 
   const busy = status === "streaming" || status === "submitted";
   const lastIsAssistant = messages[messages.length - 1]?.role === "assistant";
+  // True between pressing send and the first token arriving. Without a visible
+  // signal here a slow model looks like a failure.
+  const waiting =
+    status === "submitted" ||
+    (status === "streaming" &&
+      !messages[messages.length - 1]?.parts?.some(
+        (p) => p.type === "text" && p.text.length > 0,
+      ));
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,18 +104,33 @@ export function ChatView({
   return (
     <div className="flex h-full flex-col">
       {/* Header: model is fixed once the conversation has started. */}
-      <header className="flex items-center justify-between border-b border-border px-4 py-2">
-        <ModelPicker
-          models={models}
-          value={modelId}
-          onChange={() => {}}
-          disabled
-        />
-        {locked && (
-          <span className="text-xs text-muted-foreground">
-            Model is fixed for this conversation
-          </span>
-        )}
+      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <ModelPicker
+            models={models}
+            value={modelId}
+            onChange={() => {}}
+            disabled
+          />
+          {conversationStatus === "submitted" && (
+            <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+              Submitted v{currentVersion}
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          {locked && (
+            <span className="hidden text-xs text-muted-foreground lg:inline">
+              Model is fixed for this conversation
+            </span>
+          )}
+          {!labelsOpen && (
+            <Button variant="outline" size="sm" onClick={onToggleLabels}>
+              <Tag className="h-3.5 w-3.5" />
+              Labels
+            </Button>
+          )}
+        </div>
       </header>
 
       {scenario && (
@@ -115,9 +151,15 @@ export function ChatView({
             <MessageBubble key={m.id} message={m} />
           ))}
 
+          {waiting && <ThinkingIndicator />}
+
           {error && (
-            <div className="rounded-[var(--radius)] border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
-              {errorMessage(error)}
+            <div className="space-y-1 rounded-[var(--radius)] border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+              <p>{errorMessage(error)}</p>
+              <p className="text-xs opacity-80">
+                Your message is still saved. Try again, or start a new
+                conversation with a different model.
+              </p>
             </div>
           )}
 
@@ -166,6 +208,34 @@ export function ChatView({
         </p>
       </form>
     </div>
+  );
+}
+
+function ThinkingIndicator() {
+  return (
+    <div className="flex justify-start">
+      <div
+        className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3"
+        role="status"
+        aria-live="polite"
+      >
+        <span className="flex gap-1">
+          <Dot delay="0ms" />
+          <Dot delay="160ms" />
+          <Dot delay="320ms" />
+        </span>
+        <span className="text-sm text-muted-foreground">Thinking...</span>
+      </div>
+    </div>
+  );
+}
+
+function Dot({ delay }: { delay: string }) {
+  return (
+    <span
+      className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground"
+      style={{ animationDelay: delay }}
+    />
   );
 }
 

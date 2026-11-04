@@ -231,6 +231,115 @@ which is slower than a production deployment.
 
 ---
 
+## Phase 3 follow-ups
+
+Three issues reported after phase 3, all fixed.
+
+- **No sign that the model was working.** Between pressing send and the first
+  word arriving, nothing moved, so a slow model looked like a failure. There
+  is now a "Thinking..." indicator that appears immediately and clears as
+  soon as text starts arriving.
+- **A model failed with an unhelpful message.** Every failure read as
+  "something went wrong", which told nobody anything. The provider's own
+  wording now reaches the screen, so a missing or unavailable model says so,
+  and the full detail including the status code is stored on the message for
+  later inspection.
+- **One model was slow.** Response speed is mostly the provider's, not ours,
+  and it varies a lot between models. There is now a script to measure it,
+  described below.
+
+### Checking which models actually work
+
+Model names and provider availability on OpenRouter change over time, so the
+list shipped in the code needs confirming against the live service. With your
+real key in `.env.local`:
+
+```bash
+npm run check-models
+```
+
+Every model gets one tiny request. The output shows which answered, how long
+each took and which provider served it, and explains any failure. Models
+taking more than fifteen seconds for a one-word reply are called out, since
+those will feel broken to participants.
+
+To hide the failing ones from participants:
+
+```bash
+npm run check-models -- --fix
+```
+
+Run this the week of the event and again on the morning, and replace anything
+that fails. A model that is unavailable is better removed from the list than
+left for a participant to stumble into.
+
+---
+
+## Phase 4 — Labeling and submitting
+
+Status: done.
+
+### What exists
+
+- A labels panel beside each conversation, which can be closed to give the
+  chat full width.
+- The labels themselves: what kind of transcript it is, the role played and
+  an optional description of it, what the participant was trying to get the
+  model to do, how the model responded, and the topics covered. Under
+  "optional extras": which turn the conversation pivoted on, whether the
+  participant disagrees with how the model behaved, and free notes.
+- A Save button for work in progress, which requires nothing, and a Submit
+  button, which requires the fields the research depends on. A failed submit
+  keeps whatever was already filled in rather than discarding it.
+- Versioning. Each submit writes an immutable snapshot as the next version.
+  The snapshot is self-contained: the messages with their full provenance,
+  the labels, the scenario, the model, and the participant's profile as it
+  was at that moment. A later edit to the conversation or the profile cannot
+  change what was already submitted.
+- Status shown in three places: the sidebar entry, a badge beside the model
+  name, and the panel itself. Once a submitted conversation changes, the
+  button offers the next version number.
+
+### How to test it
+
+1. **The panel is there.** Open a conversation. The labels panel sits on the
+   right. Close it with the cross and reopen it with the Labels button.
+2. **Submitting is guarded.** Press Submit with nothing filled in. Five
+   messages appear, one per required field, each saying what to do. Nothing
+   is submitted.
+3. **Submitting works.** Fill in the required fields, pick at least one
+   topic, and submit. The panel confirms version 1, a badge appears beside
+   the model name, and the sidebar entry changes from Draft to Submitted v1.
+4. **Your answers stay put.** After submitting, the fields still show what
+   you chose. This is worth checking, because an earlier version of the form
+   silently cleared them.
+5. **Updating works.** Send another message, then submit again. The button
+   offers version 2 and the panel confirms it.
+6. **History is kept.** In `npm run db:studio` open the `submission` table.
+   There is one row per version, each holding a complete snapshot. Version 1
+   still contains only the messages that existed when you first submitted.
+7. **Optional answers survive.** Open "optional extras", set the disagreement
+   dropdown and some notes, submit, then collapse the section and submit
+   again. The values must still be there. This also caught a real bug.
+
+### Verified automatically
+
+A browser test covers the whole path: the panel rendering, a blank submit
+producing one clear message per required field, a successful submit creating
+version 1, the values remaining on screen afterwards, and an update creating
+version 2 with the optional fields intact even when that section is
+collapsed. The stored snapshots were checked to confirm each version holds
+the messages, labels and participant profile as they were at that moment.
+
+Two bugs were found and fixed while testing. Collapsing the optional section
+removed those fields from the page, so the next save wrote them away as
+blank. They are now hidden rather than removed. Separately, the form lost
+every answer on the second submit, because a form is reset once its action
+finishes; the panel now holds its values in component state, so they
+persist, and adopts the stored values when a new version is created.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

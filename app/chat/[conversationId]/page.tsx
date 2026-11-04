@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
 import type { UIMessage } from "ai";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { transcriptLabels } from "@/db/schema";
 import { requireOnboarded } from "@/lib/gate";
 import { getEventSettings, ChatError } from "@/lib/openrouter";
 import { getOwnedConversation, getVisibleMessages } from "@/lib/conversations";
-import { ChatView } from "@/components/chat-view";
+import { ConversationWorkspace } from "@/components/conversation-workspace";
 
 export default async function ConversationPage({
   params,
@@ -23,6 +26,10 @@ export default async function ConversationPage({
 
   const rows = await getVisibleMessages(conversationId);
   const settings = await getEventSettings();
+  const [labels] = await db
+    .select()
+    .from(transcriptLabels)
+    .where(eq(transcriptLabels.conversationId, conversationId));
 
   const initialMessages: UIMessage[] = rows.map((m) => ({
     id: m.id,
@@ -30,8 +37,7 @@ export default async function ConversationPage({
     parts: (m.parts as UIMessage["parts"]) ?? [{ type: "text", text: m.content }],
   }));
 
-  // Models the admin disabled after this conversation started must still be
-  // shown by name, so add the conversation's own model if it is missing.
+  // Keep showing a model by name even if the admin disabled it mid-event.
   const models = settings.enabledModels.some((m) => m.id === convo.modelId)
     ? settings.enabledModels
     : [
@@ -45,14 +51,45 @@ export default async function ConversationPage({
         },
       ];
 
+  const lastSubmitted = convo.lastSubmittedAt?.getTime() ?? 0;
+  const changedSinceSubmit =
+    convo.status === "submitted" &&
+    Math.max(
+      convo.updatedAt?.getTime() ?? 0,
+      labels?.updatedAt?.getTime() ?? 0,
+    ) > lastSubmitted;
+
   return (
-    <ChatView
+    <ConversationWorkspace
       conversationId={convo.id}
       modelId={convo.modelId}
       scenario={convo.scenario}
       models={models}
       initialMessages={initialMessages}
       locked={rows.length > 0}
+      status={convo.status}
+      currentVersion={convo.currentVersion}
+      changedSinceSubmit={changedSinceSubmit}
+      hasMessages={rows.length > 0}
+      labels={{
+        type: labels?.type ?? null,
+        rolePreset: labels?.rolePreset ?? null,
+        roleText: labels?.roleText ?? null,
+        goalText: labels?.goalText ?? null,
+        modelBehaviour: labels?.modelBehaviour ?? null,
+        domainTags: labels?.domainTags ?? [],
+        keyTurnMessageId: labels?.keyTurnMessageId ?? null,
+        challengeFlag: labels?.challengeFlag ?? null,
+        notes: labels?.notes ?? null,
+      }}
+      turns={rows.map((m) => ({
+        id: m.id,
+        seq: m.seq,
+        role: m.role,
+        preview:
+          m.content.replace(/\s+/g, " ").slice(0, 50) +
+          (m.content.length > 50 ? "..." : ""),
+      }))}
     />
   );
 }

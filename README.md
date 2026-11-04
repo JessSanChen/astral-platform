@@ -44,13 +44,15 @@ signs up.
 | `npm run db:studio`   | Open Drizzle Studio to browse the database   |
 | `npm run mock-openrouter` | Fake provider, so chat works with no API key |
 | `npm run load-test -- 70 3` | Simulate 70 participants chatting at once |
+| `npm run check-models` | Check every model against OpenRouter with your key |
 
 ## Build status
 
-Phases 1 to 3 are complete: app scaffold, database schema, authentication,
-event-code-gated sign-up, the profile and terms onboarding gate, and the chat
+Phases 1 to 4 are complete: app scaffold, database schema, authentication,
+event-code-gated sign-up, the profile and terms onboarding gate, the chat
 itself with model selection, scenarios, streaming, regenerate and full
-transcript persistence.
+transcript persistence, and the labeling and submit flow with versioned
+snapshots.
 
 See [docs/BUILDLOG.md](docs/BUILDLOG.md) for what each phase delivered and
 step-by-step instructions for testing it yourself. The remaining plan is in

@@ -25,6 +25,46 @@ function fail(code: string, message: string, status: number) {
   return Response.json({ code, message }, { status });
 }
 
+/**
+ * Pulls something useful out of a provider failure. OpenRouter reports a bad
+ * model id, an unavailable model and a content filter all as API errors with
+ * the detail in the response body, so that body is what we keep and show.
+ */
+function describeProviderError(error: unknown): {
+  message: string;
+  status?: number;
+  body?: unknown;
+} {
+  const e = error as {
+    message?: string;
+    statusCode?: number;
+    responseBody?: unknown;
+    data?: { error?: { message?: string } };
+    cause?: { message?: string };
+  };
+  const providerMessage =
+    e?.data?.error?.message ??
+    (typeof e?.responseBody === "string"
+      ? safeJsonMessage(e.responseBody)
+      : undefined);
+  const base =
+    providerMessage ?? e?.message ?? e?.cause?.message ?? "Unknown provider error";
+  return {
+    message: base,
+    status: e?.statusCode,
+    body: e?.responseBody ?? null,
+  };
+}
+
+function safeJsonMessage(raw: string): string | undefined {
+  try {
+    const parsed = JSON.parse(raw) as { error?: { message?: string } };
+    return parsed?.error?.message;
+  } catch {
+    return raw.slice(0, 300) || undefined;
+  }
+}
+
 export async function POST(req: Request) {
   const cu = await getCurrentUser();
   if (!cu) return fail("unauthorized", "Please sign in again.", 401);
@@ -130,14 +170,21 @@ export async function POST(req: Request) {
     onError: async ({ error }) => {
       // An API-level refusal produces no visible text but is still a refusal
       // worth keeping, so record it as a message with an error payload.
-      console.error("[chat] stream error", { conversationId, modelId: convo.modelId });
+      const detail = describeProviderError(error);
+      console.error("[chat] provider error", {
+        conversationId,
+        modelId: convo.modelId,
+        status: detail.status,
+        message: detail.message,
+        body: detail.body,
+      });
       await appendMessage({
         conversationId,
         role: "assistant",
         content: "",
         modelId: convo.modelId,
         finishReason: "error",
-        error: { message: error instanceof Error ? error.message : String(error) },
+        error: detail,
         latencyMs: Date.now() - startedAt,
       });
       await touchConversation(conversationId);
@@ -199,5 +246,10 @@ export async function POST(req: Request) {
     },
   });
 
-  return result.toUIMessageStreamResponse();
+  // Pass the provider's own wording through to the participant. Without this
+  // every failure reads as a generic "something went wrong", which gives
+  // neither the participant nor an organizer anything to act on.
+  return result.toUIMessageStreamResponse({
+    onError: (error) => describeProviderError(error).message,
+  });
 }
