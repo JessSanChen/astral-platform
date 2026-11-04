@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
@@ -66,6 +66,26 @@ export function ChatView({
   const router = useRouter();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Stick to the bottom unless the participant has scrolled up to read
+  // something, which is how every other chat app behaves.
+  const stickToBottom = useRef(true);
+
+  // Scrolling the container directly is more reliable than scrollIntoView on
+  // a child, which can be thrown off by the surrounding flex layout.
+  const scrollToBottom = useCallback((smooth = true) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  }, []);
+
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottom.current = distanceFromBottom < 80;
+  }, []);
 
   const { messages, sendMessage, regenerate, stop, status, error } = useChat({
     id: conversationId,
@@ -77,7 +97,6 @@ export function ChatView({
     onFinish: () => {
       // Refresh so the sidebar title and status stay in step with the server.
       router.refresh();
-      queueMicrotask(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }));
     },
   });
 
@@ -97,9 +116,22 @@ export function ChatView({
     const text = input.trim();
     if (!text || busy) return;
     setInput("");
+    stickToBottom.current = true;
     sendMessage({ text });
-    queueMicrotask(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }));
   }
+
+  // Jump to the newest message when the conversation first opens.
+  useLayoutEffect(() => {
+    scrollToBottom(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
+  // Follow new content as it arrives: the sent message, the thinking
+  // indicator, each chunk of the reply, and the controls that appear once a
+  // reply finishes, which would otherwise leave the last line part-hidden.
+  useEffect(() => {
+    if (stickToBottom.current) scrollToBottom();
+  }, [messages, waiting, status, scrollToBottom]);
 
   return (
     <div className="flex h-full flex-col">
@@ -140,7 +172,12 @@ export function ChatView({
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        data-chat-scroll
+        className="flex-1 overflow-y-auto"
+      >
         <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
           {messages.length === 0 && (
             <p className="py-12 text-center text-sm text-muted-foreground">

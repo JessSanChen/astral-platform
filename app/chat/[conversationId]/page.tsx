@@ -24,12 +24,16 @@ export default async function ConversationPage({
     throw e;
   }
 
-  const rows = await getVisibleMessages(conversationId);
-  const settings = await getEventSettings();
-  const [labels] = await db
-    .select()
-    .from(transcriptLabels)
-    .where(eq(transcriptLabels.conversationId, conversationId));
+  // Fetched together. These do not depend on each other, and running them in
+  // sequence costs one network round trip each on every navigation.
+  const [rows, settings, [labels]] = await Promise.all([
+    getVisibleMessages(conversationId),
+    getEventSettings(),
+    db
+      .select()
+      .from(transcriptLabels)
+      .where(eq(transcriptLabels.conversationId, conversationId)),
+  ]);
 
   const initialMessages: UIMessage[] = rows.map((m) => ({
     id: m.id,

@@ -363,6 +363,91 @@ persist, and adopts the stored values when a new version is created.
 
 ---
 
+## Interface responsiveness and a rate-limit fix
+
+Three problems were reported after phase 4: clicking between conversations
+took about a second, replies felt slow, and nothing scrolled when a message
+was sent. All three are fixed, and a fourth problem was found on the way.
+
+### What was actually slow
+
+Measuring mattered here, because the obvious suspects were wrong. On a local
+database everything was already fast, which hid the problem completely. The
+real cost is that a hosted database such as Neon sits a network hop away, so
+every query costs tens of milliseconds, and the pages were making roughly
+nineteen of them per navigation, mostly one after another.
+
+Simulating a hosted database by delaying the connection reproduced it:
+
+| | Navigation between conversations |
+|---|---|
+| Before | 838 ms |
+| After | 68 ms |
+
+What changed:
+
+- **The conversation is fetched before it is clicked.** Sidebar links now
+  prefetch, so the data is usually already there when you click. This is the
+  single biggest improvement.
+- **A placeholder appears instantly.** Previously the old conversation stayed
+  on screen while the new one loaded, so a click appeared to do nothing.
+- **Queries that do not depend on each other now run together** rather than
+  in sequence, in the conversation page, the sidebar and the chat endpoint.
+- **The same rows are no longer fetched twice.** The signed-in user was read
+  once by the login system and again by the application; the application's
+  own fields now travel with the session. The settings and terms version,
+  read on every page load but changed only by an organizer, are held briefly
+  in memory.
+- **The chat endpoint no longer re-reads the conversation** after saving a
+  message, since it already knows what it just wrote.
+
+Reply speed improved for the same reasons, though with a real model the
+model's own thinking time dominates anything the platform adds.
+
+### Scrolling
+
+The view now follows new content: the message you send, the thinking
+indicator, and each chunk of the reply as it arrives. If you scroll up to
+read something earlier it stays put rather than yanking you back, and
+sending a new message returns you to the bottom. This is how other chat
+applications behave.
+
+### The rate limit that would have broken registration
+
+Running the load test against a production build surfaced something the
+development server had been hiding: the login system enforces rate limits in
+production only, and its default allows **three sign-ups or sign-ins every
+ten seconds from one network address**.
+
+Everyone at the event will share the venue's single address. Sixty people
+registering in the first few minutes would have been throttled to three per
+ten seconds, and most would have seen errors while trying to sign up.
+
+The limits are now set for a room full of people sharing one connection.
+What keeps strangers out is the event code, not the rate limit, and an
+organizer can pause any account instantly.
+
+This is worth repeating as a general point: test against a production build
+before the event, because some protections only switch on there.
+
+### Measured again afterwards
+
+Seventy simulated participants, above the sixty expected, each holding a
+conversation at the same time against a production build:
+
+| Measure | Result |
+|---|---|
+| Replies delivered | 210 of 210 |
+| Participants with errors | 0 of 70 |
+| Reply time, median | 1.4 s |
+| Reply time, 95th percentile | 1.8 s |
+
+Those reply times include the stand-in provider's own streaming and exclude
+real model thinking time, so treat them as the platform's overhead rather
+than what a participant will feel.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

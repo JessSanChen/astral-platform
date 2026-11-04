@@ -20,11 +20,45 @@ export const auth = betterAuth({
       verification: schema.verification,
     },
   }),
+  user: {
+    // Including our own columns in the session means the user row that Better
+    // Auth already reads on every request also carries what the app needs, so
+    // the app does not have to read the same row a second time. These come
+    // from that same live read, so an admin raising a budget still takes
+    // effect on the participant's next request.
+    additionalFields: {
+      isPaused: { type: "boolean", required: false, input: false },
+      dailyTokenBudget: { type: "number", required: false, input: false },
+      judgeRunsPerHour: { type: "number", required: false, input: false },
+      termsVersion: { type: "number", required: false, input: false },
+      termsAcceptedAt: { type: "date", required: false, input: false },
+      profileCompletedAt: { type: "date", required: false, input: false },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
     // No email verification for the MVP; participants are on site.
     requireEmailVerification: false,
+  },
+  rateLimit: {
+    // Better Auth enables rate limiting in production only, and its default
+    // for sign-in and sign-up is 3 requests per 10 seconds keyed by IP
+    // address. Every participant at the event shares the venue's single
+    // address, so that default would throttle the whole room to three
+    // sign-ups per ten seconds and most people would see errors during
+    // registration.
+    //
+    // These limits are deliberately generous for that shared-address case.
+    // What actually keeps strangers out is the event code required to sign
+    // up, and an organizer can pause any account instantly.
+    enabled: true,
+    window: 60,
+    max: 600,
+    customRules: {
+      "/sign-up/email": { window: 60, max: 200 },
+      "/sign-in/email": { window: 60, max: 200 },
+    },
   },
   plugins: [
     admin({

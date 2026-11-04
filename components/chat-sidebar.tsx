@@ -53,6 +53,10 @@ export function ChatSidebar({
             <Link
               key={c.id}
               href={`/chat/${c.id}`}
+              // Fetch the conversation before it is clicked. These pages are
+              // dynamic, so without this the whole round trip happens after
+              // the click and the interface sits still while it waits.
+              prefetch={true}
               className={cn(
                 "mb-0.5 block rounded-[var(--radius)] px-3 py-2 text-sm hover:bg-muted",
                 active && "bg-muted font-medium",

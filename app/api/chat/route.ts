@@ -81,23 +81,37 @@ export async function POST(req: Request) {
   const { conversationId, messages: uiMessages = [], regenerate = false } = body;
   if (!conversationId) return fail("bad_request", "Missing conversation.", 400);
 
-  const settings = await getEventSettings();
+  // Fetched together: none of these depend on each other, and every round
+  // trip here delays the first token the participant sees.
+  const [settings, convoResult, used] = await Promise.all([
+    getEventSettings(),
+    getOwnedConversation(conversationId, cu.user.id).then(
+      (value) => ({ ok: true as const, value }),
+      (error: unknown) => ({ ok: false as const, error }),
+    ),
+    tokensUsedToday(cu.user.id),
+  ]);
+
   if (settings.chatPaused)
     return fail("chat_paused", "An organizer has paused chat for everyone.", 503);
 
-  let convo;
-  try {
-    convo = await getOwnedConversation(conversationId, cu.user.id);
-    assertModelAllowed(convo.modelId, settings.enabledModels);
-  } catch (e) {
+  if (!convoResult.ok) {
+    const e = convoResult.error;
     if (e instanceof ChatError)
       return fail(e.code, e.message, e.code === "not_found" ? 404 : 403);
+    throw e;
+  }
+  const convo = convoResult.value;
+
+  try {
+    assertModelAllowed(convo.modelId, settings.enabledModels);
+  } catch (e) {
+    if (e instanceof ChatError) return fail(e.code, e.message, 403);
     throw e;
   }
 
   // --- Budget and rate limit -------------------------------------------
   const budget = cu.user.dailyTokenBudget ?? settings.defaultDailyTokenBudget;
-  const used = await tokensUsedToday(cu.user.id);
   if (used >= budget)
     return fail("budget_exhausted", "You have reached today's usage limit. Find an organizer to raise it.", 429);
 
@@ -117,6 +131,10 @@ export async function POST(req: Request) {
   // --- Persist the incoming user message (or supersede on regenerate) ---
   const history = await getVisibleMessages(conversationId);
   const last = history[history.length - 1];
+  // Built from what the database returned plus the row we write below, so the
+  // prompt still never comes from client input, without reading the same
+  // messages a second time.
+  let promptHistory = history;
 
   if (regenerate) {
     // Hide the previous assistant reply; it stays in the database.
@@ -125,6 +143,7 @@ export async function POST(req: Request) {
         .update(messageTable)
         .set({ supersededBy: last.id })
         .where(eq(messageTable.id, last.id));
+      promptHistory = history.slice(0, -1);
     }
   } else {
     const incoming = uiMessages[uiMessages.length - 1];
@@ -135,12 +154,13 @@ export async function POST(req: Request) {
         .join("") ?? "";
     if (!text.trim()) return fail("bad_request", "Message is empty.", 400);
 
-    await appendMessage({
+    const savedUserMessage = await appendMessage({
       conversationId,
       role: "user",
       content: text,
       parts: incoming?.parts ?? null,
     });
+    promptHistory = [...history, savedUserMessage];
     if (history.length === 0) {
       await touchConversation(conversationId, { title: deriveTitle(text) });
     } else {
@@ -148,11 +168,8 @@ export async function POST(req: Request) {
     }
   }
 
-  // Rebuild the prompt from the database, never from client input, so a
-  // tampered client cannot rewrite history.
-  const freshHistory = await getVisibleMessages(conversationId);
   const modelMessages = await convertToModelMessages(
-    freshHistory.map((m) => ({
+    promptHistory.map((m) => ({
       role: m.role,
       parts: (m.parts as UIMessage["parts"]) ?? [{ type: "text", text: m.content }],
     })),

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { eventSettings } from "@/db/schema";
 import { DEFAULT_MODELS, type ModelOption } from "@/lib/models";
+import { CACHE_KEYS, cached } from "@/lib/cache";
 
 export const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -30,8 +31,19 @@ export type EventSettings = {
   enabledModels: ModelOption[];
 };
 
-/** Reads the singleton settings row, falling back to code defaults. */
+/**
+ * Reads the singleton settings row, falling back to code defaults.
+ *
+ * Cached briefly: this is read on every page load and every message, but
+ * changes only when an admin edits it. The limits it carries are compared
+ * against live counts, so a few seconds of staleness cannot let anyone
+ * exceed a budget.
+ */
 export async function getEventSettings(): Promise<EventSettings> {
+  return cached(CACHE_KEYS.eventSettings, 10_000, loadEventSettings);
+}
+
+async function loadEventSettings(): Promise<EventSettings> {
   const [row] = await db
     .select()
     .from(eventSettings)

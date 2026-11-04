@@ -1,28 +1,48 @@
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { db } from "@/db";
-import { termsVersion, user as userTable } from "@/db/schema";
+import { termsVersion } from "@/db/schema";
 import { getSession } from "@/lib/session";
+import { CACHE_KEYS, cached } from "@/lib/cache";
 
 /**
- * Loads the signed-in user's full database row (not just the session copy),
- * plus the latest published terms version. Cached per request.
+ * The newest published terms version. Cached briefly because it is read on
+ * every page load and changes only when an admin publishes new terms.
+ */
+export async function getLatestTermsVersion(): Promise<number> {
+  return cached(CACHE_KEYS.latestTermsVersion, 10_000, async () => {
+    const [row] = await db
+      .select({ version: termsVersion.version })
+      .from(termsVersion)
+      .orderBy(desc(termsVersion.version))
+      .limit(1);
+    return row?.version ?? 0;
+  });
+}
+
+/** The application columns we add to the session user in lib/auth.ts. */
+type AppUserFields = {
+  isPaused?: boolean | null;
+  dailyTokenBudget?: number | null;
+  judgeRunsPerHour?: number | null;
+  termsVersion?: number | null;
+  termsAcceptedAt?: Date | string | null;
+  profileCompletedAt?: Date | string | null;
+};
+
+/**
+ * The signed-in user with the app's own fields, plus the latest published
+ * terms version. Cached per request.
  */
 export const getCurrentUser = cache(async () => {
   const session = await getSession();
   if (!session) return null;
-  const [u] = await db
-    .select()
-    .from(userTable)
-    .where(eq(userTable.id, session.user.id));
-  if (!u) return null;
-  const [latestTerms] = await db
-    .select({ version: termsVersion.version })
-    .from(termsVersion)
-    .orderBy(desc(termsVersion.version))
-    .limit(1);
-  const latestTermsVersion = latestTerms?.version ?? 0;
+  // The session already carries the user row, including our own columns (see
+  // lib/auth.ts), so there is no second read of the same row here. On a
+  // hosted database that saved round trip is on every page load.
+  const u = session.user as typeof session.user & AppUserFields;
+  const latestTermsVersion = await getLatestTermsVersion();
   return {
     session,
     user: u,

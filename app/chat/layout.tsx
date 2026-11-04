@@ -11,14 +11,16 @@ export default async function ChatLayout({
   children: React.ReactNode;
 }) {
   const { user, isAdmin } = await requireOnboarded();
-  const conversations = await listConversations(user.id);
 
-  const [counts] = await db
-    .select({ submitted: sql<number>`count(*)::int` })
-    .from(conversation)
-    .where(
-      and(eq(conversation.userId, user.id), eq(conversation.status, "submitted")),
-    );
+  const [conversations, [counts]] = await Promise.all([
+    listConversations(user.id),
+    db
+      .select({ submitted: sql<number>`count(*)::int` })
+      .from(conversation)
+      .where(
+        and(eq(conversation.userId, user.id), eq(conversation.status, "submitted")),
+      ),
+  ]);
 
   return (
     <div className="flex h-screen">
