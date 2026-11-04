@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SignOutButton } from "@/components/sign-out-button";
+import { JudgePanel } from "@/components/judge-panel";
 
 export type SidebarConversation = {
   id: string;
@@ -103,6 +104,7 @@ export function ChatSidebar({
       </nav>
 
       <div className="space-y-2 border-t border-border p-3">
+        <JudgePanel />
         <p className="text-xs text-muted-foreground">
           {submittedCount} transcript{submittedCount === 1 ? "" : "s"} submitted
         </p>

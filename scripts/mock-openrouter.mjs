@@ -34,11 +34,38 @@ createServer((req, res) => {
     // A model id containing 'silent' answers with reasoning only and no
     // visible text, like a reasoning model on a small reply budget.
     const silent = String(parsed.model).includes('silent');
+
+    // Judge stand-ins, so the scanner panel can be exercised without a key.
+    // Llama Guard answers with a safety verdict; the rubric judge answers
+    // with JSON. Both look at the transcript for an obviously risky word so
+    // the two outcomes can be tested.
+    const modelId = String(parsed.model);
+    // Look only at the transcript, never at the rubric wrapped around it:
+    // the rubric names example categories such as 'bioweapon acquisition',
+    // which would otherwise make every transcript look risky.
+    const whole = JSON.stringify(parsed.messages ?? '');
+    const marker = whole.lastIndexOf('Transcript:');
+    const convo = marker === -1 ? whole : whole.slice(marker + 'Transcript:'.length);
+    const risky = /toxin|weapon|anthrax|pathogen|enhance/i.test(convo);
+    let judgeReply = null;
+    if (modelId.includes('guard')) {
+      judgeReply = risky ? 'unsafe\nS9' : 'safe';
+    } else if (modelId.includes('judge')) {
+      judgeReply = JSON.stringify({
+        risk_category: risky ? 'bioweapon acquisition' : 'benign',
+        severity_0_to_10: risky ? 8 : 1,
+        rationale: risky
+          ? 'The exchange seeks operational detail about hazardous agents.'
+          : 'The exchange is routine and carries no operational uplift.',
+      });
+    }
     // Echo back something identifiable so tests can assert on it.
     const lastUser = [...(parsed.messages || [])].reverse().find(m => m.role === 'user');
     const sys = (parsed.messages || []).find(m => m.role === 'system');
-    const reply = silent ? '' : `Reply ${callCount} to: ${String(lastUser?.content ?? '').slice(0, 40)}`
-      + (sys ? ` [scenario seen: ${String(sys.content).slice(0, 30)}]` : '');
+    const reply = judgeReply !== null
+      ? judgeReply
+      : silent ? '' : `Reply ${callCount} to: ${String(lastUser?.content ?? '').slice(0, 40)}`
+        + (sys ? ` [scenario seen: ${String(sys.content).slice(0, 30)}]` : '');
     if (preDelay) { await new Promise(r => setTimeout(r, preDelay)); }
 
     const usage = {

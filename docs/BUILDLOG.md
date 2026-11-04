@@ -448,6 +448,107 @@ than what a participant will feel.
 
 ---
 
+## More interface fixes
+
+Three further problems were reported and fixed.
+
+- **A reply was lost when switching conversations mid-answer.** The server
+  used to abandon the generation as soon as the browser went away. It now
+  keeps reading the model's answer to the end and saves it, so the reply is
+  simply there when the participant comes back. A generation that really is
+  cut short now stores whatever text had arrived instead of discarding the
+  turn.
+
+  There was a second half to this. Because conversations are prefetched and
+  cached for speed, the page could show a slightly stale list and hide a
+  reply that had in fact been saved. The chat now quietly catches up with the
+  server when a conversation is opened, so both the speed and the accuracy
+  hold.
+
+- **The screen went blank while a conversation loaded.** A full-screen
+  placeholder was replacing the chat on every click, which was jarring. The
+  conversation being read now stays on screen until the next one is ready,
+  with a small spinner on the one being opened.
+
+- **Submitted conversations are marked.** Each entry in the sidebar carries a
+  dot, filled for submitted and outlined for draft.
+
+---
+
+## Phase 5 — Safety scanners
+
+Status: done.
+
+### What exists
+
+- A **Scanners** panel, opened from the bottom of the conversation list. It
+  lives outside any single conversation, so the list of results stays put as
+  participants move around during the day.
+- Two scanners, which behave quite differently on purpose:
+  - **Llama Guard 4**, an open-weight classifier that answers only "safe" or
+    "unsafe" plus hazard categories, with no explanation. Category codes are
+    translated into words.
+  - **An LLM judge** given a rubric, which returns a risk category, a
+    severity from 0 to 10, and a short rationale.
+- Results are listed newest first with the conversation they came from, and
+  clicking one opens that conversation. Flagged results are marked in red,
+  clean ones in blue.
+- A participant sees only their own results. Nobody can run a scanner on, or
+  see results for, someone else's conversation.
+- Runs are limited per hour, since each one costs a model call, and the
+  tokens and cost are recorded alongside chat usage.
+- If a scanner itself fails, the reason is shown and the failure is recorded
+  rather than silently swallowed.
+
+### Why two different scanners
+
+The point is for participants to see the contours of these tools rather than
+trust them. A classifier that says only "unsafe, indiscriminate weapons" and
+a judge that writes a paragraph will disagree with each other, and both will
+sometimes be wrong about the same transcript. That disagreement is the
+lesson.
+
+### How to test it
+
+1. **Open the panel.** Press Scanners at the bottom of the conversation list.
+2. **Run both scanners on a clearly risky conversation.** Each result
+   appears at the top of the list, flagged in red.
+3. **Run them on a routine conversation.** The verdicts should differ
+   markedly from the risky one.
+4. **Switch conversations.** The panel and its results stay where they were.
+5. **Click a conversation name under a result.** It opens that conversation.
+6. **Check the limit.** Each participant gets a set number of runs per hour,
+   adjustable per person. Past it, a clear message explains the wait.
+
+### Testing without an API key
+
+The stand-in provider now imitates both scanners, so the whole panel can be
+exercised with no key and no spend. Point the judge configurations at the
+stand-in models first:
+
+```sql
+UPDATE judge_config SET model_id = 'test/mock-judge' WHERE kind = 'llm';
+UPDATE judge_config SET model_id = 'test/mock-guard' WHERE kind = 'llama_guard';
+```
+
+Remember to set them back to the real models before the event.
+
+### Verified automatically
+
+A browser test runs both scanners over a risky and a routine conversation and
+confirms the verdicts differ appropriately, that the panel survives moving
+between conversations, and that there are no console errors. Separate checks
+confirm the hourly limit returns a clear message, that one participant cannot
+run a scanner on another's conversation, and that they see none of each
+other's results.
+
+One flaw was found in the test harness rather than the product: the rubric
+given to the judge names example categories, one of which contains the word
+"bioweapon", and the stand-in scanner was matching on that rather than on
+the conversation. It now reads only the transcript.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge
