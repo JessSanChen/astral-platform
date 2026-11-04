@@ -263,10 +263,33 @@ each took and which provider served it, and explains any failure. Models
 taking more than fifteen seconds for a one-word reply are called out, since
 those will feel broken to participants.
 
-To hide the failing ones from participants:
+To hide genuinely broken ones from participants:
 
 ```bash
 npm run check-models -- --fix
+```
+
+To try replacement candidates without touching the stored list:
+
+```bash
+npm run check-models -- qwen/qwen3.7-plus another/model-id
+```
+
+The report separates three outcomes, which matters because they need
+different responses:
+
+- **ok** means the model answered normally.
+- **note** means it was reached and responded correctly but produced no
+  visible text on a short reply budget. This is normal for reasoning models,
+  which spend their budget thinking before they write, and it does not
+  affect ordinary chat, where replies are not capped so tightly.
+- **FAIL** means the request genuinely failed, and the reason is printed.
+  Only these are disabled by `--fix`.
+
+After changing the model list in the code, load it into the database with:
+
+```bash
+npm run db:seed -- --models
 ```
 
 Run this the week of the event and again on the morning, and replace anything

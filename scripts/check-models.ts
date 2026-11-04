@@ -1,16 +1,20 @@
 /**
- * Checks every model in the live list against OpenRouter, using your real key.
+ * Checks models against OpenRouter using your real key.
  *
- *   npx tsx --env-file=.env.local scripts/check-models.ts
+ *   npm run check-models                       # the live list
+ *   npm run check-models -- --fix              # hide failures from participants
+ *   npm run check-models -- qwen/qwen3.7-plus  # try candidate ids
  *
- * For each model it sends one tiny request and reports whether it answered,
- * how long the first reply took, and the provider that served it. Run this
- * the week of the event: provider availability and model names change, and a
- * model that has gone away shows up here as a clear failure rather than as a
- * participant staring at an error.
+ * Each model gets one small request. The report says whether it answered, how
+ * long it took, which provider served it, and why it failed if it did.
  *
- * Add --fix to disable the failing models in the database so participants
- * only ever see models that currently work.
+ * Run it the week of the event and again on the morning: model names and
+ * provider availability change, and a model that has gone away is better
+ * removed from the list than left for a participant to stumble into.
+ *
+ * Note on reasoning models: these spend output tokens on hidden reasoning
+ * before producing any visible text, so the token budget below is generous.
+ * Too small a budget makes a working model look broken.
  */
 import { generateText } from "ai";
 import { eq } from "drizzle-orm";
@@ -19,13 +23,21 @@ import { eventSettings } from "@/db/schema";
 import { getEventSettings, openrouter } from "@/lib/openrouter";
 import { DEFAULT_MODELS, type ModelOption } from "@/lib/models";
 
-const FIX = process.argv.includes("--fix");
+const args = process.argv.slice(2);
+const FIX = args.includes("--fix");
+const candidates = args.filter((a) => !a.startsWith("--"));
 
+const MAX_OUTPUT_TOKENS = 512;
+const SLOW_MS = 15_000;
+
+type Status = "ok" | "empty" | "fail";
 type Check = {
   model: ModelOption;
-  ok: boolean;
+  status: Status;
   ms: number;
   provider?: string;
+  finishReason?: string;
+  reasoningTokens?: number;
   detail?: string;
 };
 
@@ -35,16 +47,23 @@ async function check(model: ModelOption): Promise<Check> {
     const res = await generateText({
       model: openrouter.chat(model.id),
       prompt: "Reply with the single word: ok",
-      maxOutputTokens: 16,
-      timeout: 60_000,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      timeout: 90_000,
     });
     const meta = res.providerMetadata?.openrouter as { provider?: string } | undefined;
+    const text = res.text.trim();
+    const reasoningTokens = res.usage?.outputTokenDetails?.reasoningTokens ?? 0;
     return {
       model,
-      ok: res.text.trim().length > 0,
+      // Reaching a provider and getting a well-formed response is the thing
+      // that matters. Empty text is reported separately rather than as a
+      // failure, because it usually means the budget went on reasoning.
+      status: text.length > 0 ? "ok" : "empty",
       ms: Date.now() - started,
       provider: meta?.provider,
-      detail: res.text.trim().slice(0, 40),
+      finishReason: res.finishReason,
+      reasoningTokens,
+      detail: text.slice(0, 40),
     };
   } catch (e) {
     const err = e as {
@@ -58,12 +77,12 @@ async function check(model: ModelOption): Promise<Check> {
       try {
         detail = JSON.parse(err.responseBody)?.error?.message ?? detail;
       } catch {
-        /* keep the message we have */
+        /* keep what we have */
       }
     }
     return {
       model,
-      ok: false,
+      status: "fail",
       ms: Date.now() - started,
       detail: `${err.statusCode ?? ""} ${detail}`.trim(),
     };
@@ -76,42 +95,65 @@ async function main() {
     process.exit(1);
   }
   if (process.env.OPENROUTER_BASE_URL) {
-    console.warn(
-      `Warning: OPENROUTER_BASE_URL is set to ${process.env.OPENROUTER_BASE_URL}.`,
-    );
+    console.warn(`Warning: OPENROUTER_BASE_URL is set to ${process.env.OPENROUTER_BASE_URL}.`);
     console.warn("This checks the mock provider, not the real OpenRouter.\n");
   }
 
-  const settings = await getEventSettings().catch(() => null);
-  const models = settings?.enabledModels?.length
-    ? settings.enabledModels
-    : DEFAULT_MODELS;
+  let models: ModelOption[];
+  if (candidates.length > 0) {
+    models = candidates.map((id, i) => ({
+      id,
+      displayName: id.split("/").pop() ?? id,
+      family: "open" as const,
+      sort: i,
+      enabled: true,
+    }));
+  } else {
+    const settings = await getEventSettings().catch(() => null);
+    models = settings?.enabledModels?.length ? settings.enabledModels : DEFAULT_MODELS;
+  }
 
-  console.log(`Checking ${models.length} models...\n`);
-  const results = await Promise.all(models.map(check));
+  console.log(`Checking ${models.length} model(s)...\n`);
+  const results = (await Promise.all(models.map(check))).sort(
+    (a, b) => a.model.sort - b.model.sort,
+  );
 
   const pad = (s: string, n: number) => s.padEnd(n).slice(0, n);
-  for (const r of results.sort((a, b) => a.model.sort - b.model.sort)) {
-    const mark = r.ok ? "ok  " : "FAIL";
-    const timing = r.ok ? `${(r.ms / 1000).toFixed(1)}s` : "";
-    const via = r.provider ? `via ${r.provider}` : "";
+  for (const r of results) {
+    const mark = r.status === "ok" ? "ok  " : r.status === "empty" ? "note" : "FAIL";
+    const timing = r.status === "fail" ? "" : `${(r.ms / 1000).toFixed(1)}s`;
     console.log(
-      `  ${mark} ${pad(r.model.displayName, 20)} ${pad(r.model.id, 34)} ${pad(timing, 7)} ${via}`,
+      `  ${mark} ${pad(r.model.displayName, 20)} ${pad(r.model.id, 34)} ${pad(timing, 7)} ${
+        r.provider ? `via ${r.provider}` : ""
+      }`,
     );
-    if (!r.ok) console.log(`       ${r.detail}`);
+    if (r.status === "fail") {
+      console.log(`       ${r.detail}`);
+    } else if (r.status === "empty") {
+      console.log(
+        `       Reachable, but returned no visible text (finish: ${r.finishReason}, ` +
+          `${r.reasoningTokens} reasoning tokens). Usually a reasoning model that ` +
+          `needs a larger reply budget; fine for chat.`,
+      );
+    }
   }
 
-  const failing = results.filter((r) => !r.ok);
-  const slow = results.filter((r) => r.ok && r.ms > 15_000);
+  const failing = results.filter((r) => r.status === "fail");
+  const empty = results.filter((r) => r.status === "empty");
+  const slow = results.filter((r) => r.status !== "fail" && r.ms > SLOW_MS);
+
   console.log("");
-  console.log(`  ${results.length - failing.length}/${results.length} models answered.`);
+  console.log(`  ${results.length - failing.length}/${results.length} reachable.`);
+  if (empty.length > 0) {
+    console.log(`  Reachable but silent on a short budget: ${empty.map((e) => e.model.displayName).join(", ")}`);
+  }
   if (slow.length > 0) {
-    console.log(
-      `  Slow (over 15s for a one-word reply): ${slow.map((s) => s.model.displayName).join(", ")}`,
-    );
+    console.log(`  Slow (over ${SLOW_MS / 1000}s): ${slow.map((s) => s.model.displayName).join(", ")}`);
   }
 
-  if (failing.length > 0 && FIX) {
+  if (candidates.length > 0) {
+    console.log("\n  Candidate check only; the stored list was not changed.");
+  } else if (failing.length > 0 && FIX) {
     const updated = models.map((m) =>
       failing.some((f) => f.model.id === m.id) ? { ...m, enabled: false } : m,
     );
@@ -119,9 +161,9 @@ async function main() {
       .update(eventSettings)
       .set({ enabledModels: updated, updatedAt: new Date() })
       .where(eq(eventSettings.id, 1));
-    console.log(`\n  Disabled ${failing.length} failing model(s) for participants.`);
+    console.log(`\n  Disabled ${failing.length} unreachable model(s) for participants.`);
   } else if (failing.length > 0) {
-    console.log("  Re-run with --fix to hide the failing models from participants.");
+    console.log("  Re-run with --fix to hide the unreachable models from participants.");
   }
 
   process.exit(failing.length === 0 ? 0 : 1);

@@ -31,12 +31,44 @@ createServer((req, res) => {
       return;
     }
     const preDelay = String(parsed.model).includes('slow') ? 2500 : 0;
+    // A model id containing 'silent' answers with reasoning only and no
+    // visible text, like a reasoning model on a small reply budget.
+    const silent = String(parsed.model).includes('silent');
     // Echo back something identifiable so tests can assert on it.
     const lastUser = [...(parsed.messages || [])].reverse().find(m => m.role === 'user');
     const sys = (parsed.messages || []).find(m => m.role === 'system');
-    const reply = `Reply ${callCount} to: ${String(lastUser?.content ?? '').slice(0, 40)}`
+    const reply = silent ? '' : `Reply ${callCount} to: ${String(lastUser?.content ?? '').slice(0, 40)}`
       + (sys ? ` [scenario seen: ${String(sys.content).slice(0, 30)}]` : '');
     if (preDelay) { await new Promise(r => setTimeout(r, preDelay)); }
+
+    const usage = {
+      prompt_tokens: 11,
+      completion_tokens: silent ? 0 : 7,
+      total_tokens: silent ? 11 : 18,
+      cost: 0.00042,
+      completion_tokens_details: { reasoning_tokens: silent ? 512 : 3 },
+    };
+
+    // Non-streaming requests (used by the model checker) get an ordinary
+    // JSON completion rather than an event stream.
+    if (parsed.stream === false || parsed.stream === undefined) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({
+        id: 'gen-mock-' + callCount,
+        model: parsed.model,
+        provider: 'MockProvider',
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        choices: [{
+          index: 0,
+          message: { role: 'assistant', content: reply },
+          finish_reason: silent ? 'length' : 'stop',
+        }],
+        usage,
+      }));
+      return;
+    }
+
     res.writeHead(200, {
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache',
@@ -55,9 +87,9 @@ createServer((req, res) => {
         clearInterval(timer);
         send({
           id, model: parsed.model, provider: 'MockProvider',
-          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+          choices: [{ index: 0, delta: {}, finish_reason: silent ? 'length' : 'stop' }],
           usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18, cost: 0.00042,
-                   completion_tokens_details: { reasoning_tokens: 3 } },
+                   completion_tokens_details: { reasoning_tokens: silent ? 512 : 3 } },
         });
         res.write('data: [DONE]\n\n');
         res.end();

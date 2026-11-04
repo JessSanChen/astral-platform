@@ -1,8 +1,9 @@
 // Curated model list for the event. The admin console can edit the live list
 // (stored in event_settings.enabledModels); this is the seed + fallback.
 //
-// IMPORTANT: verify each id against OpenRouter the week of the event, since
-// providers rotate. Check https://openrouter.ai/models or GET /api/v1/models.
+// IMPORTANT: verify each id against OpenRouter the week of the event with
+// `npm run check-models`. Model names are deprecated and replaced regularly,
+// and a stale id shows up to a participant as a failed conversation.
 // `family` drives grouping in the ChatGPT-style dropdown.
 
 export type ModelFamily = "anthropic" | "openai" | "open";
@@ -61,12 +62,17 @@ export const DEFAULT_MODELS: ModelOption[] = [
     note: "Meta open weight",
   },
   {
-    id: "qwen/qwen3-235b-a22b",
-    displayName: "Qwen3 235B",
+    // Replaces qwen/qwen3-235b-a22b, which OpenRouter deprecated on
+    // 2026-10-09 and which names this as the migration target. Verify with
+    // `npm run check-models` before the event, and note that Alibaba's
+    // "Plus" tier is a hosted model rather than an open-weight release, so
+    // swap in an open-weight Qwen if that distinction matters for the study.
+    id: "qwen/qwen3.7-plus",
+    displayName: "Qwen3.7 Plus",
     family: "open",
     sort: 31,
     enabled: true,
-    note: "Alibaba open weight",
+    note: "Alibaba",
   },
   {
     id: "deepseek/deepseek-chat-v3.1",
