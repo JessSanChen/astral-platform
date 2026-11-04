@@ -112,19 +112,23 @@ cannot reach any other page until both steps are complete.
 - Left sidebar: list of the participant's conversations, newest first, with
   a status badge: **Draft**, **Submitted v1**, **Submitted v2 (changed)**.
 - "New conversation" button.
+- The participant's own submitted count is shown in the sidebar (just a
+  number, no comparison to other participants).
 - Top bar: participant name, remaining budget indicator (simple, e.g. "Plenty"
   / "Running low"), sign out.
 - Right side: collapsible **Judge panel** (see 3.7).
 
 ### 3.4 New conversation
 
-- Model picker: a curated list the admin controls. Initial list, subject to
-  verifying availability on OpenRouter at build time:
+- Model picker: a ChatGPT-style dropdown (a single control that opens a
+  grouped menu: Anthropic, OpenAI, Open weight), curated by the admin. List:
   - Claude: the current Sonnet and Opus models.
   - GPT: the current GPT-5 family flagship and a smaller/faster variant.
-  - Open weight: the strongest two or three available, e.g. Llama 4 Maverick,
-    Qwen3 235B, DeepSeek V3.x, gpt-oss-120b, Kimi K2. Final list chosen the
-    week of the event from what OpenRouter actually serves reliably.
+  - Open weight (refuse less, widen the dataset): Llama 4 Maverick,
+    Qwen3 235B, DeepSeek V3.1, gpt-oss-120b.
+  The exact list is chosen now and lives in `lib/models.ts` and the seeded
+  `event_settings.enabledModels`. Model ids must be re-verified against
+  OpenRouter the week of the event, since providers rotate names.
 - Optional **Scenario** box (this is the system prompt, see glossary in
   ARCHITECTURE.md). Placeholder text explains it: "Optional. Set the scene for
   the model, for example 'You are a helpful assistant at a BSL-2 teaching lab.'
@@ -159,6 +163,7 @@ required before the first submit.
 | Model behaviour       | select: fully complied, partially complied, refused, deflected / unclear | yes |
 | Domain tags           | multi-select: virology, bacteriology, toxins, synthetic biology, gain of function / enhancement, acquisition of agents or materials, lab protocols, biosafety, bioinformatics, policy / regulation, other | yes, at least one |
 | Key turn              | optional pointer to the message where the conversation pivoted | no |
+| Challenge flag        | optional: "refusal was unwarranted" / "model complied with something dangerous" | no |
 | Notes                 | textarea                                           | no       |
 
 **Submit** creates version 1 of the submission: an immutable snapshot of the
@@ -322,9 +327,5 @@ Each phase ends with something you can click.
 
 ## 10. Open questions
 
-1. Final model list: decide the week of the event from OpenRouter availability.
+1. Model ids: re-verify against OpenRouter the week of the event.
 2. Terms text: placeholder until you have real text.
-3. Should participants be able to see their own submission count? Default: yes,
-   a small number in the sidebar, no comparison to others.
-4. Do you want participants to be able to flag "I think the model's refusal
-   was wrong / the compliance was dangerous"? This is a cheap extra label.
