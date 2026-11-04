@@ -123,9 +123,11 @@ cannot reach any other page until both steps are complete.
   grouped menu: Anthropic, OpenAI, Open weight), curated by the admin. List:
   - Claude: the current Sonnet and Opus models.
   - GPT: the current GPT-5 family flagship and a smaller/faster variant.
-  - Open weight: the strongest two or three available, e.g. Llama 4 Maverick,
-    Qwen3 235B, DeepSeek V3.x, gpt-oss-120b, Kimi K2. Final list chosen the
-    week of the event from what OpenRouter actually serves reliably.
+  - Open weight (refuse less, widen the dataset): Llama 4 Maverick,
+    Qwen3 235B, DeepSeek V3.1, gpt-oss-120b.
+  The exact list is chosen now and lives in `lib/models.ts` and the seeded
+  `event_settings.enabledModels`. Model ids must be re-verified against
+  OpenRouter the week of the event, since providers rotate names.
 - Optional **Scenario** box (this is the system prompt, see glossary in
   ARCHITECTURE.md). Placeholder text explains it: "Optional. Set the scene for
   the model, for example 'You are a helpful assistant at a BSL-2 teaching lab.'
@@ -324,9 +326,5 @@ Each phase ends with something you can click.
 
 ## 10. Open questions
 
-1. Final model list: decide the week of the event from OpenRouter availability.
+1. Model ids: re-verify against OpenRouter the week of the event.
 2. Terms text: placeholder until you have real text.
-3. Should participants be able to see their own submission count? Default: yes,
-   a small number in the sidebar, no comparison to others.
-4. Do you want participants to be able to flag "I think the model's refusal
-   was wrong / the compliance was dangerous"? This is a cheap extra label.
