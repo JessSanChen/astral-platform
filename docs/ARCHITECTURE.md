@@ -398,3 +398,41 @@ docs/
 - Judge results in the admin console and prize scoring.
 - Automatic model fallback (exists as an off-by-default emergency setting).
 - Self-hosted safety models.
+
+---
+
+## 10. Post-MVP backlog (agreed, not yet built)
+
+These are deliberately deferred. Better Auth already supports most of them,
+so they are configuration and UI work rather than new infrastructure.
+
+- **More admins, robust admin accounts.** Replace the single admin role with
+  real roles. Better Auth's admin plugin already stores a `role` per user and
+  has `setRole`, ban/unban, and impersonation built in, so "promote this user
+  to admin" is a button, not a rebuild. The MVP already uses this plugin; we
+  just do not expose role management in the UI yet.
+- **Email verification for participants.** Better Auth has this built in
+  (`requireEmailVerification` plus a send-email hook). It needs an email
+  provider (Resend, Postmark, SES) wired up, which we skip for a one-day
+  in-person event. Flip it on and add the provider post-event.
+- **Forgot password (self-service).** Better Auth has `requestPasswordReset`
+  and `resetPassword` built in; they send a reset link by email, so this also
+  waits on the email provider. For the event, the admin resets passwords
+  directly, which needs no email.
+
+So: yes, Better Auth handles all three. We are turning two of them off on
+purpose because they depend on sending email, which is friction we do not
+want with 60 people in a room for one day. The third (admin roles) is on
+under the hood; only its management UI is deferred.
+
+## 11. Known limitation: no document or sequence input
+
+The MVP chat is text-only; participants cannot upload files or sequences.
+This is a deliberate safety choice (we do not want people pasting material
+from their own labs). The research tradeoff is that the dataset will not
+contain the **sequence-scanning use cases** that a real misuse-detection
+pipeline often cares about: a conversation where the user pastes a DNA or
+protein sequence and asks the model to work with it. If those cases matter
+for the scanner, they need a separate, controlled collection path with its
+own handling rules, added after the event rather than mixed into an open
+room of 60 people.
