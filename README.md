@@ -42,11 +42,15 @@ signs up.
 | `npm run db:migrate`  | Apply pending migrations                     |
 | `npm run db:seed`     | Seed settings, terms, and judge configs      |
 | `npm run db:studio`   | Open Drizzle Studio to browse the database   |
+| `npm run mock-openrouter` | Fake provider, so chat works with no API key |
+| `npm run load-test -- 70 3` | Simulate 70 participants chatting at once |
 
 ## Build status
 
-Phases 1 and 2 are complete: app scaffold, database schema, authentication,
-event-code-gated sign-up, and the profile and terms onboarding gate.
+Phases 1 to 3 are complete: app scaffold, database schema, authentication,
+event-code-gated sign-up, the profile and terms onboarding gate, and the chat
+itself with model selection, scenarios, streaming, regenerate and full
+transcript persistence.
 
 See [docs/BUILDLOG.md](docs/BUILDLOG.md) for what each phase delivered and
 step-by-step instructions for testing it yourself. The remaining plan is in

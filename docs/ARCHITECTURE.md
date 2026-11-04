@@ -415,6 +415,20 @@ so they are configuration and UI work rather than new infrastructure.
   (`requireEmailVerification` plus a send-email hook). It needs an email
   provider (Resend, Postmark, SES) wired up, which we skip for a one-day
   in-person event. Flip it on and add the provider post-event.
+- **Themed dropdowns on the onboarding form.** The profile form currently
+  uses the browser's native `<select>`, which renders as the operating
+  system's own dropdown and looks out of place against the rest of the
+  design. Replace with a custom listbox component that matches the theme.
+  Keep keyboard navigation and screen-reader labelling, which the native
+  control gives us for free today.
+- **Admin-editable forms and agreement.** The profile questions and the
+  confidentiality agreement are currently defined in code (`lib/labels.ts`)
+  and the seeded terms row. Move the question set into the database so the
+  admin console can add, remove and reorder fields, and edit the agreement
+  text, without a code change and redeploy. The terms table is already
+  versioned, so the agreement half is mostly a UI; the profile half needs
+  the profile table to store answers as structured data rather than fixed
+  columns.
 - **Forgot password (self-service).** Better Auth has `requestPasswordReset`
   and `resetPassword` built in; they send a reset link by email, so this also
   waits on the email provider. For the event, the admin resets passwords

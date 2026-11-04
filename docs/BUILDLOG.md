@@ -121,6 +121,116 @@ database. The page also loads with no console errors.
 
 ---
 
+## Phase 3 — Chat
+
+Status: done.
+
+### What exists
+
+- A conversation list in the sidebar, with each conversation's status and
+  your own submitted count.
+- A model dropdown in the style of ChatGPT: one control that opens a grouped
+  menu (Anthropic, OpenAI, Open weight) with a short note under each model.
+  It is a custom component, so it matches the theme rather than using the
+  operating system's own dropdown.
+- An optional scenario box, which becomes the system message the model reads
+  before the conversation. The model and scenario are fixed once the first
+  message is sent, so a transcript stays internally consistent.
+- Streaming replies, a stop button, and regenerate. A regenerated reply does
+  not delete the old one: it is kept and hidden, so the dataset holds both.
+- Full persistence of every exchange: the exact request sent to the provider,
+  the generation id, which provider actually served it, the finish reason,
+  token counts including reasoning tokens, cost and latency. Requests that
+  fail at the API level are stored too, since a refusal that produces no
+  visible text is still a refusal worth recording.
+- Limits: a per-user daily token budget, a per-minute send limit, a global
+  pause, and per-account pause. Each has its own clear message.
+
+### Testing without an API key
+
+The chat path can be exercised with no OpenRouter key and no spend. In one
+terminal:
+
+```bash
+npm run mock-openrouter
+```
+
+Add this line to `.env.local`, then start the app as usual in another
+terminal:
+
+```bash
+OPENROUTER_BASE_URL=http://127.0.0.1:4010/api/v1
+```
+
+Replies will be obviously fake. Remove that line and put a real key in
+`OPENROUTER_API_KEY` to see real model behaviour.
+
+### How to test it
+
+1. **Starting a conversation.** From the chat page, open the model dropdown.
+   It should show three groups with eight models. Pick one, type a scenario
+   such as "You are a lab manager at a BSL-2 teaching facility", and press
+   Start conversation.
+2. **Chatting.** Send a message. The reply should stream in word by word. The
+   scenario is shown above the conversation, and the model name sits in the
+   top left with a note that it is fixed.
+3. **Regenerate.** After a reply, press Regenerate. You get a different reply.
+   The old one disappears from view but is still in the database, which you
+   can confirm in `npm run db:studio`: look at the `message` table for a row
+   with `superseded_by` filled in.
+4. **The sidebar.** Your conversation appears with a title taken from your
+   first message, marked Draft.
+5. **Everything was recorded.** In `npm run db:studio`, open `message` and
+   look at an assistant row. You should see the model, provider, finish
+   reason, token counts, cost and latency, plus `raw_request` holding the
+   exact payload sent to the provider, including your scenario as the system
+   message.
+6. **Limits.** With a SQL console you can prove each guard works. Set a tiny
+   limit, send a message, and you should get a clear message rather than a
+   broken page. Put the value back afterwards.
+
+   ```sql
+   UPDATE event_settings SET chat_requests_per_minute = 1 WHERE id = 1;
+   UPDATE event_settings SET chat_paused = true WHERE id = 1;
+   ```
+
+### Load testing
+
+A script simulates many participants chatting at once. With the mock provider
+running it costs nothing:
+
+```bash
+npm run load-test -- 70 3
+```
+
+That signs up 70 users, each sending three messages, and reports how many
+replies arrived, the latency spread, and whether the database agrees with
+what the clients saw.
+
+### Verified automatically
+
+A browser test covers the dropdown, scenario, streaming, regenerate and the
+sidebar, with no console errors. Separate checks confirm that one participant
+cannot open or post to another's conversation, that a model outside the
+allowed list is refused, and that the budget, rate limit, global pause and
+account pause each return their own clear response.
+
+Two concurrency faults were found and fixed during this phase. Simultaneous
+messages in one conversation used to collide on the message sequence number
+and fail; appends now take a short lock on the conversation so they queue
+correctly, while different conversations stay fully parallel. The per-minute
+limit used to let a burst through, because every request read the same count
+before any had recorded itself; the check and the record now happen together
+under a per-user lock. With that in place, eight simultaneous sends against a
+limit of three yield exactly three successes.
+
+The load test was run at 70 simulated participants, above the 60 expected on
+the day: 210 messages, no errors, and the database matching the clients
+exactly. Note that these numbers come from development mode on one machine,
+which is slower than a production deployment.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

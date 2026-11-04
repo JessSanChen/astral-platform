@@ -11,7 +11,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx --env-file=.env.local scripts/seed.ts"
+    "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "load-test": "tsx --env-file=.env.local scripts/load-test.ts",
+    "mock-openrouter": "node scripts/mock-openrouter.mjs 4010"
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.166",
