@@ -17,12 +17,12 @@ This document says **what** the system does. `ARCHITECTURE.md` says **how**.
 ### Goals
 
 1. Participants with no AI tooling experience can sign up, chat, label and
-   submit within two minutes of sitting down.
+   submit.
 2. Every submitted transcript lands in Postgres with complete labels, the
    participant's profile, and the raw model request/response data.
 3. 60 concurrent users, each with several open conversations, with no visible
    slowdowns and no lost data.
-4. One admin (Jess) can see live counts per transcript type, a per-participant
+4. Admins can see live counts per transcript type, a per-participant
    leaderboard, and can unblock a participant (raise budget, un-pause).
 5. Participants can run fixed "scanner" judges on a transcript to learn how
    common tools react to it.
@@ -33,7 +33,6 @@ This document says **what** the system does. `ARCHITECTURE.md` says **how**.
 - Editing earlier prompts or model replies. Regenerate is supported, edit is not.
 - Deleting transcripts.
 - Public leaderboard for participants.
-- Multi-admin roles and permissions. There is exactly one admin flag.
 - Image or file uploads in chat.
 - Self-hosted models. Everything goes through OpenRouter.
 
@@ -44,7 +43,7 @@ This document says **what** the system does. `ARCHITECTURE.md` says **how**.
 | Role        | Who                        | Can do                                                                 |
 |-------------|----------------------------|------------------------------------------------------------------------|
 | Participant | Event attendee             | Sign up, complete profile, accept terms, chat, label, submit, run judge |
-| Admin       | Jess (flag on user record) | Everything a participant can, plus the admin console                   |
+| Admin       | Jess | Everything a participant can, plus the admin console                   |
 
 Admin is a boolean on the user row, set manually in the database or via an
 environment variable listing admin emails. There is no admin sign-up flow.
@@ -125,11 +124,6 @@ cannot reach any other page until both steps are complete.
   - Open weight: the strongest two or three available, e.g. Llama 4 Maverick,
     Qwen3 235B, DeepSeek V3.x, gpt-oss-120b, Kimi K2. Final list chosen the
     week of the event from what OpenRouter actually serves reliably.
-- Optional **Scenario** box (this is the system prompt, see glossary in
-  ARCHITECTURE.md). Placeholder text explains it: "Optional. Set the scene for
-  the model, for example 'You are a helpful assistant at a BSL-2 teaching lab.'
-  The model sees this before your first message. Leave blank for the model's
-  default behaviour."
 - Scenario and model are locked once the first message is sent, so the
   transcript is internally consistent. A participant who wants a different
   model starts a new conversation.
@@ -261,11 +255,11 @@ token counts, exact parameters, and silent refusals/errors.
 - One server-side OpenRouter key. Participants never see it.
 - OpenRouter enforces limits **per account, not per key**, so sub-keys would
   not buy extra capacity. Our own accounting is the control plane.
-- Per-participant soft budget: default 3,000,000 tokens per day, admin
+- Per-participant soft budget: default 5,000,000 tokens per day, admin
   adjustable per participant and globally. Purpose: catch a runaway script or
   a copy-paste loop, not to ration honest use. At 60 participants this caps
-  the worst day at 180M tokens, far below what the team has used before.
-- Per-participant chat rate limit: 10 requests per minute. Judge: 20 per hour.
+  the worst day at 300M tokens, far below what the team has used before.
+- Per-participant chat rate limit: 20 requests per minute. Judge: 40 per hour.
 - Event code required to sign up. Admin can pause a participant instantly.
 - Global pause toggle for emergencies.
 - Automatic retry on 429/5xx once, then a friendly error. No automatic
@@ -322,9 +316,4 @@ Each phase ends with something you can click.
 
 ## 10. Open questions
 
-1. Final model list: decide the week of the event from OpenRouter availability.
-2. Terms text: placeholder until you have real text.
-3. Should participants be able to see their own submission count? Default: yes,
-   a small number in the sidebar, no comparison to others.
-4. Do you want participants to be able to flag "I think the model's refusal
-   was wrong / the compliance was dangerous"? This is a cheap extra label.
+
