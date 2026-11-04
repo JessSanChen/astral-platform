@@ -144,13 +144,13 @@ export const eventSettings = pgTable("event_settings", {
     mode: "number",
   })
     .notNull()
-    .default(3_000_000),
+    .default(5_000_000),
   defaultJudgeRunsPerHour: integer("default_judge_runs_per_hour")
     .notNull()
-    .default(20),
+    .default(40),
   chatRequestsPerMinute: integer("chat_requests_per_minute")
     .notNull()
-    .default(10),
+    .default(20),
   chatPaused: boolean("chat_paused").notNull().default(false),
   allowModelFallback: boolean("allow_model_fallback").notNull().default(false),
   // [{ id, displayName, family, sort, enabled }]

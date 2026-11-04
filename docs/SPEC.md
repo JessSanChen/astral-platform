@@ -45,8 +45,9 @@ This document says **what** the system does. `ARCHITECTURE.md` says **how**.
 | Participant | Event attendee             | Sign up, complete profile, accept terms, chat, label, submit, run judge |
 | Admin       | Jess | Everything a participant can, plus the admin console                   |
 
-Admin is a boolean on the user row, set manually in the database or via an
-environment variable listing admin emails. There is no admin sign-up flow.
+Admin is a role on the user row (Better Auth admin plugin). It is granted
+automatically at sign-up to any email listed in the `ADMIN_EMAILS` environment
+variable. Promoting other users to admin from the console is post-MVP.
 
 ---
 

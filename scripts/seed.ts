@@ -20,6 +20,9 @@ By participating you agree that:
 
 (Full legal terms to follow.)`;
 
+// Defaults agreed in docs/SPEC.md section 6.
+const LIMITS = { dailyTokens: 5_000_000, judgeRunsPerHour: 40, chatPerMinute: 20 };
+
 async function main() {
   const eventCode = process.env.EVENT_CODE ?? "astral-boston";
 
@@ -36,10 +39,23 @@ async function main() {
       id: 1,
       eventCode,
       enabledModels: DEFAULT_MODELS,
+      defaultDailyTokenBudget: LIMITS.dailyTokens,
+      defaultJudgeRunsPerHour: LIMITS.judgeRunsPerHour,
+      chatRequestsPerMinute: LIMITS.chatPerMinute,
     });
     console.log("seeded event_settings");
   } else {
-    console.log("event_settings already present, leaving as is");
+    // Keep the limits in sync with the spec on re-runs; leave the event code
+    // and model list alone since the admin may have edited them.
+    await db
+      .update(eventSettings)
+      .set({
+        defaultDailyTokenBudget: LIMITS.dailyTokens,
+        defaultJudgeRunsPerHour: LIMITS.judgeRunsPerHour,
+        chatRequestsPerMinute: LIMITS.chatPerMinute,
+      })
+      .where(eq(eventSettings.id, 1));
+    console.log("event_settings present; refreshed default limits");
   }
 
   // Two default judge configs.
