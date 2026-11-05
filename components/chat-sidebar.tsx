@@ -7,6 +7,7 @@ import { Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SignOutButton } from "@/components/sign-out-button";
 import { useConversationStore } from "@/components/conversation-store";
+import { ConsoleSwitch } from "@/components/console-switch";
 
 /**
  * A quiet spinner on the conversation being opened.
@@ -39,7 +40,8 @@ export function ChatSidebar({
 
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-muted/30">
-      <div className="p-3">
+      <div className="space-y-2 p-3">
+        <ConsoleSwitch />
         <Link href="/chat">
           <span
             className={cn(

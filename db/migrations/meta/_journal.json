@@ -22,6 +22,13 @@
       "when": 1793862186100,
       "tag": "0002_judge_turn",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793896762908,
+      "tag": "0003_reviews",
+      "breakpoints": true
     }
   ]
 }

@@ -27,6 +27,8 @@ type Props = {
 
 // Friendly text for the error codes our API returns.
 const ERROR_TEXT: Record<string, string> = {
+  locked:
+    "This transcript has been independently reviewed, so it can no longer be changed. Start a new conversation to keep exploring.",
   rate_limited: "You are sending messages very quickly. Wait a few seconds and try again.",
   budget_exhausted: "You have reached today's usage limit. Find an organizer to raise it.",
   chat_paused: "An organizer has paused chat for everyone. Hold tight.",

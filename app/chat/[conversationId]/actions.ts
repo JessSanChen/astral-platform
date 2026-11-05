@@ -47,10 +47,17 @@ export async function saveLabels(
   if (!cu) return { message: "Please sign in again." };
   const conversationId = String(formData.get("conversationId"));
 
+  let convo;
   try {
-    await getOwnedConversation(conversationId, cu.user.id);
+    convo = await getOwnedConversation(conversationId, cu.user.id);
   } catch {
     return { message: "Conversation not found." };
+  }
+  if (convo.lockedAt) {
+    return {
+      message:
+        "This transcript has been independently reviewed, so its labels are now fixed.",
+    };
   }
 
   const parsed = draftLabelsSchema.safeParse(readForm(formData));
@@ -79,6 +86,13 @@ export async function submitTranscript(
     convo = await getOwnedConversation(conversationId, cu.user.id);
   } catch {
     return { message: "Conversation not found." };
+  }
+
+  if (convo.lockedAt) {
+    return {
+      message:
+        "This transcript has been independently reviewed, so its labels are now fixed.",
+    };
   }
 
   const messages = await getVisibleMessages(conversationId);

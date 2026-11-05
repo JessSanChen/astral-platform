@@ -103,6 +103,15 @@ export async function POST(req: Request) {
   }
   const convo = convoResult.value;
 
+  // A transcript another participant has already reviewed is fixed: their
+  // judgement describes it as it stood when they read it.
+  if (convo.lockedAt)
+    return fail(
+      "locked",
+      "This transcript has been independently reviewed, so it can no longer be changed. Start a new conversation to keep exploring.",
+      409,
+    );
+
   try {
     assertModelAllowed(convo.modelId, settings.enabledModels);
   } catch (e) {

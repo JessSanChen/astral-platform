@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -113,6 +114,33 @@ export const judgeKind = pgEnum("judge_kind", ["llm", "llama_guard"]);
 
 export const usageKind = pgEnum("usage_kind", ["chat", "judge"]);
 
+export const reviewClaimState = pgEnum("review_claim_state", [
+  "claimed",
+  "reviewed",
+  "released",
+]);
+
+export const reviewerIntent = pgEnum("reviewer_intent", [
+  "benign",
+  "dual_use",
+  "adversarial",
+  "unclear",
+]);
+
+export const reviewerActor = pgEnum("reviewer_actor", [
+  "academic_researcher",
+  "industry_scientist",
+  "student",
+  "clinician",
+  "biosecurity_professional",
+  "curious_public",
+  "regulatory_evader",
+  "lone_malicious_actor",
+  "organised_group",
+  "nation_state",
+  "unclear",
+]);
+
 // Participant profile. One row per user.
 export const profile = pgTable("profile", {
   userId: text("user_id")
@@ -151,6 +179,9 @@ export const eventSettings = pgTable("event_settings", {
   chatRequestsPerMinute: integer("chat_requests_per_minute")
     .notNull()
     .default(20),
+  // How many transcripts a reviewer gets at once. Five to start; changed
+  // here rather than in code so it can be tuned on the day.
+  reviewBatchSize: integer("review_batch_size").notNull().default(5),
   chatPaused: boolean("chat_paused").notNull().default(false),
   allowModelFallback: boolean("allow_model_fallback").notNull().default(false),
   // [{ id, displayName, family, sort, enabled }]
@@ -175,8 +206,15 @@ export const conversation = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
     lastMessageAt: timestamp("last_message_at"),
+    // Set once another participant has reviewed this transcript. From then on
+    // the author cannot change it, because a review describes a conversation
+    // as it stood when it was read.
+    lockedAt: timestamp("locked_at"),
   },
-  (t) => [index("conversation_user_idx").on(t.userId, t.createdAt)],
+  (t) => [
+    index("conversation_user_idx").on(t.userId, t.createdAt),
+    index("conversation_status_idx").on(t.status, t.lastSubmittedAt),
+  ],
 );
 
 export const message = pgTable(
@@ -307,4 +345,67 @@ export const usageEvent = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [index("usage_event_user_time_idx").on(t.userId, t.createdAt)],
+);
+
+/**
+ * A transcript handed to one reviewer.
+ *
+ * Reviewers work through a small batch at a time, and a transcript in
+ * someone's batch is off limits to everyone else, so two people never label
+ * the same conversation. Abandoned claims are released back to the pool when
+ * the reviewer asks for a fresh batch.
+ */
+export const reviewClaim = pgTable(
+  "review_claim",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversation.id, { onDelete: "cascade" }),
+    reviewerId: text("reviewer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    state: reviewClaimState("state").notNull().default("claimed"),
+    claimedAt: timestamp("claimed_at").notNull().defaultNow(),
+    releasedAt: timestamp("released_at"),
+  },
+  (t) => [
+    index("review_claim_reviewer_idx").on(t.reviewerId, t.state),
+    // At most one live claim per conversation. Enforced by the database
+    // rather than by careful code, because two reviewers asking for a batch
+    // at the same moment is exactly the case that careful code gets wrong.
+    uniqueIndex("review_claim_active_uq")
+      .on(t.conversationId)
+      .where(sql`state <> 'released'`),
+  ],
+);
+
+/** One participant's independent judgement of someone else's transcript. */
+export const review = pgTable(
+  "review",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversation.id, { onDelete: "cascade" }),
+    reviewerId: text("reviewer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Which submitted version was read, so a review always refers to a known
+    // state of the conversation.
+    reviewedVersion: integer("reviewed_version"),
+    intent: reviewerIntent("intent").notNull(),
+    misusePresent: boolean("misuse_present").notNull(),
+    actor: reviewerActor("actor").notNull(),
+    goalText: text("goal_text").notNull(),
+    confidence: integer("confidence").notNull(),
+    notes: text("notes"),
+    submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    submissionCount: integer("submission_count").notNull().default(1),
+  },
+  (t) => [
+    uniqueIndex("review_conversation_uq").on(t.conversationId),
+    index("review_reviewer_idx").on(t.reviewerId, t.updatedAt),
+  ],
 );

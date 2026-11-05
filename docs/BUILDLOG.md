@@ -863,6 +863,66 @@ chat model is being asked, and asking is something a model can decline.
 
 ---
 
+## Phase 6 — Independent review
+
+Status: done.
+
+### What exists
+
+- A switch at the top of the left sidebar between **My chats** and **Review**.
+- A reviewer is handed a batch of five transcripts, held for them alone.
+  Nobody else can label the same conversation: the database enforces that with
+  a unique index over live claims, so two reviewers asking at the same instant
+  cannot both be given the same one.
+- Reviews are blind. The reviewer sees the conversation, the model and the
+  scenario, and is told plainly that the author and the author's own labels
+  are withheld on purpose.
+- The sidebar has two sections. The current batch sits at the top and
+  everything already reviewed below it, newest first. Reviewing moves a
+  transcript from one to the other, where the answers can still be changed
+  with Submit again.
+- A refresh button releases whatever is held unreviewed and claims a fresh
+  set, so nothing is stuck with someone who moved on.
+- Reviewing locks the transcript for its author: no further messages, no label
+  edits, no re-submission.
+
+### The lock costs nothing
+
+The question was whether locking would mean polling the database. It does not.
+The lock is a column on the conversation, read at the moment the author tries
+to act, so it rides along with a query already being made. An author sitting
+on a page opened before the lock gets a clear refusal when they next act,
+which is the right outcome anyway.
+
+### How to test it
+
+Two accounts are needed, so use a second browser or a private window.
+
+1. **As the first participant**, hold a conversation and submit it with labels.
+2. **As the second**, press Review at the top of the sidebar. A batch is
+   fetched and the first transcript opens.
+3. **Check the blinding.** The first participant's name and their own
+   description of what they were doing must not appear anywhere.
+4. **Submit an incomplete review.** Five messages appear, one per required
+   field.
+5. **Complete it.** The transcript moves from To review to Reviewed, and the
+   button becomes Submit again.
+6. **Change an answer and submit again.** In `npm run db:studio` the review
+   row is updated rather than duplicated, and its submission count rises.
+7. **Back as the first participant**, open that conversation and try to send
+   another message. It is refused with an explanation.
+
+### Verified automatically
+
+A two-account browser test covers the whole path and confirms the author's
+name and private goal text appear nowhere in the reviewer's page, that an
+incomplete review is rejected with one message per field, that a completed
+review moves between the sidebar sections, that re-submitting updates the
+existing row and raises its count, and that the author is then locked out.
+The database was checked directly for the recorded version and the lock.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

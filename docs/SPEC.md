@@ -202,6 +202,58 @@ schema is designed so either is a small change.
 
 ---
 
+## 3.8 Independent review
+
+Self-description is not always a reliable label. A participant may describe an
+intent that does not match what the conversation actually shows. A second
+participant reading the same transcript, without knowing whose it is or what
+they said they were doing, gives a judgement of what is visible.
+
+- Participants switch between **My chats** and **Review** at the top of the
+  left sidebar.
+- A reviewer holds a **batch** of transcripts at a time. **Decided: five**,
+  stored in `event_settings.review_batch_size` so it can be changed on the day
+  without a code change.
+- A transcript in someone's batch is held for them alone, so two people never
+  label the same conversation. **Decided: each transcript is reviewed exactly
+  once.** A unique index over live claims enforces this in the database rather
+  than in application code, because two reviewers asking for a batch in the
+  same instant is exactly the case application code gets wrong.
+- **Decided: only submitted transcripts enter the pool**, at their latest
+  submitted version, and the review records which version was read.
+- **Decided: reviews are blind.** The reviewer sees the conversation, the
+  model and the scenario. They do not see the author or the author's own
+  labels.
+- A reviewer can **refresh their batch** at any time, which releases whatever
+  they are holding unreviewed and claims a fresh set.
+- The left sidebar has two sections: the current batch at the top, and
+  everything they have already reviewed below, newest first. Reviewing moves a
+  transcript from the first to the second, where its answers can still be
+  changed with **Submit again**.
+
+### Reviewer labels
+
+| Field | Type | Required |
+|---|---|---|
+| What kind of conversation this looks like | benign / dual use / adversarial / cannot tell | yes |
+| Is there misuse here | yes / no, judging the attempt rather than whether the model complied | yes |
+| Who the person appears to be | select, same actor list as the self-labels plus "cannot tell" | yes |
+| What they appear to be trying to do | free text | yes |
+| Confidence | 1 to 5 | yes |
+| Notes | free text | no |
+
+### Locking
+
+Once a transcript has been reviewed, its author can no longer change it:
+no further messages, no label edits, no re-submission. A review describes a
+conversation as it stood when it was read, and letting the author keep editing
+afterwards would quietly invalidate the label.
+
+Nothing polls for this. The lock is a column on the conversation, checked at
+the moment the author acts, so it costs no extra queries and adds no latency.
+An author on a stale page gets a clear refusal rather than silently
+overwriting reviewed work.
+
 ## 4. Admin console (`/admin`)
 
 MVP pages, in priority order:

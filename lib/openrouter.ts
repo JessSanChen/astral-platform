@@ -26,6 +26,7 @@ export type EventSettings = {
   defaultDailyTokenBudget: number;
   defaultJudgeRunsPerHour: number;
   chatRequestsPerMinute: number;
+  reviewBatchSize: number;
   chatPaused: boolean;
   allowModelFallback: boolean;
   enabledModels: ModelOption[];
@@ -54,6 +55,7 @@ async function loadEventSettings(): Promise<EventSettings> {
     defaultDailyTokenBudget: row?.defaultDailyTokenBudget ?? 5_000_000,
     defaultJudgeRunsPerHour: row?.defaultJudgeRunsPerHour ?? 40,
     chatRequestsPerMinute: row?.chatRequestsPerMinute ?? 20,
+    reviewBatchSize: row?.reviewBatchSize ?? 5,
     chatPaused: row?.chatPaused ?? false,
     allowModelFallback: row?.allowModelFallback ?? false,
     enabledModels: models.filter((m) => m.enabled !== false),
