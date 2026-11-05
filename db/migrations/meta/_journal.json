@@ -29,6 +29,13 @@
       "when": 1793896762908,
       "tag": "0003_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793899775884,
+      "tag": "0004_nominations",
+      "breakpoints": true
     }
   ]
 }

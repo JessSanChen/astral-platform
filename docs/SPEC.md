@@ -254,6 +254,31 @@ the moment the author acts, so it costs no extra queries and adds no latency.
 An author on a stale page gets a clear refusal rather than silently
 overwriting reviewed work.
 
+## 3.9 Self-nomination
+
+Three of the five prize tracks are decided by nomination rather than by
+counting. Participants put their own work forward and present it.
+
+| Track | What it rewards |
+|---|---|
+| Adversarial use cases | The most interesting, relevant or impactful finding about an adversarial actor. Breadth of testing counts. |
+| Dual-use use cases | The same, for dual use: where a legitimate purpose and a harmful one are served by the same answer. |
+| Linked or collaborative | A finding that came out of working with other participants. |
+
+- **Decided: one entry per participant per track**, updated rather than
+  duplicated, so organizers read a single current entry from each person.
+- Each entry has a headline (one sentence), the finding in detail, and an
+  optional link to slides.
+- The collaborative track also asks who they worked with. **Decided: free
+  text, with participant names offered as suggestions while typing.** Nobody
+  is forced to pick an exact match while in a hurry, but names still line up
+  afterwards.
+- **Decided: when nominations close, entries stay readable.** The fields are
+  disabled and the submit button disappears, rather than the console shutting.
+- Nominations close at a time the admin sets, or immediately when the admin
+  locks them. Both exist because an organizer may need to close early or
+  extend. The deadline in the prize table is 15:00.
+
 ## 4. Admin console (`/admin`)
 
 MVP pages, in priority order:

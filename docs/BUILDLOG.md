@@ -928,6 +928,53 @@ The database was checked directly for the recorded version and the lock.
 
 ---
 
+## Phase 7 — Self-nomination
+
+Status: done.
+
+### What exists
+
+- A tracks page reached from the conversation sidebar, listing the three
+  nomination-decided prizes with what each rewards.
+- One entry per participant per track: a headline, the finding in detail, and
+  an optional link to slides. Submitting again updates the entry rather than
+  adding another, and counts the revision.
+- The collaborative track also asks who they worked with. Typing offers the
+  names of other participants as suggestions, without forcing an exact match.
+- The tracks page shows which tracks have been entered, with the headline and
+  when it was last saved.
+- Nominations close either at a set time or the moment an organizer locks
+  them. Closed entries stay readable: the fields are disabled and the submit
+  button goes, rather than the console shutting.
+
+### How to test it
+
+1. Press **Put work forward** at the bottom of the conversation sidebar.
+2. Open a track and press submit with nothing filled in. Each required field
+   says what it needs.
+3. Put something that is not a link in the slides field. It is refused with
+   an explanation rather than saved.
+4. Complete and submit. The button becomes **Update entry**, and the tracks
+   page marks the track as submitted with your headline and the time.
+5. Open the collaborative track and start typing in the collaborators field.
+   Other participants' names are offered.
+6. Close nominations, then reload. Your entry is still readable, the fields
+   are disabled, and there is no submit button.
+
+   ```sql
+   UPDATE event_settings SET nominations_locked = true WHERE id = 1;
+   ```
+
+### Verified automatically
+
+A browser test covers each required field, the rejection of a malformed link,
+a successful submission turning into an update, the tracks page reflecting it,
+and the collaborator suggestions appearing once a second participant exists.
+Locking was tested separately: entries remain readable and the form cannot be
+submitted.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

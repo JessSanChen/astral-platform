@@ -127,6 +127,12 @@ export const reviewerIntent = pgEnum("reviewer_intent", [
   "unclear",
 ]);
 
+export const nominationTrack = pgEnum("nomination_track", [
+  "adversarial",
+  "dual_use",
+  "collaborative",
+]);
+
 export const reviewerActor = pgEnum("reviewer_actor", [
   "academic_researcher",
   "industry_scientist",
@@ -182,6 +188,10 @@ export const eventSettings = pgTable("event_settings", {
   // How many transcripts a reviewer gets at once. Five to start; changed
   // here rather than in code so it can be tuned on the day.
   reviewBatchSize: integer("review_batch_size").notNull().default(5),
+  // Nominations close at this time, or at once when the flag is set. Both
+  // exist because an organizer may need to close early, or extend.
+  nominationsCloseAt: timestamp("nominations_close_at"),
+  nominationsLocked: boolean("nominations_locked").notNull().default(false),
   chatPaused: boolean("chat_paused").notNull().default(false),
   allowModelFallback: boolean("allow_model_fallback").notNull().default(false),
   // [{ id, displayName, family, sort, enabled }]
@@ -407,5 +417,36 @@ export const review = pgTable(
   (t) => [
     uniqueIndex("review_conversation_uq").on(t.conversationId),
     index("review_reviewer_idx").on(t.reviewerId, t.updatedAt),
+  ],
+);
+
+/**
+ * A participant putting their own work forward for a prize track.
+ *
+ * One per participant per track, updated rather than duplicated, so the
+ * organizers read a single current entry from each person.
+ */
+export const nomination = pgTable(
+  "nomination",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    track: nominationTrack("track").notNull(),
+    headline: text("headline").notNull(),
+    details: text("details").notNull(),
+    slidesUrl: text("slides_url"),
+    // Free text, but the form offers participant names as you type, so
+    // collaborators can be matched up afterwards without forcing an exact
+    // choice on someone in a hurry.
+    collaborators: text("collaborators"),
+    submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    submissionCount: integer("submission_count").notNull().default(1),
+  },
+  (t) => [
+    uniqueIndex("nomination_user_track_uq").on(t.userId, t.track),
+    index("nomination_track_idx").on(t.track, t.updatedAt),
   ],
 );
