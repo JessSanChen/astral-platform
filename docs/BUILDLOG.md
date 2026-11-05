@@ -160,6 +160,11 @@ Two failures are worth recognising on sight:
   OpenRouter account, so look there first: credits exhausted, a key that has
   been rotated, or a rate limit. The doctor shows the provider's own words.
 
+`npm run dev` now applies any pending migrations before it starts, so a pull
+that adds a column no longer shows up later as a confusing query error. It
+says nothing when there is nothing to do. Deployments are untouched: there
+migrations stay a deliberate step.
+
 If `npm run db:migrate` itself complains that the url is undefined, pull
 again: the drizzle commands were not reading `.env.local`, which is fixed.
 
