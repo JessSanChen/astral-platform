@@ -45,6 +45,7 @@ signs up.
 | `npm run mock-openrouter` | Fake provider, so chat works with no API key |
 | `npm run load-test -- 70 3` | Simulate 70 participants chatting at once |
 | `npm run check-models` | Check every model against OpenRouter with your key |
+| `npm run doctor`      | Check database, schema, models and scanners end to end |
 
 ## Build status
 

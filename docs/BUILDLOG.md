@@ -3,6 +3,34 @@
 What is finished in each phase, and how to check it yourself. The plan for
 all phases is in `SPEC.md` section 9. Newest phase last.
 
+## When something is not working
+
+Run the doctor. It checks the whole chain against your real database and your
+real OpenRouter key, and each failing line says what to do about it:
+
+```bash
+npm run doctor
+```
+
+It reports whether the database is reachable and how far away it is, whether
+the schema is up to date, whether the app can actually save a message and a
+scanner result, whether every chat model answers, and whether every scanner
+runs. Run it after pulling changes and again on the morning of the event.
+
+Two failures are worth recognising on sight:
+
+- **Scanners fail but chat works.** Almost always a migration that has not
+  been applied. The database is missing a column the code expects. Run
+  `npm run db:migrate`.
+- **Chat and scanners both fail together.** They share one thing, the
+  OpenRouter account, so look there first: credits exhausted, a key that has
+  been rotated, or a rate limit. The doctor shows the provider's own words.
+
+The round-trip time it reports is worth watching. Anything under about 15ms
+feels instant. Fifty or more is what makes the interface feel sluggish no
+matter what the code does, and the fix is to put the database in the region
+nearest the people using it.
+
 Before testing anything, start the app:
 
 ```bash
