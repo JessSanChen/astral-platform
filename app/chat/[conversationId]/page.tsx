@@ -5,7 +5,11 @@ import { db } from "@/db";
 import { transcriptLabels } from "@/db/schema";
 import { requireOnboarded } from "@/lib/gate";
 import { getEventSettings, ChatError } from "@/lib/openrouter";
-import { getOwnedConversation, getVisibleMessages } from "@/lib/conversations";
+import {
+  getOwnedConversation,
+  getVisibleMessages,
+  messageMeta,
+} from "@/lib/conversations";
 import { ConversationWorkspace } from "@/components/conversation-workspace";
 
 export default async function ConversationPage({
@@ -38,6 +42,7 @@ export default async function ConversationPage({
   const initialMessages: UIMessage[] = rows.map((m) => ({
     id: m.id,
     role: m.role,
+    metadata: messageMeta(m),
     parts: (m.parts as UIMessage["parts"]) ?? [{ type: "text", text: m.content }],
   }));
 

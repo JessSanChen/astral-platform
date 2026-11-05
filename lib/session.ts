@@ -3,11 +3,33 @@ import { cache } from "react";
 import { auth } from "@/lib/auth";
 
 /**
- * The current session, read from the database and cached for the duration of
- * one request, so several components reading it cost a single lookup.
+ * The current session, cached per request so several components reading it
+ * cost one lookup.
  *
- * See lib/auth.ts for why this is not served from a cookie.
+ * The session normally comes from a short-lived signed cookie rather than the
+ * database, which removes a round trip from most page loads. That copy can be
+ * a few seconds behind, which matters in one direction: a participant who has
+ * just finished onboarding would otherwise be sent straight back to it. So
+ * whenever the cached copy says the participant cannot proceed, it is
+ * confirmed against the database before acting on it. See lib/auth.ts for the
+ * tradeoff in the other direction.
  */
 export const getSession = cache(async () => {
-  return auth.api.getSession({ headers: await headers() });
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({ headers: requestHeaders });
+  if (!session) return null;
+
+  const user = session.user as typeof session.user & {
+    banned?: boolean | null;
+    profileCompletedAt?: Date | string | null;
+    termsAcceptedAt?: Date | string | null;
+  };
+  const looksBlocked =
+    user.banned === true || !user.profileCompletedAt || !user.termsAcceptedAt;
+  if (!looksBlocked) return session;
+
+  return auth.api.getSession({
+    headers: requestHeaders,
+    query: { disableCookieCache: true },
+  });
 });

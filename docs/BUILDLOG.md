@@ -39,6 +39,62 @@ thirty seconds to bite, so the session is read from the database every time.
 
 ---
 
+## Refusals are results, not gaps
+
+A clearly adversarial message produced nothing on screen: no reply, no
+explanation. For a study about where models draw their lines, that is the
+worst possible failure, because a refusal is exactly the data being
+collected.
+
+Three separate faults, all now fixed.
+
+**The refusal never reached the browser.** When a model returns no text, the
+chat library creates no message at all, so there was nothing to draw. The
+turn was being recorded correctly in the database the whole time. When a turn
+ends with no reply in hand, the interface now asks the server what it
+recorded and shows it.
+
+**It is now shown as a turn, with the reason.** An empty reply appears as a
+numbered turn in a dashed outline saying which kind of silence it was: the
+model returning nothing, a content filter stopping the answer, or the
+provider blocking the request before the model saw it. Those are different
+results and the distinction matters for labelling.
+
+**The scanners failed on it.** The LLM judge reported "No output generated".
+Moving to the newer structured-output call had changed which error is raised
+when a model produces nothing, and only the old one was being caught, so the
+fallback never ran. Both are now caught. A judge that refuses to assess a
+conversation says so plainly, since a scanner declining to look is itself a
+finding worth recording rather than an error.
+
+### Llama Guard was being asked the wrong question
+
+It kept answering "safe" about conversations that plainly were not. It was
+being handed the conversation flattened into a single block of text, as
+though a person had pasted a transcript and asked about it. Pasting a
+transcript is a fairly harmless act, and that is roughly what it was
+judging.
+
+It is a classifier trained to read a conversation, so it is now given the
+conversation itself, turn by turn, which is what it was built for. Expect its
+verdicts to change, and to disagree with the LLM judge more often. That
+disagreement is the point.
+
+### Session caching, reconsidered
+
+Caching the session in a signed cookie was reverted earlier because pausing a
+participant would take up to half a minute to bite. Told that half a minute
+is acceptable, it is back: most page loads no longer read the session from
+the database.
+
+Finishing onboarding still takes effect at once, because the cached copy is
+re-checked against the database whenever it claims a participant cannot
+proceed. The remaining cost is the one accepted: pausing someone can take up
+to thirty seconds. Shorten `maxAge` in the authentication setup if that ever
+needs to be tighter.
+
+---
+
 ## When something is not working
 
 Run the doctor. It checks the whole chain against your real database and your

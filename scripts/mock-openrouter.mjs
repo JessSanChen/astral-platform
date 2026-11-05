@@ -33,7 +33,10 @@ createServer((req, res) => {
     const preDelay = String(parsed.model).includes('slow') ? 2500 : 0;
     // A model id containing 'silent' answers with reasoning only and no
     // visible text, like a reasoning model on a small reply budget.
-    const silent = String(parsed.model).includes('silent');
+    // 'refuse' answers with nothing and a content-filter finish reason, the
+    // way a provider reports a blocked completion.
+    const refusing = String(parsed.model).includes('refuse');
+    const silent = String(parsed.model).includes('silent') || refusing;
 
     // Judge stand-ins, so the scanner panel can be exercised without a key.
     // Llama Guard answers with a safety verdict; the rubric judge answers
@@ -98,7 +101,7 @@ createServer((req, res) => {
         choices: [{
           index: 0,
           message: { role: 'assistant', content: reply },
-          finish_reason: silent ? 'length' : 'stop',
+          finish_reason: refusing ? 'content_filter' : silent ? 'length' : 'stop',
         }],
         usage,
       }));
@@ -123,7 +126,7 @@ createServer((req, res) => {
         clearInterval(timer);
         send({
           id, model: parsed.model, provider: 'MockProvider',
-          choices: [{ index: 0, delta: {}, finish_reason: silent ? 'length' : 'stop' }],
+          choices: [{ index: 0, delta: {}, finish_reason: refusing ? 'content_filter' : silent ? 'length' : 'stop' }],
           usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18, cost: 0.00042,
                    completion_tokens_details: { reasoning_tokens: silent ? 512 : 3 } },
         });

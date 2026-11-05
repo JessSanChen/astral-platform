@@ -113,3 +113,25 @@ export async function touchConversation(id: string, patch: Partial<typeof conver
     .set({ updatedAt: new Date(), lastMessageAt: new Date(), ...patch })
     .where(eq(conversation.id, id));
 }
+
+/**
+ * How a stored message became what it is, carried alongside the text.
+ *
+ * A reply that arrives empty is not nothing: it is usually a refusal, either
+ * by the model or by the provider's own filter, and for this study that is a
+ * result worth seeing and labelling rather than a blank to be hidden.
+ */
+export type MessageMeta = {
+  finishReason?: string | null;
+  blocked?: boolean;
+};
+
+export function messageMeta(row: {
+  finishReason: string | null;
+  error: unknown;
+}): MessageMeta {
+  return {
+    finishReason: row.finishReason,
+    blocked: row.error != null,
+  };
+}

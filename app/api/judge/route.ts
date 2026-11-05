@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       { status: 429 },
     );
 
-  const { text: transcript, turnCount } = await transcriptText(
+  const { text: transcript, turns, turnCount } = await transcriptText(
     conversationId,
     convo.scenario,
   );
@@ -86,6 +86,7 @@ export async function POST(req: Request) {
     const { verdict, raw, parsed: parsedOutput, usage } = await runJudge(
       config,
       transcript,
+      turns,
     );
     const [saved] = await db
       .insert(judgeRun)

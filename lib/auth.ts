@@ -41,14 +41,26 @@ export const auth = betterAuth({
     // No email verification for the MVP; participants are on site.
     requireEmailVerification: false,
   },
-  // Deliberately no session cookie cache.
-  //
-  // Caching the session in a cookie would remove a database read from every
-  // page load, which is tempting on a distant database. It was tried and
-  // reverted: the cached copy keeps saying an account is in good standing
-  // after an organizer has paused it, and nothing in the request can tell
-  // that it is wrong. Pausing someone is a safety control that has to take
-  // effect at once, so it is read from the database every time.
+  session: {
+    /**
+     * Carry the session in a signed cookie for half a minute.
+     *
+     * This removes a database read from most page loads, which is the single
+     * largest fixed cost of opening a page when the database is a network
+     * hop away.
+     *
+     * The cost, accepted deliberately: pausing a participant can take up to
+     * this long to take effect, because the cached copy still reports the
+     * account as in good standing and nothing in the request can tell that it
+     * is wrong. Shorten maxAge if that ever needs to be tighter.
+     *
+     * The reverse direction is handled rather than waited out: lib/session.ts
+     * re-reads from the database whenever the cached copy says a participant
+     * cannot proceed, so finishing onboarding takes effect at once instead of
+     * bouncing them back to it.
+     */
+    cookieCache: { enabled: true, maxAge: 30 },
+  },
   rateLimit: {
     // Better Auth enables rate limiting in production only, and its default
     // for sign-in and sign-up is 3 requests per 10 seconds keyed by IP

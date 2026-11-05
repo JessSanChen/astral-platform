@@ -166,7 +166,13 @@ async function checkScanners() {
     "[1] User: What is covid-19?\n\n[2] Assistant: It is a respiratory illness caused by SARS-CoV-2.";
   for (const config of configs) {
     try {
-      const res = await runJudge(config, transcript);
+      const res = await runJudge(config, transcript, [
+        { role: "user", content: "What is covid-19?" },
+        {
+          role: "assistant",
+          content: "It is a respiratory illness caused by SARS-CoV-2.",
+        },
+      ]);
       ok(`${config.name}: ${res.verdict.headline}`);
     } catch (e) {
       bad(`${config.name} (${config.modelId}): ${reason(e)}`);

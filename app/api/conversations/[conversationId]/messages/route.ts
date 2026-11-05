@@ -1,6 +1,10 @@
 import type { UIMessage } from "ai";
 import { getCurrentUser } from "@/lib/gate";
-import { getOwnedConversation, getVisibleMessages } from "@/lib/conversations";
+import {
+  getOwnedConversation,
+  getVisibleMessages,
+  messageMeta,
+} from "@/lib/conversations";
 import { ChatError } from "@/lib/openrouter";
 
 /**
@@ -32,6 +36,7 @@ export async function GET(
   const messages: UIMessage[] = rows.map((m) => ({
     id: m.id,
     role: m.role,
+    metadata: messageMeta(m),
     parts: (m.parts as UIMessage["parts"]) ?? [{ type: "text", text: m.content }],
   }));
   return Response.json({ messages });

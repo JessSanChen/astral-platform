@@ -105,21 +105,12 @@ export function ChatView({
   useEffect(() => {
     store.setGenerating(conversationId, busy);
   }, [busy, conversationId, store]);
-  // An assistant message exists from the moment a reply starts, before any
-  // text arrives. Rendering it would put an empty bubble above the thinking
-  // indicator, so it is left out until it has something to say.
-  const visibleMessages = messages.filter(
-    (m) =>
-      m.role !== "assistant" ||
-      m.parts?.some((p) => p.type === "text" && p.text.trim().length > 0),
-  );
-  const lastIsAssistant =
-    visibleMessages[visibleMessages.length - 1]?.role === "assistant";
 
   const lastMessage = messages[messages.length - 1];
   const lastHasText = lastMessage?.parts?.some(
     (p) => p.type === "text" && p.text.trim().length > 0,
   );
+
   // A reply started here, then the participant moved to another conversation,
   // which tore this component down and with it the stream. The server kept
   // generating and saved the result, so rather than showing a blank gap we
@@ -133,6 +124,39 @@ export function ChatView({
     store.isGenerating(conversationId) &&
     (lastMessage?.role === "user" ||
       (lastMessage?.role === "assistant" && !lastHasText));
+
+  // An assistant message exists from the moment a reply starts, before any
+  // text arrives. While it is being written it is left out, so there is no
+  // empty bubble above the thinking indicator.
+  //
+  // Once it is finished, an empty reply is shown rather than hidden. An empty
+  // reply means the model refused or the provider blocked it, which for this
+  // study is a result in itself: it needs to be visible, numbered as a turn,
+  // and available to label.
+  const visibleMessages = messages.filter((m, i) => {
+    if (m.role !== "assistant") return true;
+    const hasText = m.parts?.some(
+      (p) => p.type === "text" && p.text.trim().length > 0,
+    );
+    if (hasText) return true;
+    const isLast = i === messages.length - 1;
+    const stillWriting = isLast && (busy || awaitingElsewhere);
+    return !stillWriting;
+  });
+
+  const lastIsAssistant =
+    visibleMessages[visibleMessages.length - 1]?.role === "assistant";
+
+  // A turn that ended without the model saying anything leaves nothing on the
+  // client at all: with no text there is no assistant message to show. The
+  // server did record the turn, along with why it was empty, so once the turn
+  // is over and no reply is in hand, ask for it. Refusals are results here,
+  // not gaps.
+  const needsRefusalSync =
+    !busy &&
+    !awaitingElsewhere &&
+    messages.length > 0 &&
+    messages[messages.length - 1]?.role === "user";
   // True between pressing send and the first token arriving. Without a visible
   // signal here a slow model looks like a failure.
   const waiting =
@@ -200,6 +224,15 @@ export function ChatView({
             return serverMessages;
           }
           if (serverMessages.length > current.length) return serverMessages;
+          // An empty reply makes the counts match while the server holds a
+          // turn the client does not, so prefer the server's copy then too.
+          if (
+            needsRefusalSync &&
+            serverMessages.length >= current.length &&
+            serverMessages[serverMessages.length - 1]?.role === "assistant"
+          ) {
+            return serverMessages;
+          }
           return current;
         });
         if (arrived) store.setGenerating(conversationId, false);
@@ -213,13 +246,20 @@ export function ChatView({
     // cached page may be behind, and while a reply is being written elsewhere
     // the answer has to be collected. Otherwise the chat already holds the
     // live state and re-asking would be a request for nothing.
-    if (needsFirstSync || awaitingElsewhere) void poll();
+    if (needsFirstSync || awaitingElsewhere || needsRefusalSync) void poll();
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [conversationId, setMessages, awaitingElsewhere, needsFirstSync, store]);
+  }, [
+    conversationId,
+    setMessages,
+    awaitingElsewhere,
+    needsFirstSync,
+    needsRefusalSync,
+    store,
+  ]);
 
   // Follow new content as it arrives: the sent message, the thinking
   // indicator, each chunk of the reply, and the controls that appear once a
@@ -383,6 +423,13 @@ function MessageBubble({
     .map((p) => p.text)
     .join("");
   const isUser = message.role === "user";
+  const meta = message.metadata as
+    | { finishReason?: string | null; blocked?: boolean }
+    | undefined;
+  // An assistant turn that finished with nothing to show. Saying which kind
+  // of silence it was matters: a model declining is a different result from
+  // the provider's filter stopping the request before the model answered.
+  const emptyReply = !isUser && text.trim().length === 0;
 
   return (
     <div
@@ -403,11 +450,21 @@ function MessageBubble({
           "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm",
           isUser
             ? "bg-primary text-primary-foreground"
-            : "border border-border bg-card",
+            : emptyReply
+              ? "border border-dashed border-border bg-muted/40"
+              : "border border-border bg-card",
         )}
       >
         {isUser ? (
           <p className="whitespace-pre-wrap">{text}</p>
+        ) : emptyReply ? (
+          <p className="italic text-muted-foreground">
+            {meta?.blocked
+              ? "No reply. The provider blocked this request before the model answered."
+              : meta?.finishReason === "content-filter"
+                ? "No reply. A content filter stopped the answer."
+                : "No reply. The model returned nothing, which usually means it refused."}
+          </p>
         ) : (
           <div className="markdown">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>

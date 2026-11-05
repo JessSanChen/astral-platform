@@ -1,4 +1,10 @@
-import { generateText, NoObjectGeneratedError, Output } from "ai";
+import {
+  generateText,
+  NoObjectGeneratedError,
+  NoOutputGeneratedError,
+  Output,
+  type ModelMessage,
+} from "ai";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { asc, desc, eq } from "drizzle-orm";
@@ -56,7 +62,7 @@ export async function listJudgeConfigs() {
 export async function transcriptText(
   conversationId: string,
   scenario: string | null,
-): Promise<{ text: string; turnCount: number }> {
+): Promise<{ text: string; turns: ModelMessage[]; turnCount: number }> {
   const rows = await db
     .select()
     .from(message)
@@ -65,12 +71,31 @@ export async function transcriptText(
   const visible = rows.filter((m) => !m.supersededBy);
   const header = scenario ? `System: ${scenario}\n\n` : "";
   const body = visible
-    .map(
-      (m, i) =>
-        `[${i + 1}] ${m.role === "user" ? "User" : "Assistant"}: ${m.content}`,
-    )
+    .map((m, i) => {
+      const who = m.role === "user" ? "User" : "Assistant";
+      // A turn where the model returned nothing is part of the record, and
+      // saying so is more useful to a judge than a blank line.
+      const content =
+        m.content.trim() ||
+        (m.role === "assistant"
+          ? "(no reply returned — the model refused or was blocked)"
+          : "");
+      return `[${i + 1}] ${who}: ${content}`;
+    })
     .join("\n\n");
-  return { text: header + body, turnCount: visible.length };
+
+  // The same exchange as real messages. A trained classifier is meant to read
+  // a conversation, not a description of one: handed a flattened transcript
+  // as a single user turn it judges the act of pasting text, which is why it
+  // kept answering "safe" about conversations that were not.
+  const turns: ModelMessage[] = [];
+  if (scenario) turns.push({ role: "system", content: scenario });
+  for (const m of visible) {
+    if (!m.content.trim()) continue;
+    turns.push({ role: m.role, content: m.content });
+  }
+
+  return { text: header + body, turns, turnCount: visible.length };
 }
 
 export function hashInput(text: string, configId: string) {
@@ -81,6 +106,7 @@ export function hashInput(text: string, configId: string) {
 export async function runJudge(
   config: JudgeConfigRow,
   transcript: string,
+  turns?: ModelMessage[],
 ): Promise<{
   verdict: JudgeVerdict;
   raw: string;
@@ -88,18 +114,27 @@ export async function runJudge(
   usage: JudgeUsage;
 }> {
   if (config.kind === "llama_guard") {
-    return runLlamaGuard(config, transcript);
+    return runLlamaGuard(config, transcript, turns);
   }
   return runLlmJudge(config, transcript);
 }
 
-async function runLlamaGuard(config: JudgeConfigRow, transcript: string) {
+async function runLlamaGuard(
+  config: JudgeConfigRow,
+  transcript: string,
+  turns?: ModelMessage[],
+) {
   // Llama Guard is a classifier: it answers "safe", or "unsafe" followed by
   // the hazard codes it matched. It is not a chat model and does not explain
   // itself, which is part of what participants are meant to notice.
+  //
+  // It is given the conversation itself where we have it, since that is what
+  // it was trained to read.
+  const messages: ModelMessage[] =
+    turns && turns.length > 0 ? turns : [{ role: "user", content: transcript }];
   const res = await generateText({
     model: openrouter.chat(config.modelId),
-    messages: [{ role: "user", content: transcript }],
+    messages,
     maxOutputTokens: 128,
     timeout: 90_000,
   });
@@ -173,15 +208,20 @@ async function runLlmJudge(config: JudgeConfigRow, transcript: string) {
     });
     return fromAnswer(res.output, readUsage(res));
   } catch (e) {
-    if (!NoObjectGeneratedError.isInstance(e)) throw e;
+    // Both of these mean the same thing: the model did not produce an answer
+    // in the required shape. They are separate classes, and checking only one
+    // of them was why a scanner run reported failure instead of falling back.
+    if (!NoObjectGeneratedError.isInstance(e) && !NoOutputGeneratedError.isInstance(e))
+      throw e;
+    const attempted = e as { text?: string; usage?: { inputTokens?: number; outputTokens?: number } };
 
     // Salvage anything usable from that attempt before trying again.
-    const salvaged = extractJson((e.text ?? "").trim());
+    const salvaged = extractJson((attempted.text ?? "").trim());
     const fromSalvage = coerce(salvaged);
     if (fromSalvage) {
       return fromAnswer(fromSalvage, {
-        promptTokens: e.usage?.inputTokens ?? 0,
-        completionTokens: e.usage?.outputTokens ?? 0,
+        promptTokens: attempted.usage?.inputTokens ?? 0,
+        completionTokens: attempted.usage?.outputTokens ?? 0,
         costUsd: null,
       });
     }
@@ -205,25 +245,26 @@ async function runLlmJudge(config: JudgeConfigRow, transcript: string) {
         usage: readUsage(res),
         parsed: null,
         verdict: {
-          headline: "This model would not answer in the required format",
+          headline: "The judge declined to assess this conversation",
           detail: res.text.trim()
             ? `It said: ${res.text.trim().slice(0, 300)}`
-            : "It returned no text at all, which usually means the reply budget was spent before it wrote anything. Try the trained classifier instead.",
+            : "It returned nothing at all. A judge refusing to look at a conversation is itself worth noting: it means this tool gives you no signal here. The trained classifier will still return a verdict.",
           flagged: false,
         } satisfies JudgeVerdict,
       };
     } catch {
       return {
-        raw: (e.text ?? "").trim(),
+        raw: (attempted.text ?? "").trim(),
         usage: {
-          promptTokens: e.usage?.inputTokens ?? 0,
-          completionTokens: e.usage?.outputTokens ?? 0,
+          promptTokens: attempted.usage?.inputTokens ?? 0,
+          completionTokens: attempted.usage?.outputTokens ?? 0,
           costUsd: null,
         },
         parsed: null,
         verdict: {
-          headline: "This model would not answer in the required format",
-          detail: "Try the trained classifier instead, which always answers.",
+          headline: "The judge declined to assess this conversation",
+          detail:
+            "It would not answer at all. That is itself worth noting: this tool gives you no signal here. The trained classifier will still return a verdict.",
           flagged: false,
         } satisfies JudgeVerdict,
       };
