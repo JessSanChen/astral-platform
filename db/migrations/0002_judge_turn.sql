@@ -1,0 +1,1 @@
+ALTER TABLE "judge_run" ADD COLUMN "turn_count" integer;

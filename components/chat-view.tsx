@@ -91,6 +91,9 @@ export function ChatView({
   // this conversation has been open already. Its messages are therefore
   // shown instantly, and a reply that began earlier is still streaming into
   // it rather than having been cancelled on the way out.
+  // Whether this conversation has been open before, captured before the chat
+  // is created, since creating it is what marks it as seen.
+  const [needsFirstSync] = useState(() => store.isFirstOpen(conversationId));
   const chat = store.getChat(conversationId, initialMessages);
   const { messages, setMessages, sendMessage, regenerate, stop, status, error } =
     useChat({ chat });
@@ -102,7 +105,17 @@ export function ChatView({
   useEffect(() => {
     store.setGenerating(conversationId, busy);
   }, [busy, conversationId, store]);
-  const lastIsAssistant = messages[messages.length - 1]?.role === "assistant";
+  // An assistant message exists from the moment a reply starts, before any
+  // text arrives. Rendering it would put an empty bubble above the thinking
+  // indicator, so it is left out until it has something to say.
+  const visibleMessages = messages.filter(
+    (m) =>
+      m.role !== "assistant" ||
+      m.parts?.some((p) => p.type === "text" && p.text.trim().length > 0),
+  );
+  const lastIsAssistant =
+    visibleMessages[visibleMessages.length - 1]?.role === "assistant";
+
   const lastMessage = messages[messages.length - 1];
   const lastHasText = lastMessage?.parts?.some(
     (p) => p.type === "text" && p.text.trim().length > 0,
@@ -196,12 +209,17 @@ export function ChatView({
       }
     };
 
-    void poll();
+    // Only ask the server when there is a reason to. On the first open the
+    // cached page may be behind, and while a reply is being written elsewhere
+    // the answer has to be collected. Otherwise the chat already holds the
+    // live state and re-asking would be a request for nothing.
+    if (needsFirstSync || awaitingElsewhere) void poll();
+
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [conversationId, setMessages, awaitingElsewhere, store]);
+  }, [conversationId, setMessages, awaitingElsewhere, needsFirstSync, store]);
 
   // Follow new content as it arrives: the sent message, the thinking
   // indicator, each chunk of the reply, and the controls that appear once a
@@ -256,13 +274,13 @@ export function ChatView({
         className="flex-1 overflow-y-auto"
       >
         <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
-          {messages.length === 0 && (
+          {visibleMessages.length === 0 && !waiting && (
             <p className="py-12 text-center text-sm text-muted-foreground">
               Send a message to begin.
             </p>
           )}
-          {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
+          {visibleMessages.map((m, i) => (
+            <MessageBubble key={m.id} message={m} index={i + 1} />
           ))}
 
           {waiting && <ThinkingIndicator />}
@@ -327,7 +345,7 @@ export function ChatView({
 
 function ThinkingIndicator() {
   return (
-    <div className="flex justify-start">
+    <div className="flex justify-start pl-9">
       <div
         className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3"
         role="status"
@@ -353,7 +371,13 @@ function Dot({ delay }: { delay: string }) {
   );
 }
 
-function MessageBubble({ message }: { message: UIMessage }) {
+function MessageBubble({
+  message,
+  index,
+}: {
+  message: UIMessage;
+  index: number;
+}) {
   const text = message.parts
     .filter((p): p is { type: "text"; text: string } => p.type === "text")
     .map((p) => p.text)
@@ -361,7 +385,19 @@ function MessageBubble({ message }: { message: UIMessage }) {
   const isUser = message.role === "user";
 
   return (
-    <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
+    <div
+      className={cn(
+        "flex items-start gap-2",
+        isUser ? "justify-end" : "justify-start",
+      )}
+    >
+      {/* Turn numbers, as transcripts conventionally carry, so a particular
+          exchange can be referred to precisely. */}
+      {!isUser && (
+        <span className="mt-2.5 w-7 shrink-0 text-right font-mono text-xs text-muted-foreground">
+          [{index}]
+        </span>
+      )}
       <div
         className={cn(
           "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm",
@@ -378,6 +414,11 @@ function MessageBubble({ message }: { message: UIMessage }) {
           </div>
         )}
       </div>
+      {isUser && (
+        <span className="mt-2.5 w-7 shrink-0 font-mono text-xs text-muted-foreground">
+          [{index}]
+        </span>
+      )}
     </div>
   );
 }

@@ -48,7 +48,16 @@ createServer((req, res) => {
     const convo = marker === -1 ? whole : whole.slice(marker + 'Transcript:'.length);
     const risky = /toxin|weapon|anthrax|pathogen|enhance/i.test(convo);
     let judgeReply = null;
-    if (modelId.includes('guard')) {
+    // Two ways a real judge misbehaves, so the fallbacks can be tested:
+    // 'prose' answers in sentences instead of JSON, and 'mute' returns
+    // nothing at all on the first (structured) attempt.
+    if (modelId.includes('prose')) {
+      judgeReply = risky
+        ? 'This conversation looks dangerous to me. I would rate it about 8 out of 10.'
+        : '{"risk_category": "benign", "severity_0_to_10": 1, "rationale": "Routine question."}';
+    } else if (modelId.includes('mute')) {
+      judgeReply = '';
+    } else if (modelId.includes('guard')) {
       judgeReply = risky ? 'unsafe\nS9' : 'safe';
     } else if (modelId.includes('judge')) {
       judgeReply = JSON.stringify({

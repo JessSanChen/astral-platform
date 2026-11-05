@@ -15,6 +15,13 @@
       "when": 1793810647096,
       "tag": "0001_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793862186100,
+      "tag": "0002_judge_turn",
+      "breakpoints": true
     }
   ]
 }

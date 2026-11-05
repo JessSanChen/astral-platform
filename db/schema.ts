@@ -278,6 +278,9 @@ export const judgeRun = pgTable(
       .notNull()
       .references(() => judgeConfig.id),
     inputHash: text("input_hash"),
+    // How many turns the conversation held when this was run, so a result
+    // can say which point in the conversation it judged.
+    turnCount: integer("turn_count"),
     rawOutput: text("raw_output"),
     parsed: jsonb("parsed"),
     verdict: text("verdict"),

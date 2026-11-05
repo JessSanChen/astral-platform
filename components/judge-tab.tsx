@@ -142,21 +142,24 @@ export function JudgeTab({ conversationId }: { conversationId: string }) {
                       {v?.detail && (
                         <p className="mt-1 text-xs leading-relaxed">{v.detail}</p>
                       )}
-                      {here ? (
-                        <p className="mt-1.5 text-xs text-muted-foreground">
-                          This conversation
-                        </p>
-                      ) : (
-                        <button
-                          onClick={() => router.push(`/chat/${r.conversationId}`)}
-                          className="mt-1.5 block max-w-full truncate text-left text-xs text-accent underline"
-                        >
-                          {r.conversationTitle}
-                          {duplicated.has(r.conversationTitle) && time
-                            ? ` (started ${time})`
-                            : ""}
-                        </button>
-                      )}
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        {here ? (
+                          <span>This conversation</span>
+                        ) : (
+                          <button
+                            onClick={() => router.push(`/chat/${r.conversationId}`)}
+                            className="max-w-full cursor-pointer truncate text-left text-accent underline"
+                          >
+                            {r.conversationTitle}
+                            {duplicated.has(r.conversationTitle) && time
+                              ? ` (started ${time})`
+                              : ""}
+                          </button>
+                        )}
+                        {/* Which point of the conversation was judged, so a
+                            result can be matched to the numbered turns. */}
+                        {r.turnCount ? ` at turn ${r.turnCount}` : ""}
+                      </p>
                     </div>
                   </div>
                 </li>

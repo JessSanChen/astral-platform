@@ -625,6 +625,79 @@ and obvious the moment anything is timed.
 
 ---
 
+## Transcript turns, and the last of the latency
+
+### Numbered turns
+
+Every message now carries a bracketed number, `[1]`, `[2]`, and so on, as
+transcripts conventionally do. Scanner results say which turn they judged,
+so "This conversation at turn 4" points at an exact place in the exchange.
+The numbering also goes into the text handed to the scanners, so a judge can
+refer to a turn and the participant can find it.
+
+### Switching conversations now makes no requests at all
+
+Measuring what actually crossed the network during a switch found two things.
+
+Submitting a transcript was calling for every cached conversation page to be
+thrown away, so each later switch went back to the server. The panel and
+sidebar now update themselves, so that is gone.
+
+The chat was also asking the server for its messages every time a
+conversation was opened, even when it already held them. It now asks only
+when there is a reason: the first time a conversation is opened, or while a
+reply is being written elsewhere.
+
+| | Requests per switch | Time |
+|---|---|---|
+| Before | 1 | ~50 ms |
+| After | 0 | ~50 ms |
+
+The remaining time is React rendering, not waiting. First-time opens still
+fetch, which is unavoidable, but those are prefetched as the links come into
+view.
+
+### No more empty bubble
+
+An assistant message exists from the moment a reply begins, before any text
+arrives, and it was being drawn as an empty bubble above the thinking
+indicator. Assistant messages are now drawn only once they have something to
+say.
+
+### Clickable things look clickable
+
+The styling reset gives buttons the ordinary arrow cursor. Anything clickable
+now shows the hand.
+
+### Why the LLM judge kept failing
+
+It kept answering "would not answer in the required format", and sometimes
+returned nothing at all. Three causes, all now handled.
+
+The reply budget was tight at about a thousand tokens. A model that thinks
+before it writes can spend that entire budget thinking, producing no visible
+text, which is indistinguishable from refusing. The budget is now four times
+larger.
+
+The instructions also asked for JSON in prose while the code separately
+enforced a schema, which are two different mechanisms pulling against each
+other. The instructions now describe the task and leave the shape to the
+schema.
+
+Finally, there was no recovery. If the structured attempt failed, that was
+the end. There are now three stages: ask with an enforced schema; failing
+that, salvage any JSON from what the model did say; failing that, ask again
+in plain words for JSON and parse the reply. Only if all three fail does the
+result say so, and it explains that the reply budget was likely spent before
+any text was written, pointing at the trained classifier instead.
+
+This is the practical difference between the two scanners, and worth
+understanding before the event. Llama Guard cannot really answer in any other
+shape, because answering that way is what it was trained to do. A general
+chat model is being asked, and asking is something a model can decline.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

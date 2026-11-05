@@ -75,7 +75,10 @@ export async function POST(req: Request) {
       { status: 429 },
     );
 
-  const transcript = await transcriptText(conversationId, convo.scenario);
+  const { text: transcript, turnCount } = await transcriptText(
+    conversationId,
+    convo.scenario,
+  );
   if (!transcript.trim())
     return Response.json({ message: "Have a conversation first." }, { status: 400 });
 
@@ -91,6 +94,7 @@ export async function POST(req: Request) {
         userId: cu.user.id,
         judgeConfigId,
         inputHash: hashInput(transcript, judgeConfigId),
+        turnCount,
         rawOutput: raw,
         parsed: { ...(parsedOutput as object | null), verdict },
         verdict: verdict.headline,
@@ -108,6 +112,7 @@ export async function POST(req: Request) {
         conversationId,
         judgeConfigId,
         judgeName: config.name,
+        turnCount,
         verdict: verdict.headline,
         parsed: { verdict },
         status: "ok",
@@ -130,6 +135,7 @@ export async function POST(req: Request) {
       userId: cu.user.id,
       judgeConfigId,
       inputHash: hashInput(transcript, judgeConfigId),
+      turnCount,
       rawOutput: null,
       parsed: { error: detail },
       verdict: "Scanner failed",

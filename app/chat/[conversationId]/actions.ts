@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -60,7 +59,6 @@ export async function saveLabels(
   }
 
   await writeLabels(conversationId, parsed.data);
-  revalidatePath(`/chat/${conversationId}`);
   return { savedAt: Date.now() };
 }
 
@@ -172,8 +170,10 @@ export async function submitTranscript(
       );
   });
 
-  revalidatePath(`/chat/${conversationId}`);
-  revalidatePath("/chat");
+  // Deliberately no revalidatePath here. It would clear the browser's cached
+  // copy of every conversation, so each later switch would go back to the
+  // server and feel slow. The panel and sidebar already update themselves
+  // from the result below.
   return { submittedVersion: version };
 }
 

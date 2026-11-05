@@ -26,6 +26,7 @@ export type JudgeRun = {
   conversationTitle: string;
   conversationStartedAt?: string;
   judgeName: string;
+  turnCount?: number | null;
   verdict: string | null;
   parsed: { verdict?: JudgeVerdictShape } | null;
   status: string;
@@ -56,6 +57,8 @@ type Store = {
    * is already there on return.
    */
   getChat: (id: string, initialMessages: UIMessage[]) => Chat<UIMessage>;
+  /** True the first time a conversation is opened in this session. */
+  isFirstOpen: (id: string) => boolean;
   isGenerating: (id: string) => boolean;
   setGenerating: (id: string, value: boolean) => void;
   // The right-hand panel's state lives here so the chosen tab and the
@@ -124,6 +127,8 @@ export function ConversationStoreProvider({
     [],
   );
 
+  const isFirstOpen = useCallback((id: string) => !chats.current.has(id), []);
+
   const getChat = useCallback((id: string, initialMessages: UIMessage[]) => {
     const existing = chats.current.get(id);
     if (existing) return existing;
@@ -163,6 +168,7 @@ export function ConversationStoreProvider({
       addConversation,
       patchConversation,
       getChat,
+      isFirstOpen,
       isGenerating,
       setGenerating,
       rightTab,
@@ -180,6 +186,7 @@ export function ConversationStoreProvider({
       addConversation,
       patchConversation,
       getChat,
+      isFirstOpen,
       isGenerating,
       setGenerating,
     ],
