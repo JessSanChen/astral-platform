@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import type { UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useRouter } from "next/navigation";
-import { ArrowUp, RefreshCw, Square, Tag } from "lucide-react";
+import { useConversationStore } from "@/components/conversation-store";
+import { ArrowUp, PanelRightOpen, RefreshCw, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ModelPicker } from "@/components/model-picker";
 import type { ModelOption } from "@/lib/models";
@@ -63,7 +63,7 @@ export function ChatView({
   labelsOpen,
   onToggleLabels,
 }: Props) {
-  const router = useRouter();
+  const store = useConversationStore();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -87,24 +87,43 @@ export function ChatView({
     stickToBottom.current = distanceFromBottom < 80;
   }, []);
 
-  const { messages, setMessages, sendMessage, regenerate, stop, status, error } = useChat({
-    id: conversationId,
-    messages: initialMessages,
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-      body: { conversationId },
-    }),
-    onFinish: () => {
-      // Refresh so the sidebar title and status stay in step with the server.
-      router.refresh();
-    },
-  });
+  // The chat lives in the shared store, so it is the same one as before if
+  // this conversation has been open already. Its messages are therefore
+  // shown instantly, and a reply that began earlier is still streaming into
+  // it rather than having been cancelled on the way out.
+  const chat = store.getChat(conversationId, initialMessages);
+  const { messages, setMessages, sendMessage, regenerate, stop, status, error } =
+    useChat({ chat });
 
   const busy = status === "streaming" || status === "submitted";
+
+  // Mirror the chat's own state into the store, so the rest of the interface
+  // knows which conversations are mid-reply.
+  useEffect(() => {
+    store.setGenerating(conversationId, busy);
+  }, [busy, conversationId, store]);
   const lastIsAssistant = messages[messages.length - 1]?.role === "assistant";
+  const lastMessage = messages[messages.length - 1];
+  const lastHasText = lastMessage?.parts?.some(
+    (p) => p.type === "text" && p.text.trim().length > 0,
+  );
+  // A reply started here, then the participant moved to another conversation,
+  // which tore this component down and with it the stream. The server kept
+  // generating and saved the result, so rather than showing a blank gap we
+  // say it is still working and wait for the answer to land.
+  //
+  // What is left behind is either the question on its own, or an assistant
+  // bubble that was still empty when the stream was cut; both mean the reply
+  // has not arrived yet.
+  const awaitingElsewhere =
+    !busy &&
+    store.isGenerating(conversationId) &&
+    (lastMessage?.role === "user" ||
+      (lastMessage?.role === "assistant" && !lastHasText));
   // True between pressing send and the first token arriving. Without a visible
   // signal here a slow model looks like a failure.
   const waiting =
+    awaitingElsewhere ||
     status === "submitted" ||
     (status === "streaming" &&
       !messages[messages.length - 1]?.parts?.some(
@@ -117,6 +136,14 @@ export function ChatView({
     if (!text || busy) return;
     setInput("");
     stickToBottom.current = true;
+    // Name the conversation from its first message straight away, rather
+    // than waiting for the server to tell us what we already know.
+    if (messages.length === 0) {
+      const clean = text.replace(/\s+/g, " ").trim();
+      store.patchConversation(conversationId, {
+        title: clean.length <= 60 ? clean : clean.slice(0, 57) + "...",
+      });
+    }
     sendMessage({ text });
   }
 
@@ -126,14 +153,15 @@ export function ChatView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
-  // Catch up with the server once on open. The page is prefetched and cached
-  // so that switching conversations is instant, which means it can be a
-  // little behind: most visibly when a reply finished generating after the
-  // participant had already switched away. Replacing the list only when the
-  // server has more avoids disturbing anything in flight here.
+  // Catch up with the server. Normally this runs once when a conversation is
+  // opened, because the cached copy can be slightly behind. While a reply
+  // that was started here is still being generated somewhere, it keeps
+  // asking until the answer appears.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    let timer: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
       try {
         const res = await fetch(`/api/conversations/${conversationId}/messages`);
         if (!res.ok || cancelled) return;
@@ -141,17 +169,39 @@ export function ChatView({
           messages: UIMessage[];
         };
         if (cancelled) return;
-        setMessages((current) =>
-          serverMessages.length > current.length ? serverMessages : current,
-        );
+        const serverLast = serverMessages[serverMessages.length - 1];
+        const serverHasAnswer =
+          serverLast?.role === "assistant" &&
+          serverLast.parts?.some(
+            (p) => p.type === "text" && p.text.trim().length > 0,
+          );
+
+        let arrived = false;
+        setMessages((current) => {
+          // While waiting for a reply that is being written elsewhere, the
+          // server's copy wins as soon as it holds a real answer, even when
+          // the counts match: what is on screen may be an empty bubble left
+          // behind by the interrupted stream.
+          if (awaitingElsewhere && serverHasAnswer) {
+            arrived = true;
+            return serverMessages;
+          }
+          if (serverMessages.length > current.length) return serverMessages;
+          return current;
+        });
+        if (arrived) store.setGenerating(conversationId, false);
+        else if (awaitingElsewhere) timer = setTimeout(poll, 1200);
       } catch {
         // Offline or interrupted: what is on screen is still usable.
       }
-    })();
+    };
+
+    void poll();
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [conversationId, setMessages]);
+  }, [conversationId, setMessages, awaitingElsewhere, store]);
 
   // Follow new content as it arrives: the sent message, the thinking
   // indicator, each chunk of the reply, and the controls that appear once a
@@ -185,8 +235,8 @@ export function ChatView({
           )}
           {!labelsOpen && (
             <Button variant="outline" size="sm" onClick={onToggleLabels}>
-              <Tag className="h-3.5 w-3.5" />
-              Labels
+              <PanelRightOpen className="h-3.5 w-3.5" />
+              Labels &amp; scanners
             </Button>
           )}
         </div>

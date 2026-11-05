@@ -1,9 +1,7 @@
-import { and, eq, sql } from "drizzle-orm";
-import { db } from "@/db";
-import { conversation } from "@/db/schema";
 import { requireOnboarded } from "@/lib/gate";
 import { listConversations } from "@/lib/conversations";
 import { ChatSidebar } from "@/components/chat-sidebar";
+import { ConversationStoreProvider } from "@/components/conversation-store";
 
 export default async function ChatLayout({
   children,
@@ -12,30 +10,24 @@ export default async function ChatLayout({
 }) {
   const { user, isAdmin } = await requireOnboarded();
 
-  const [conversations, [counts]] = await Promise.all([
-    listConversations(user.id),
-    db
-      .select({ submitted: sql<number>`count(*)::int` })
-      .from(conversation)
-      .where(
-        and(eq(conversation.userId, user.id), eq(conversation.status, "submitted")),
-      ),
-  ]);
+  // The submitted count is derived from this same list on the client, so
+  // there is no second query for it.
+  const conversations = await listConversations(user.id);
 
   return (
-    <div className="flex h-screen">
-      <ChatSidebar
-        conversations={conversations.map((c) => ({
-          id: c.id,
-          title: c.title,
-          status: c.status,
-          currentVersion: c.currentVersion,
-        }))}
-        submittedCount={counts?.submitted ?? 0}
-        userName={user.name}
-        isAdmin={isAdmin}
-      />
-      <main className="min-w-0 flex-1 overflow-hidden">{children}</main>
-    </div>
+    <ConversationStoreProvider
+      initialConversations={conversations.map((c) => ({
+        id: c.id,
+        title: c.title,
+        status: c.status,
+        currentVersion: c.currentVersion,
+        createdAt: (c.lastMessageAt ?? c.updatedAt ?? new Date()).toISOString(),
+      }))}
+    >
+      <div className="flex h-screen">
+        <ChatSidebar userName={user.name} isAdmin={isAdmin} />
+        <main className="min-w-0 flex-1 overflow-hidden">{children}</main>
+      </div>
+    </ConversationStoreProvider>
   );
 }

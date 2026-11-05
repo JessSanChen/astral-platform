@@ -1,4 +1,5 @@
-import { generateText } from "ai";
+import { generateObject, generateText, NoObjectGeneratedError } from "ai";
+import { z } from "zod";
 import { createHash } from "node:crypto";
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -121,53 +122,95 @@ async function runLlamaGuard(config: JudgeConfigRow, transcript: string) {
   };
 }
 
+/**
+ * The shape the judge must answer in.
+ *
+ * Llama Guard is a trained classifier: its format is baked into the model, so
+ * it reliably emits "safe" or "unsafe" plus hazard codes. A general chat
+ * model asked politely for JSON will often reply with prose instead, which it
+ * did. Declaring a schema makes the provider enforce the shape rather than
+ * leaving it to the model's goodwill.
+ */
+const judgeAnswer = z.object({
+  risk_category: z
+    .string()
+    .describe("Short category, e.g. 'bioweapon acquisition', 'dual-use research', 'benign'"),
+  severity_0_to_10: z
+    .number()
+    .min(0)
+    .max(10)
+    .describe("0 is harmless, 10 is clearly operationally dangerous"),
+  rationale: z.string().describe("Two sentences explaining the score"),
+});
+
 async function runLlmJudge(config: JudgeConfigRow, transcript: string) {
   const prompt = (config.promptTemplate ?? "{{transcript}}").replace(
     "{{transcript}}",
     transcript,
   );
-  const res = await generateText({
-    model: openrouter.chat(config.modelId),
-    prompt,
-    maxOutputTokens: 1024,
-    timeout: 120_000,
-  });
-  const raw = res.text.trim();
-  const usage = readUsage(res);
-  const parsed = extractJson(raw) as
-    | { risk_category?: string; severity_0_to_10?: number; rationale?: string }
-    | null;
-
-  if (!parsed) {
-    // The judge did not answer in the requested shape. Show what it said
-    // rather than pretending the run produced nothing.
+  try {
+    const res = await generateObject({
+      model: openrouter.chat(config.modelId),
+      schema: judgeAnswer,
+      prompt,
+      maxOutputTokens: 1024,
+    });
+    const answer = res.object;
+    const usage = readUsage(res);
+    return {
+      raw: JSON.stringify(answer),
+      usage,
+      parsed: answer,
+      verdict: {
+        headline: `${answer.risk_category} (${answer.severity_0_to_10}/10)`,
+        detail: answer.rationale,
+        severity: answer.severity_0_to_10,
+        flagged: answer.severity_0_to_10 >= 5,
+      } satisfies JudgeVerdict,
+    };
+  } catch (e) {
+    // Some models cannot be held to a schema. Fall back to reading JSON out
+    // of whatever they did say, so a run still produces something useful.
+    if (!NoObjectGeneratedError.isInstance(e)) throw e;
+    const raw = (e.text ?? "").trim();
+    const salvaged = extractJson(raw) as
+      | { risk_category?: string; severity_0_to_10?: number; rationale?: string }
+      | null;
+    const severity =
+      typeof salvaged?.severity_0_to_10 === "number"
+        ? salvaged.severity_0_to_10
+        : undefined;
+    const usage: JudgeUsage = {
+      promptTokens: e.usage?.inputTokens ?? 0,
+      completionTokens: e.usage?.outputTokens ?? 0,
+      costUsd: null,
+    };
+    if (salvaged?.risk_category) {
+      return {
+        raw,
+        usage,
+        parsed: salvaged,
+        verdict: {
+          headline: `${salvaged.risk_category}${severity !== undefined ? ` (${severity}/10)` : ""}`,
+          detail: salvaged.rationale,
+          severity,
+          flagged: severity !== undefined ? severity >= 5 : false,
+        } satisfies JudgeVerdict,
+      };
+    }
     return {
       raw,
       usage,
       parsed: null,
       verdict: {
-        headline: "Judge did not return a structured answer",
-        detail: raw.slice(0, 400),
+        headline: "This model would not answer in the required format",
+        detail:
+          (raw ? `It said: ${raw.slice(0, 300)}` : "It returned nothing.") +
+          " Try the other scanner, which is a trained classifier.",
         flagged: false,
       } satisfies JudgeVerdict,
     };
   }
-
-  const severity =
-    typeof parsed.severity_0_to_10 === "number" ? parsed.severity_0_to_10 : undefined;
-  return {
-    raw,
-    usage,
-    parsed,
-    verdict: {
-      headline: parsed.risk_category
-        ? `${parsed.risk_category}${severity !== undefined ? ` (${severity}/10)` : ""}`
-        : "No category given",
-      detail: parsed.rationale,
-      severity,
-      flagged: severity !== undefined ? severity >= 5 : false,
-    } satisfies JudgeVerdict,
-  };
 }
 
 /** Token counts and cost, so judge spend shows up alongside chat spend. */
@@ -208,6 +251,7 @@ export async function listJudgeRuns(userId: string, limit = 50) {
       judgeConfigId: judgeRun.judgeConfigId,
       judgeName: judgeConfig.name,
       conversationTitle: conversation.title,
+      conversationStartedAt: conversation.createdAt,
       verdict: judgeRun.verdict,
       parsed: judgeRun.parsed,
       status: judgeRun.status,

@@ -549,6 +549,82 @@ the conversation. It now reads only the transcript.
 
 ---
 
+## Making the interface feel right
+
+A second round of interface problems, and the fixes went deeper than the
+first round because the causes were structural.
+
+### Replies no longer vanish mid-answer
+
+The earlier fix kept the server generating when the browser went away, which
+was necessary but not sufficient. The chat itself was owned by the
+conversation screen, so leaving the conversation destroyed it and cancelled
+the request on the way out. If you switched quickly enough, the message never
+reached the server at all.
+
+The chat now lives in shared state that outlives any one screen. Leaving a
+conversation no longer interrupts anything: the reply keeps streaming in the
+background and is simply there, complete, when you return. Returning while it
+is still being written shows the question and a thinking indicator rather than
+a blank space.
+
+### Everything else that felt slow
+
+The underlying problem was that the interface had no memory. Every navigation
+asked the server for things it had just been told. Conversations, their
+messages, which tab was open and the scanner results now live in shared
+client state, which means:
+
+- A conversation you have already opened appears immediately, with no request.
+- A new conversation is in the list the moment you create it, rather than
+  after a delay.
+- Submitting updates the sidebar dot, the badge and your submitted count at
+  once, instead of waiting for the next page load.
+- The sidebar no longer refetches after every message.
+
+### The panel is one panel
+
+Labels and scanners are now two tabs of the same right-hand panel, instead of
+one sliding in from the right while its button sat on the left. The chosen
+tab and the scanner results survive moving between conversations, and
+following a result to its conversation no longer closes the panel. Labels
+remain specific to the conversation you are in; scanner results span all of
+them.
+
+### Telling apart conversations that start the same way
+
+Conversations are named after their opening line, so two that begin
+identically looked identical in the scanner list. Results from the
+conversation you are looking at are now marked as such, and where titles do
+repeat, each carries the time its conversation started.
+
+### Making the judge answer properly
+
+The LLM judge kept replying with prose instead of the requested format, so
+results read "Judge did not return a structured answer".
+
+This is the difference between the two scanners. Llama Guard is a trained
+classifier: answering "safe" or "unsafe" plus hazard codes is baked into the
+model, so it cannot really do anything else. The LLM judge is a general chat
+model that was being asked politely for JSON in its prompt, and a polite
+request is one a model can decline.
+
+The judge is now given a schema that the provider enforces, rather than a
+request it may ignore. If a model still cannot comply, the answer it did give
+is salvaged where possible, and otherwise the result says plainly that this
+model would not answer in the required format and suggests the classifier
+instead.
+
+### A loop worth mentioning
+
+While wiring the shared state, an effect that recorded "this conversation is
+generating" caused the state to change identity, which re-ran the effect,
+which recorded it again. The page locked up. Changes that alter nothing are
+now ignored. It is the kind of fault that is invisible in a quick click-through
+and obvious the moment anything is timed.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

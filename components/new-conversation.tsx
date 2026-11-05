@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConversationStore } from "@/components/conversation-store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ import type { ModelOption } from "@/lib/models";
 
 export function NewConversation({ models }: { models: ModelOption[] }) {
   const router = useRouter();
+  const { addConversation } = useConversationStore();
   const [modelId, setModelId] = useState(models[0]?.id ?? "");
   const [scenario, setScenario] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +32,15 @@ export function NewConversation({ models }: { models: ModelOption[] }) {
       return;
     }
     const { id } = await res.json();
+    // Put it in the list immediately. Waiting for the next server render
+    // meant it took seconds to appear, which looked like nothing happened.
+    addConversation({
+      id,
+      title: "New conversation",
+      status: "draft",
+      currentVersion: 0,
+      createdAt: new Date().toISOString(),
+    });
     router.push(`/chat/${id}`);
   }
 

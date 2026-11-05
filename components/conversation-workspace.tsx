@@ -1,17 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
-import { Tag, X } from "lucide-react";
+import { PanelRightClose, ShieldCheck, Tag } from "lucide-react";
 import { ChatView } from "@/components/chat-view";
+import { JudgeTab } from "@/components/judge-tab";
 import { LabelsPanel, type LabelValues, type TurnOption } from "@/components/labels-panel";
+import { useConversationStore } from "@/components/conversation-store";
 import { Button } from "@/components/ui/button";
 import type { ModelOption } from "@/lib/models";
 import { cn } from "@/lib/utils";
 
 /**
- * Puts the conversation and its labels side by side. The panel can be closed
- * so the chat has the full width, which matters on a laptop screen.
+ * The conversation with its side panel. The panel has two tabs: the labels
+ * for this conversation, and the safety scanners. Keeping them together
+ * means one panel on one side rather than things appearing from opposite
+ * edges. Which tab is open, and the scanner results, live in the shared
+ * store, so they survive moving between conversations.
  */
 export function ConversationWorkspace(props: {
   conversationId: string;
@@ -27,7 +32,21 @@ export function ConversationWorkspace(props: {
   labels: LabelValues;
   turns: TurnOption[];
 }) {
-  const [open, setOpen] = useState(true);
+  const store = useConversationStore();
+  const { rightTab, setRightTab, rightPanelOpen, setRightPanelOpen } = store;
+
+  // Share the conversation's chat, so the panel knows what is on screen now
+  // rather than what the server rendered. A conversation first opened empty
+  // and then written in would otherwise still claim it had no messages.
+  const chat = store.getChat(props.conversationId, props.initialMessages);
+  const { messages } = useChat({ chat });
+  const hasMessages = messages.length > 0;
+
+  // Prefer the client's view of status: it reflects a submit made a moment
+  // ago, where the server-rendered copy may predate it.
+  const entry = store.conversations.find((c) => c.id === props.conversationId);
+  const status = entry?.status ?? props.status;
+  const currentVersion = entry?.currentVersion ?? props.currentVersion;
 
   return (
     <div className="flex h-full">
@@ -39,58 +58,84 @@ export function ConversationWorkspace(props: {
           models={props.models}
           initialMessages={props.initialMessages}
           locked={props.locked}
-          conversationStatus={props.status}
-          currentVersion={props.currentVersion}
-          labelsOpen={open}
-          onToggleLabels={() => setOpen((o) => !o)}
+          conversationStatus={status}
+          currentVersion={currentVersion}
+          labelsOpen={rightPanelOpen}
+          onToggleLabels={() => setRightPanelOpen(true)}
         />
       </div>
 
-      <aside
-        className={cn(
-          "shrink-0 border-l border-border bg-muted/20 transition-all",
-          open ? "w-96" : "w-0 overflow-hidden",
-        )}
-      >
-        {open && (
-          <div className="relative h-full">
+      {rightPanelOpen && (
+        <aside className="flex w-96 shrink-0 flex-col border-l border-border bg-muted/20">
+          <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
+            <TabButton
+              active={rightTab === "labels"}
+              onClick={() => setRightTab("labels")}
+              icon={<Tag className="h-3.5 w-3.5" />}
+              label="Labels"
+            />
+            <TabButton
+              active={rightTab === "scanners"}
+              onClick={() => setRightTab("scanners")}
+              icon={<ShieldCheck className="h-3.5 w-3.5" />}
+              label="Scanners"
+            />
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setOpen(false)}
-              className="absolute right-2 top-2 z-10"
-              aria-label="Close labels"
+              onClick={() => setRightPanelOpen(false)}
+              className="ml-auto"
+              aria-label="Close panel"
             >
-              <X className="h-4 w-4" />
+              <PanelRightClose className="h-4 w-4" />
             </Button>
-            <LabelsPanel
-              // Remounting on a new version makes the panel adopt whatever
-              // the server stored, without reaching for an effect. While a
-              // participant is still editing the version does not change, so
-              // their in-progress answers are never thrown away.
-              key={`v${props.currentVersion}`}
-              conversationId={props.conversationId}
-              labels={props.labels}
-              turns={props.turns}
-              status={props.status}
-              currentVersion={props.currentVersion}
-              hasMessages={props.hasMessages}
-              changedSinceSubmit={props.changedSinceSubmit}
-            />
           </div>
-        )}
-      </aside>
 
-      {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-2 border-l border-border bg-muted/20 px-3 text-xs font-medium hover:bg-muted"
-          style={{ writingMode: "vertical-rl" }}
-        >
-          <Tag className="h-3.5 w-3.5" />
-          Labels
-        </button>
+          <div className="min-h-0 flex-1">
+            {rightTab === "labels" ? (
+              <LabelsPanel
+                key={`v${currentVersion}`}
+                conversationId={props.conversationId}
+                labels={props.labels}
+                turns={props.turns}
+                status={status}
+                currentVersion={currentVersion}
+                hasMessages={hasMessages}
+                changedSinceSubmit={props.changedSinceSubmit}
+              />
+            ) : (
+              <JudgeTab conversationId={props.conversationId} />
+            )}
+          </div>
+        </aside>
       )}
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex items-center gap-1.5 rounded-[var(--radius)] px-2.5 py-1.5 text-sm transition-colors",
+        active ? "bg-card font-medium shadow-sm" : "text-muted-foreground hover:bg-muted",
+      )}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

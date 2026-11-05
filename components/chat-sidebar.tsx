@@ -6,14 +6,7 @@ import { usePathname } from "next/navigation";
 import { Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SignOutButton } from "@/components/sign-out-button";
-import { JudgePanel } from "@/components/judge-panel";
-
-export type SidebarConversation = {
-  id: string;
-  title: string;
-  status: "draft" | "submitted";
-  currentVersion: number;
-};
+import { useConversationStore } from "@/components/conversation-store";
 
 /**
  * A quiet spinner on the conversation being opened.
@@ -30,17 +23,19 @@ function PendingDot() {
 }
 
 export function ChatSidebar({
-  conversations,
-  submittedCount,
   userName,
   isAdmin,
 }: {
-  conversations: SidebarConversation[];
-  submittedCount: number;
   userName: string;
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
+  // Read from the client store, so a conversation created a moment ago is
+  // already here rather than waiting for the next server render.
+  const { conversations } = useConversationStore();
+  const submittedCount = conversations.filter(
+    (c) => c.status === "submitted",
+  ).length;
 
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-muted/30">
@@ -104,7 +99,6 @@ export function ChatSidebar({
       </nav>
 
       <div className="space-y-2 border-t border-border p-3">
-        <JudgePanel />
         <p className="text-xs text-muted-foreground">
           {submittedCount} transcript{submittedCount === 1 ? "" : "s"} submitted
         </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import {
   saveLabels,
@@ -12,6 +12,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useConversationStore } from "@/components/conversation-store";
 import {
   CHALLENGE_FLAGS,
   DOMAIN_TAGS,
@@ -75,9 +76,20 @@ export function LabelsPanel({
     }));
 
   const [openNotes, setOpenNotes] = useState(false);
+  const { patchConversation } = useConversationStore();
   const e = state.errors ?? {};
-  const submitted = status === "submitted";
   const version = state.submittedVersion ?? currentVersion;
+  const submitted = status === "submitted" || state.submittedVersion !== undefined;
+
+  // Tell the rest of the interface that this conversation is now submitted,
+  // so the sidebar shows it straight away rather than on the next load.
+  useEffect(() => {
+    if (state.submittedVersion === undefined) return;
+    patchConversation(conversationId, {
+      status: "submitted",
+      currentVersion: state.submittedVersion,
+    });
+  }, [state.submittedVersion, conversationId, patchConversation]);
 
   return (
     <form className="flex h-full flex-col">
