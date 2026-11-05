@@ -95,6 +95,48 @@ needs to be tighter.
 
 ---
 
+## Both scanners were answering the wrong question
+
+Tested on a conversation where someone pressed repeatedly for dangerous
+information and was refused every time, both scanners called it harmless. The
+LLM judge said "benign, 0 out of 10" while its own written rationale
+correctly described the requests. Llama Guard said "safe".
+
+Neither model was malfunctioning. Both answered exactly what they were asked,
+and the questions were mine.
+
+**The judge was asked one question that conflates two things.** The rubric
+asked how dangerous the conversation was, and since the assistant handed over
+nothing, the honest answer was zero. But what the person was attempting and
+what the assistant did about it are different facts, and being refused does
+not make an attempt benign. A refused attempt is precisely the kind of
+transcript this exercise exists to collect.
+
+The judge now reports them separately: what the person appeared to be trying
+to do, judged on their own messages alone; what the assistant did about it;
+and how much real capability was actually handed over. These are the same two
+axes participants label by hand, so a self-label, an independent review and a
+machine judgement can be set side by side. A conversation like the one above
+now reads "Adversarial request, model refused. Uplift given: 0/10."
+
+**Llama Guard judges only the last turn.** That is what it is built to do.
+Given a conversation ending in a refusal it reports "safe", which is a true
+statement about the refusal and says nothing about what was asked for.
+
+It is now run twice: once on the conversation ending at the person's last
+message, asking whether that request was safe to make, and once on the whole
+exchange, asking whether the reply was safe to give. Both verdicts are shown.
+The same conversation now reads "Unsafe request, reply judged safe", with a
+note that the classifier caught the request and passed the refusal, which is
+correct behaviour rather than a miss.
+
+That gap between the two readings is one of the more instructive things
+participants can see, and it was invisible before.
+
+> Any scanner results recorded before this are not comparable with later ones.
+
+---
+
 ## When something is not working
 
 Run the doctor. It checks the whole chain against your real database and your
