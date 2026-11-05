@@ -197,6 +197,27 @@ async function runLlamaGuard(
   };
 }
 
+/**
+ * Whether a provider failure is the temporary kind.
+ *
+ * Llama Guard is served by a single provider, so when that provider is busy
+ * there is nowhere else to route and the request fails. That is a queue, not
+ * a fault in the conversation or the platform, and it should read as "try
+ * again shortly" rather than as an error with a stack of provider jargon.
+ */
+export function isTemporarilyUnavailable(e: unknown) {
+  const err = e as { statusCode?: number; message?: string; responseBody?: string };
+  if (err?.statusCode === 429 || err?.statusCode === 503) return true;
+  const text = `${err?.message ?? ""} ${err?.responseBody ?? ""}`.toLowerCase();
+  return (
+    text.includes("rate-limited") ||
+    text.includes("rate limited") ||
+    text.includes("temporarily") ||
+    text.includes("overloaded") ||
+    text.includes("capacity")
+  );
+}
+
 /** One pass of the classifier over a conversation, judging its final turn. */
 async function classify(modelId: string, messages: ModelMessage[]) {
   const res = await generateText({

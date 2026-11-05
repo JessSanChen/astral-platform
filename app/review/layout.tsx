@@ -1,6 +1,7 @@
 import { requireOnboarded } from "@/lib/gate";
 import { listClaimed, listCompleted } from "@/lib/reviews";
 import { ReviewSidebar } from "@/components/review-sidebar";
+import { MasterNav } from "@/components/master-nav";
 
 export default async function ReviewLayout({
   children,
@@ -15,6 +16,7 @@ export default async function ReviewLayout({
 
   return (
     <div className="flex h-screen">
+      <MasterNav />
       <ReviewSidebar
         toReview={claimed.map((c) => ({
           conversationId: c.conversationId,

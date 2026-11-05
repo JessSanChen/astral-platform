@@ -7,6 +7,7 @@ conversation, and submit it. Everything is stored in Postgres for later
 experiments.
 
 - Build log and test instructions: [docs/BUILDLOG.md](docs/BUILDLOG.md)
+- Wording and fields needing team input: [docs/TEAM-INPUT.md](docs/TEAM-INPUT.md)
 - Product spec: [docs/SPEC.md](docs/SPEC.md)
 - System design and explainers: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 

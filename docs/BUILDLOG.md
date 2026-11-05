@@ -137,6 +137,67 @@ participants can see, and it was invisible before.
 
 ---
 
+## A master index, and a review bug worth understanding
+
+### Reviews stopped accepting labels after a refresh
+
+Every transcript in a refreshed batch refused to be labelled, saying it was
+no longer assigned. The cause is worth recording because the code read
+correctly.
+
+Refreshing a batch releases what you hold and claims a new set. That leaves
+two rows for a transcript you are given again: the old released one and the
+new live one. The check asked the database for "a claim by this reviewer for
+this transcript" and then looked at whether it was released. With two rows
+and no ordering, the database is free to return either, and it generally
+returned the older, released one. So the check rejected a claim that was
+perfectly valid.
+
+The fix is to ask only for live claims rather than filtering afterwards. The
+general shape of the mistake is worth remembering: taking the first row of a
+query that can return several, and deciding something important from it.
+
+### Refreshing now gives a genuinely different set
+
+Batches were ordered oldest-first, so refreshing returned the same five.
+Pressing refresh is how a reviewer says "not these", which made the button
+useless. Candidates are now drawn at random, preferring transcripts this
+reviewer has not already passed over, and falling back to previously released
+ones only once the fresh pool runs dry.
+
+### Claiming is one statement instead of five
+
+A batch was claimed by inserting rows one at a time. On a database a network
+hop away that was five round trips, and it was most of the delay on first
+opening the review console. It is now a single statement that selects and
+inserts together, which is both faster and safer: there is no longer a gap
+between choosing a transcript and claiming it in which someone else can take
+it.
+
+| | First open of Review |
+|---|---|
+| Before | about 900 ms |
+| After | about 330 ms |
+
+Switching between the consoles measures 49 ms.
+
+### The master index
+
+The three consoles are reached from a column on the far left: My chats,
+Review and Submit. It collapses to icons, since each console already has a
+list of its own and two full-width columns crowd a laptop screen. The choice
+is remembered per browser.
+
+### A busy scanner is not a failure
+
+Llama Guard is served by a single provider, so when that provider is busy
+there is nowhere to route and the request fails. That was being reported as a
+scanner error complete with provider jargon. It now says the scanner is busy,
+that nothing was recorded, and to try again shortly, and it hands back the
+hourly allowance so a queue does not cost a participant one of their runs.
+
+---
+
 ## When something is not working
 
 Run the doctor. It checks the whole chain against your real database and your

@@ -5,9 +5,10 @@ import { judgeConfig, judgeRun } from "@/db/schema";
 import { getCurrentUser } from "@/lib/gate";
 import { getOwnedConversation } from "@/lib/conversations";
 import { ChatError, getEventSettings } from "@/lib/openrouter";
-import { finishUsageEvent, reserveSlot } from "@/lib/budget";
+import { finishUsageEvent, releaseSlot, reserveSlot } from "@/lib/budget";
 import {
   hashInput,
+  isTemporarilyUnavailable,
   listJudgeRuns,
   runJudge,
   transcriptText,
@@ -131,6 +132,22 @@ export async function POST(req: Request) {
       }
     }
     console.error("[judge] failed", { judgeConfigId, modelId: config.modelId, detail });
+
+    // A busy provider is a queue, not a result. Nothing is recorded, so the
+    // participant can simply run it again in a moment and get a real verdict
+    // rather than a stored failure sitting in their list.
+    if (isTemporarilyUnavailable(e)) {
+      // Give the hourly allowance back: a request that never reached a model
+      // should not count against the participant.
+      await releaseSlot(usageEventId);
+      return Response.json(
+        {
+          message: `${config.name} is busy upstream right now. Nothing was recorded; try again in a few moments. The other scanner is served separately and should still work.`,
+        },
+        { status: 503 },
+      );
+    }
+
     await db.insert(judgeRun).values({
       conversationId,
       userId: cu.user.id,

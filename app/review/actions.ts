@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { conversation, review, reviewClaim } from "@/db/schema";
 import { requireOnboarded } from "@/lib/gate";
@@ -24,6 +24,12 @@ export async function submitReview(
   const conversationId = String(formData.get("conversationId"));
 
   // Only a transcript this reviewer is actually holding can be reviewed.
+  //
+  // Released rows must be excluded here, not filtered afterwards. Refreshing
+  // a batch leaves an old released row beside the new live one for the same
+  // transcript, and a query that asks for "a claim" gets whichever the
+  // database happens to return: often the stale one, which made every
+  // transcript in a refreshed batch refuse to accept a review.
   const [claim] = await db
     .select()
     .from(reviewClaim)
@@ -31,9 +37,10 @@ export async function submitReview(
       and(
         eq(reviewClaim.conversationId, conversationId),
         eq(reviewClaim.reviewerId, user.id),
+        ne(reviewClaim.state, "released"),
       ),
     );
-  if (!claim || claim.state === "released") {
+  if (!claim) {
     return { message: "This transcript is no longer assigned to you." };
   }
 

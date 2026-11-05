@@ -1,0 +1,16 @@
+import { requireOnboarded } from "@/lib/gate";
+import { MasterNav } from "@/components/master-nav";
+
+export default async function NominateLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  await requireOnboarded();
+  return (
+    <div className="flex h-screen">
+      <MasterNav />
+      <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+    </div>
+  );
+}

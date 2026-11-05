@@ -1,6 +1,7 @@
 import { requireOnboarded } from "@/lib/gate";
 import { listConversations } from "@/lib/conversations";
 import { ChatSidebar } from "@/components/chat-sidebar";
+import { MasterNav } from "@/components/master-nav";
 import { ConversationStoreProvider } from "@/components/conversation-store";
 
 export default async function ChatLayout({
@@ -25,6 +26,7 @@ export default async function ChatLayout({
       }))}
     >
       <div className="flex h-screen">
+        <MasterNav />
         <ChatSidebar userName={user.name} isAdmin={isAdmin} />
         <main className="min-w-0 flex-1 overflow-hidden">{children}</main>
       </div>

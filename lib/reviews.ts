@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { conversation, message, review, reviewClaim } from "@/db/schema";
 import { getEventSettings } from "@/lib/openrouter";
@@ -25,45 +25,47 @@ export async function claimBatch(reviewerId: string, size?: number) {
   const settings = await getEventSettings();
   const batchSize = size ?? settings.reviewBatchSize;
 
-  const candidates = await db
-    .select({
-      id: conversation.id,
-      lastSubmittedAt: conversation.lastSubmittedAt,
-    })
-    .from(conversation)
-    .leftJoin(review, eq(review.conversationId, conversation.id))
-    .leftJoin(
-      reviewClaim,
-      and(
-        eq(reviewClaim.conversationId, conversation.id),
-        ne(reviewClaim.state, "released"),
-      ),
-    )
-    .where(
-      and(
-        eq(conversation.status, "submitted"),
-        ne(conversation.userId, reviewerId),
-        isNull(review.id),
-        isNull(reviewClaim.id),
-      ),
-    )
-    .orderBy(asc(conversation.lastSubmittedAt))
-    .limit(batchSize * 3);
+  // One statement, for two reasons.
+  //
+  // Correctness: selecting candidates and then inserting them one by one
+  // leaves a gap in which another reviewer can take the same transcript.
+  // Doing both together, with the unique index over live claims rejecting
+  // anything already taken, closes it.
+  //
+  // Speed: claiming five transcripts in five round trips was the slowest
+  // thing in the interface, and on a database a network hop away it was most
+  // of the delay on first opening the review console.
+  //
+  // Candidates are drawn at random, preferring transcripts this reviewer has
+  // not already passed over: refreshing a batch is how someone says "not
+  // these", so returning the same five would make the button pointless.
+  // Previously released ones are still offered once the untouched pool runs
+  // dry, since a small event can exhaust it.
+  const rows = await db.execute<{ conversation_id: string }>(sql`
+    insert into ${reviewClaim} (conversation_id, reviewer_id)
+    select c.id, ${reviewerId}
+    from ${conversation} c
+    where c.status = 'submitted'
+      and c.user_id <> ${reviewerId}
+      and not exists (select 1 from ${review} r where r.conversation_id = c.id)
+      and not exists (
+        select 1 from ${reviewClaim} rc
+        where rc.conversation_id = c.id and rc.state <> 'released'
+      )
+    order by
+      exists (
+        select 1 from ${reviewClaim} rc
+        where rc.conversation_id = c.id and rc.reviewer_id = ${reviewerId}
+      ) asc,
+      random()
+    limit ${batchSize}
+    on conflict do nothing
+    returning conversation_id
+  `);
 
-  const claimed: string[] = [];
-  for (const candidate of candidates) {
-    if (claimed.length >= batchSize) break;
-    try {
-      await db
-        .insert(reviewClaim)
-        .values({ conversationId: candidate.id, reviewerId });
-      claimed.push(candidate.id);
-    } catch {
-      // Someone else claimed it in the moment between the read and the
-      // write. Nothing to repair; move on to the next candidate.
-    }
-  }
-  return claimed;
+  return (rows as unknown as { conversation_id: string }[]).map(
+    (r) => r.conversation_id,
+  );
 }
 
 /** Gives up any transcripts this reviewer holds but has not reviewed. */

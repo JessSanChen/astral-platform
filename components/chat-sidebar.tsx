@@ -3,11 +3,10 @@
 import Link from "next/link";
 import { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { Loader2, Plus, Trophy } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SignOutButton } from "@/components/sign-out-button";
 import { useConversationStore } from "@/components/conversation-store";
-import { ConsoleSwitch } from "@/components/console-switch";
 
 /**
  * A quiet spinner on the conversation being opened.
@@ -40,8 +39,7 @@ export function ChatSidebar({
 
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-muted/30">
-      <div className="space-y-2 p-3">
-        <ConsoleSwitch />
+      <div className="p-3">
         <Link href="/chat">
           <span
             className={cn(
@@ -101,14 +99,6 @@ export function ChatSidebar({
       </nav>
 
       <div className="space-y-2 border-t border-border p-3">
-        <Link
-          href="/nominate"
-          prefetch
-          className="flex items-center gap-2 rounded-[var(--radius)] px-2 py-1.5 text-sm hover:bg-muted"
-        >
-          <Trophy className="h-4 w-4" />
-          Put work forward
-        </Link>
         <p className="text-xs text-muted-foreground">
           {submittedCount} transcript{submittedCount === 1 ? "" : "s"} submitted
         </p>

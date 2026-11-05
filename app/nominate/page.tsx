@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Lock, Trophy } from "lucide-react";
+import { CheckCircle2, Lock, Trophy } from "lucide-react";
 import { requireOnboarded } from "@/lib/gate";
 import {
   NOMINATION_TRACKS,
@@ -26,14 +26,6 @@ export default async function NominateHome() {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
-      <Link
-        href="/chat"
-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to my chats
-      </Link>
-
       <div className="space-y-2">
         <h1 className="flex items-center gap-2 text-2xl font-semibold">
           <Trophy className="h-5 w-5" />

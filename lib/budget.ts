@@ -74,6 +74,14 @@ export async function reserveSlot(opts: {
   });
 }
 
+/**
+ * Hands back a slot claimed for work that never happened, so a provider
+ * being busy does not quietly eat someone's allowance.
+ */
+export async function releaseSlot(id: string) {
+  await db.delete(usageEvent).where(eq(usageEvent.id, id));
+}
+
 /** Fills in the real token counts once a reply has finished. */
 export async function finishUsageEvent(
   id: string,

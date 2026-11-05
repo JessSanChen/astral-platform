@@ -429,6 +429,18 @@ so they are configuration and UI work rather than new infrastructure.
   versioned, so the agreement half is mostly a UI; the profile half needs
   the profile table to store answers as structured data rather than fixed
   columns.
+- **Email format checking.** Sign-up accepts whatever the browser's own email
+  validation allows, which is lenient. Worth tightening so a typo does not
+  cost someone their account on the day, when there is no password reset by
+  email.
+- **Password rules.** Currently only a minimum of 8 characters. Worth adding
+  the usual checks, and rejecting the handful of passwords everyone tries.
+- **Forgot password by magic link.** Asked about difficulty: it is not hard.
+  The login library has it built in, and the work is almost entirely choosing
+  an email provider and verifying the domain so mail is not treated as spam.
+  Half a day, most of it waiting for DNS. The catch is that it is useless
+  without working email on the day, which is why the event relies on an
+  organizer resetting passwords instead. Worth adding afterwards.
 - **Forgot password (self-service).** Better Auth has `requestPasswordReset`
   and `resetPassword` built in; they send a reset link by email, so this also
   waits on the email provider. For the event, the admin resets passwords

@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ConsoleSwitch } from "@/components/console-switch";
 import { SignOutButton } from "@/components/sign-out-button";
 import { refreshBatch } from "@/app/review/actions";
 import { cn } from "@/lib/utils";
@@ -36,10 +35,6 @@ export function ReviewSidebar({
 
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-muted/30">
-      <div className="p-3">
-        <ConsoleSwitch />
-      </div>
-
       <div className="flex min-h-0 flex-1 flex-col">
         <Section
           title="To review"
