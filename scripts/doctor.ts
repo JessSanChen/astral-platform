@@ -16,7 +16,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { conversation, judgeConfig, judgeRun, message, user } from "@/db/schema";
 import { getEventSettings, openrouter } from "@/lib/openrouter";
-import { runJudge, transcriptText } from "@/lib/judges";
+import { runJudge } from "@/lib/judges";
 
 let failures = 0;
 const ok = (m: string) => console.log(`  ok    ${m}`);
