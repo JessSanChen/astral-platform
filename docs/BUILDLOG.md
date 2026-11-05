@@ -3,6 +3,42 @@
 What is finished in each phase, and how to check it yourself. The plan for
 all phases is in `SPEC.md` section 9. Newest phase last.
 
+## How much of the sluggishness is distance
+
+The interface does as little as it can: switching to a conversation already
+opened makes no network requests at all. What remains is the cost of opening
+something for the first time, and that is roughly three database round trips
+plus the page itself.
+
+So the round-trip time the doctor reports sets a floor. At 1ms it is
+invisible. At 48ms, which is a laptop talking to a database in another
+region, those same three hops cost about 150ms before anything can render.
+
+Two things follow, and the second matters more than it sounds:
+
+- **Put the database in the region nearest the event.** For Boston that is
+  AWS us-east-1. Creating the Neon project in the right region is the single
+  largest improvement available, and no amount of code can substitute for it.
+- **Measure production, not your laptop.** On the day, the application runs
+  in a data centre, not on a laptop. Hosted in the same region as the
+  database, those round trips fall to a few milliseconds and most of what
+  feels sluggish in local development disappears. Deploy early and measure
+  there before concluding anything about event-day speed.
+
+### One optimisation that was tried and rejected
+
+Carrying the session in a signed cookie would remove a database read from
+every page load, which is the most tempting saving on a distant database. It
+was implemented, measured, and reverted.
+
+The problem is that the cached copy keeps saying an account is in good
+standing after an organizer has paused it, and nothing in the request can
+tell that it is wrong. Pausing a participant is a safety control that has to
+take effect at once. Fifty milliseconds is not worth a pause that takes up to
+thirty seconds to bite, so the session is read from the database every time.
+
+---
+
 ## When something is not working
 
 Run the doctor. It checks the whole chain against your real database and your
@@ -25,6 +61,9 @@ Two failures are worth recognising on sight:
 - **Chat and scanners both fail together.** They share one thing, the
   OpenRouter account, so look there first: credits exhausted, a key that has
   been rotated, or a rate limit. The doctor shows the provider's own words.
+
+If `npm run db:migrate` itself complains that the url is undefined, pull
+again: the drizzle commands were not reading `.env.local`, which is fixed.
 
 The round-trip time it reports is worth watching. Anything under about 15ms
 feels instant. Fifty or more is what makes the interface feel sluggish no

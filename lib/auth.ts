@@ -41,6 +41,14 @@ export const auth = betterAuth({
     // No email verification for the MVP; participants are on site.
     requireEmailVerification: false,
   },
+  // Deliberately no session cookie cache.
+  //
+  // Caching the session in a cookie would remove a database read from every
+  // page load, which is tempting on a distant database. It was tried and
+  // reverted: the cached copy keeps saying an account is in good standing
+  // after an organizer has paused it, and nothing in the request can tell
+  // that it is wrong. Pausing someone is a safety control that has to take
+  // effect at once, so it is read from the database every time.
   rateLimit: {
     // Better Auth enables rate limiting in production only, and its default
     // for sign-in and sign-up is 3 requests per 10 seconds keyed by IP
