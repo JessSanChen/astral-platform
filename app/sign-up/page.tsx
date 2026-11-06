@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signUp } from "@/lib/auth-client";
+import { signUp, useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,14 @@ export default function SignUpPage() {
   const [eventCode, setEventCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { data: session, isPending } = useSession();
+
+  // Someone already signed in has no business on this page, and seeing the
+  // form invites the belief that a browser can hold two accounts at once. It
+  // cannot: every tab shares one session.
+  useEffect(() => {
+    if (!isPending && session) router.replace("/chat");
+  }, [isPending, session, router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

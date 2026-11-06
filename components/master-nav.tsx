@@ -9,6 +9,7 @@ import {
   PanelLeft,
   Trophy,
 } from "lucide-react";
+import { SignOutButton } from "@/components/sign-out-button";
 import { cn } from "@/lib/utils";
 
 const SECTIONS = [
@@ -27,7 +28,15 @@ const STORAGE_KEY = "astral.nav.expanded";
  * per browser; reading that can fail in a private window, so a failure just
  * means the default.
  */
-export function MasterNav() {
+export function MasterNav({
+  userName,
+  userEmail,
+  isAdmin,
+}: {
+  userName: string;
+  userEmail: string;
+  isAdmin: boolean;
+}) {
   const pathname = usePathname();
   // Read once on first render rather than in an effect, so the menu never
   // appears at the wrong width and then jumps.
@@ -112,6 +121,40 @@ export function MasterNav() {
           );
         })}
       </div>
+
+      {/* Who you are acting as. Kept here rather than inside one console,
+          because it is true of the whole session: every tab in a browser
+          shares it, which is confusing while testing several accounts. */}
+      <div className={cn("mt-auto border-t border-border p-2", expanded ? "" : "px-1")}>
+        {expanded ? (
+          <div className="space-y-2">
+            <div className="px-1.5">
+              <p className="truncate text-sm font-medium">{userName}</p>
+              <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
+              {isAdmin && (
+                <p className="mt-0.5 text-xs font-medium text-accent">Organizer</p>
+              )}
+            </div>
+            <SignOutButton className="w-full" />
+          </div>
+        ) : (
+          <div
+            title={`${userName} (${userEmail})`}
+            className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-card text-xs font-medium"
+          >
+            {initials(userName)}
+          </div>
+        )}
+      </div>
     </nav>
   );
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 }

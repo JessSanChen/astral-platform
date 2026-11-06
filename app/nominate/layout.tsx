@@ -6,10 +6,14 @@ export default async function NominateLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireOnboarded();
+  const { user, isAdmin } = await requireOnboarded();
   return (
     <div className="flex h-screen">
-      <MasterNav />
+      <MasterNav
+        userName={user.name}
+        userEmail={user.email}
+        isAdmin={isAdmin}
+      />
       <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
     </div>
   );

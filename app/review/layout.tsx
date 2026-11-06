@@ -16,7 +16,11 @@ export default async function ReviewLayout({
 
   return (
     <div className="flex h-screen">
-      <MasterNav />
+      <MasterNav
+        userName={user.name}
+        userEmail={user.email}
+        isAdmin={isAdmin}
+      />
       <ReviewSidebar
         toReview={claimed.map((c) => ({
           conversationId: c.conversationId,
@@ -30,8 +34,6 @@ export default async function ReviewLayout({
           updatedAt: c.updatedAt?.toISOString(),
           submissionCount: c.submissionCount,
         }))}
-        userName={user.name}
-        isAdmin={isAdmin}
       />
       <main className="min-w-0 flex-1 overflow-hidden">{children}</main>
     </div>

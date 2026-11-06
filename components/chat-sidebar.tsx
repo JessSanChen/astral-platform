@@ -5,7 +5,6 @@ import { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SignOutButton } from "@/components/sign-out-button";
 import { useConversationStore } from "@/components/conversation-store";
 
 /**
@@ -22,13 +21,7 @@ function PendingDot() {
   return <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />;
 }
 
-export function ChatSidebar({
-  userName,
-  isAdmin,
-}: {
-  userName: string;
-  isAdmin: boolean;
-}) {
+export function ChatSidebar() {
   const pathname = usePathname();
   // Read from the client store, so a conversation created a moment ago is
   // already here rather than waiting for the next server render.
@@ -98,17 +91,10 @@ export function ChatSidebar({
         })}
       </nav>
 
-      <div className="space-y-2 border-t border-border p-3">
+      <div className="border-t border-border p-3">
         <p className="text-xs text-muted-foreground">
           {submittedCount} transcript{submittedCount === 1 ? "" : "s"} submitted
         </p>
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-xs text-muted-foreground">
-            {userName}
-            {isAdmin && " (admin)"}
-          </span>
-          <SignOutButton />
-        </div>
       </div>
     </aside>
   );

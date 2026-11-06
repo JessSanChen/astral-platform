@@ -265,6 +265,30 @@ claiming at the same time receives a different five.
 
 ---
 
+## One browser holds one account
+
+Signing in as several test accounts appeared to land on the same person every
+time. Both switching paths were tested and both work: signing out and back
+in, and signing in as someone else without signing out first.
+
+The explanation is simpler and is not a fault. A browser keeps one session
+cookie, shared by every tab. Signing in as a second account in one tab signs
+every tab into that account. Testing several participants at once needs
+separate browser profiles, or a private window per account.
+
+Two changes make that obvious rather than puzzling. The signed-in name and
+email now sit in the index on the far left, visible from every console, since
+the identity belongs to the whole session rather than to one screen. And
+anyone already signed in is sent away from the sign-in page instead of being
+shown a form that invites the belief a browser can hold two accounts.
+
+Signing out now reloads the page rather than navigating within the app. Next
+keeps rendered pages in memory per route rather than per person, so a client
+navigation could otherwise show the previous account's conversations to
+whoever signs in next.
+
+---
+
 ## When something is not working
 
 Run the doctor. It checks the whole chain against your real database and your

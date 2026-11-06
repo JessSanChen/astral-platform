@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SignOutButton } from "@/components/sign-out-button";
 import { refreshBatch } from "@/app/review/actions";
 import { cn } from "@/lib/utils";
 
@@ -21,13 +20,9 @@ export type ReviewItem = {
 export function ReviewSidebar({
   toReview,
   completed,
-  userName,
-  isAdmin,
 }: {
   toReview: ReviewItem[];
   completed: ReviewItem[];
-  userName: string;
-  isAdmin: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -89,17 +84,10 @@ export function ReviewSidebar({
         </Section>
       </div>
 
-      <div className="space-y-2 border-t border-border p-3">
+      <div className="border-t border-border p-3">
         <p className="text-xs text-muted-foreground">
           {completed.length} review{completed.length === 1 ? "" : "s"} submitted
         </p>
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-xs text-muted-foreground">
-            {userName}
-            {isAdmin && " (admin)"}
-          </span>
-          <SignOutButton />
-        </div>
       </div>
     </aside>
   );

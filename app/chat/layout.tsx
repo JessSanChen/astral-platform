@@ -26,8 +26,12 @@ export default async function ChatLayout({
       }))}
     >
       <div className="flex h-screen">
-        <MasterNav />
-        <ChatSidebar userName={user.name} isAdmin={isAdmin} />
+        <MasterNav
+          userName={user.name}
+          userEmail={user.email}
+          isAdmin={isAdmin}
+        />
+        <ChatSidebar />
         <main className="min-w-0 flex-1 overflow-hidden">{children}</main>
       </div>
     </ConversationStoreProvider>
