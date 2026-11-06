@@ -10,7 +10,31 @@ const adminEmails = (process.env.ADMIN_EMAILS ?? "")
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
 
+/**
+ * Where this instance is served from.
+ *
+ * Better Auth refuses requests whose Origin does not match, which is what
+ * keeps another site from driving sign-ins against this one. Production sets
+ * BETTER_AUTH_URL. A Vercel preview deployment gets a fresh hostname for
+ * every push, which no fixed value can know in advance, so there the origin
+ * comes from Vercel's own variable. Without this, signing in on a preview
+ * fails with "Invalid origin" and the preview is useless for testing.
+ */
+const vercelUrl = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL}`
+  : undefined;
+const branchUrl = process.env.VERCEL_BRANCH_URL
+  ? `https://${process.env.VERCEL_BRANCH_URL}`
+  : undefined;
+const baseURL = process.env.BETTER_AUTH_URL ?? vercelUrl;
+
 export const auth = betterAuth({
+  baseURL,
+  // The stable production address plus, on Vercel, this deployment's own
+  // hostname and its branch alias.
+  trustedOrigins: [baseURL, vercelUrl, branchUrl].filter(
+    (url): url is string => Boolean(url),
+  ),
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
