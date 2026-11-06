@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Lock, Trophy } from "lucide-react";
+import { CheckCircle2, Circle, Lock, Trophy } from "lucide-react";
 import { requireOnboarded } from "@/lib/gate";
 import {
   NOMINATION_TRACKS,
@@ -65,10 +65,15 @@ export default async function NominateHome() {
                     {track.blurb}
                   </p>
                 </div>
-                {entry && (
+                {entry ? (
                   <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     Submitted
+                  </span>
+                ) : (
+                  <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                    <Circle className="h-3.5 w-3.5" />
+                    Not entered
                   </span>
                 )}
               </div>

@@ -3,6 +3,39 @@
 What is finished in each phase, and how to check it yourself. The plan for
 all phases is in `SPEC.md` section 9. Newest phase last.
 
+## Why the development server feels slow, and production does not
+
+Latency was reported three times, and measured fast all three times. The
+difference turned out to be which server was being used.
+
+`npm run dev` compiles each page the first time it is visited. Production
+builds everything in advance. Measured on the same machine against the same
+database:
+
+| | Development | Production |
+|---|---|---|
+| First visit to Review | 1050 ms | 50 ms |
+| First visit to Submit | 800 ms | 45 ms |
+| First visit to a nomination form | 1310 ms | 43 ms |
+| Returning to a page | 165 to 300 ms | 45 to 55 ms |
+
+So a first click on anything in development takes about a second, and even
+repeat clicks are several times slower than they will be on the day. None of
+that reaches participants, who will only ever use a production build.
+
+To see what they will see:
+
+```bash
+npm run preview
+```
+
+That migrates, builds and serves the production version on the same port. It
+takes half a minute to start and is not worth using while editing, but it is
+the only honest way to judge whether something is actually slow.
+
+When judging performance, measure a production build. A development server
+answers a different question.
+
 ## How much of the sluggishness is distance
 
 The interface does as little as it can: switching to a conversation already
@@ -195,6 +228,40 @@ there is nowhere to route and the request fails. That was being reported as a
 scanner error complete with provider jargon. It now says the scanner is busy,
 that nothing was recorded, and to try again shortly, and it hands back the
 hourly allowance so a queue does not cost a participant one of their runs.
+
+---
+
+## Checking who is holding which transcript
+
+Reviewers hold a batch at a time, and refreshing releases what they held. To
+see the current state, in the Neon console or any SQL client:
+
+```sql
+SELECT u.name AS reviewer, c.title, rc.state, rc.claimed_at
+FROM review_claim rc
+JOIN "user" u ON u.id = rc.reviewer_id
+JOIN conversation c ON c.id = rc.conversation_id
+WHERE rc.state <> 'released'
+ORDER BY u.name, rc.claimed_at;
+```
+
+Only live rows matter. `released` rows are kept as history: they record that
+someone was once offered a transcript and passed on it, which is what makes a
+refresh hand out different ones next time.
+
+To confirm nothing is held twice, this should always return no rows:
+
+```sql
+SELECT conversation_id
+FROM review_claim
+WHERE state <> 'released'
+GROUP BY conversation_id
+HAVING count(DISTINCT reviewer_id) > 1;
+```
+
+Verified directly: a reviewer refreshing three times holds exactly five at
+every point, with the rest returned to the pool, and a second reviewer
+claiming at the same time receives a different five.
 
 ---
 

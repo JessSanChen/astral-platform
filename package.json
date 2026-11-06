@@ -16,7 +16,9 @@
     "mock-openrouter": "node scripts/mock-openrouter.mjs 4010",
     "check-models": "tsx --env-file=.env.local scripts/check-models.ts",
     "doctor": "tsx --env-file=.env.local scripts/doctor.ts",
-    "predev": "node scripts/migrate-if-needed.mjs"
+    "predev": "node scripts/migrate-if-needed.mjs",
+    "check-scanners": "tsx --env-file=.env.local scripts/check-scanners.ts",
+    "preview": "node scripts/migrate-if-needed.mjs && next build && next start"
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.166",

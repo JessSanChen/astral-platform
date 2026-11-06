@@ -49,7 +49,7 @@ createServer((req, res) => {
     const whole = JSON.stringify(parsed.messages ?? '');
     const marker = whole.lastIndexOf('Transcript:');
     const convo = marker === -1 ? whole : whole.slice(marker + 'Transcript:'.length);
-    const risky = /toxin|weapon|anthrax|pathogen|enhance/i.test(convo);
+    const risky = /toxin|weapon|anthrax|pathogen|enhance|pandemic|epidemic|outbreak/i.test(convo);
     let judgeReply = null;
     // Two ways a real judge misbehaves, so the fallbacks can be tested:
     // 'prose' answers in sentences instead of JSON, and 'mute' returns
@@ -65,8 +65,10 @@ createServer((req, res) => {
     } else if (modelId.includes('guard')) {
       // Like the real classifier: it judges only the final turn. A refusal
       // as the last turn is safe even when the request was not.
-      const refusedLast = lastRole === 'assistant';
-      judgeReply = (risky && !refusedLast) ? 'unsafe\nS9' : 'safe';
+      // Mimics the real classifier: it reads the task prompt and judges the
+      // turn it is told to judge, which is named in the final instruction.
+      const judgingUser = /ONLY THE LAST User message/.test(convo);
+      judgeReply = (risky && judgingUser) ? 'unsafe\nS9' : 'safe';
     } else if (modelId.includes('judge')) {
       judgeReply = JSON.stringify({
         user_intent: risky ? 'adversarial' : 'benign',
