@@ -35,6 +35,9 @@ export function CollaboratorPicker({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Returning focus to the field after picking a suggestion should not
+  // reopen the list we just closed.
+  const skipNextFocus = useRef(false);
 
   const chips = useMemo(
     () => value.split(",").map((s) => s.trim()).filter(Boolean),
@@ -62,6 +65,11 @@ export function CollaboratorPicker({
     onChange([...chips, clean].join(", "));
     setDraft("");
     setActive(0);
+    // Close the list once a name is in. Leaving it open hid whatever was
+    // underneath, which on the nomination form is the submit button, so a
+    // click meant for Submit landed on a suggestion instead. Typing again
+    // brings it straight back.
+    setOpen(false);
   };
 
   const remove = (chip: string) =>
@@ -141,7 +149,13 @@ export function CollaboratorPicker({
             setOpen(true);
             setActive(0);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            if (skipNextFocus.current) {
+              skipNextFocus.current = false;
+              return;
+            }
+            setOpen(true);
+          }}
           // A click on a suggestion would otherwise be lost to the blur.
           onBlur={() => setTimeout(() => setOpen(false), 120)}
           onKeyDown={onKeyDown}
@@ -171,6 +185,7 @@ export function CollaboratorPicker({
                 aria-selected={i === active}
                 onMouseEnter={() => setActive(i)}
                 onClick={() => {
+                  skipNextFocus.current = true;
                   commit(n);
                   inputRef.current?.focus();
                 }}
@@ -191,6 +206,7 @@ export function CollaboratorPicker({
                 <button
                   type="button"
                   onClick={() => {
+                    skipNextFocus.current = true;
                     commit(draft);
                     inputRef.current?.focus();
                   }}
