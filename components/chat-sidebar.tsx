@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useConversationStore } from "@/components/conversation-store";
+import { ConversationMenu } from "@/components/rename-conversation";
 
 /**
  * A quiet spinner on the conversation being opened.
@@ -54,39 +55,50 @@ export function ChatSidebar() {
         {conversations.map((c) => {
           const active = pathname === `/chat/${c.id}`;
           return (
-            <Link
+            <div
               key={c.id}
-              href={`/chat/${c.id}`}
-              // Fetch the conversation before it is clicked. These pages are
-              // dynamic, so without this the whole round trip happens after
-              // the click and the interface sits still while it waits.
-              prefetch={true}
               className={cn(
-                "mb-0.5 block rounded-[var(--radius)] px-3 py-2 text-sm hover:bg-muted",
-                active && "bg-muted font-medium",
+                "group/item relative mb-0.5 rounded-[var(--radius)] hover:bg-muted",
+                active && "bg-muted",
               )}
             >
-              <span className="flex items-center gap-2">
-                {/* Submitted conversations are marked with a filled dot, so
-                    progress is visible at a glance down the list. */}
-                <span
-                  aria-hidden
-                  className={cn(
-                    "h-2 w-2 shrink-0 rounded-full",
-                    c.status === "submitted"
-                      ? "bg-accent"
-                      : "border border-muted-foreground/40",
-                  )}
-                />
-                <span className="min-w-0 flex-1 truncate">{c.title}</span>
-                <PendingDot />
-              </span>
-              <span className="mt-0.5 block pl-4 text-xs text-muted-foreground">
-                {c.status === "submitted"
-                  ? `Submitted v${c.currentVersion}`
-                  : "Draft"}
-              </span>
-            </Link>
+              <Link
+                href={`/chat/${c.id}`}
+                // Fetch the conversation before it is clicked. These pages are
+                // dynamic, so without this the whole round trip happens after
+                // the click and the interface sits still while it waits.
+                prefetch={true}
+                className={cn(
+                  "block rounded-[var(--radius)] px-3 py-2 text-sm",
+                  active && "font-medium",
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  {/* Submitted conversations are marked with a filled dot, so
+                      progress is visible at a glance down the list. */}
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "h-2 w-2 shrink-0 rounded-full",
+                      c.status === "submitted"
+                        ? "bg-accent"
+                        : "border border-muted-foreground/40",
+                    )}
+                  />
+                  {/* Room for the menu button, which sits on top rather than
+                      inside the link: a button inside a link is invalid and
+                      swallows clicks meant for either one. */}
+                  <span className="min-w-0 flex-1 truncate pr-6">{c.title}</span>
+                  <PendingDot />
+                </span>
+                <span className="mt-0.5 block pl-4 text-xs text-muted-foreground">
+                  {c.status === "submitted"
+                    ? `Submitted v${c.currentVersion}`
+                    : "Draft"}
+                </span>
+              </Link>
+              <ConversationMenu conversationId={c.id} title={c.title} />
+            </div>
           );
         })}
       </nav>

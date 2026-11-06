@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
  */
 export function ConversationWorkspace(props: {
   conversationId: string;
+  title: string;
   modelId: string;
   scenario: string | null;
   models: ModelOption[];
@@ -57,6 +58,7 @@ export function ConversationWorkspace(props: {
           scenario={props.scenario}
           models={props.models}
           initialMessages={props.initialMessages}
+          title={entry?.title ?? props.title}
           locked={props.locked}
           conversationStatus={status}
           currentVersion={currentVersion}

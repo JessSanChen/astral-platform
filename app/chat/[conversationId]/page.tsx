@@ -71,6 +71,7 @@ export default async function ConversationPage({
   return (
     <ConversationWorkspace
       conversationId={convo.id}
+      title={convo.title}
       modelId={convo.modelId}
       scenario={convo.scenario}
       models={models}

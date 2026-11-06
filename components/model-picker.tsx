@@ -63,7 +63,9 @@ export function ModelPicker({
             : "hover:bg-muted",
         )}
       >
-        <span>{selected?.displayName ?? "Choose a model"}</span>
+        <span className="whitespace-nowrap">
+          {selected?.displayName ?? "Choose a model"}
+        </span>
         {!disabled && <ChevronDown className="h-4 w-4 text-muted-foreground" />}
       </button>
 

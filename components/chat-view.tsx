@@ -9,6 +9,7 @@ import { useConversationStore } from "@/components/conversation-store";
 import { ArrowUp, PanelRightOpen, RefreshCw, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ModelPicker } from "@/components/model-picker";
+import { EditableTitle } from "@/components/rename-conversation";
 import type { ModelOption } from "@/lib/models";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ type Props = {
   scenario: string | null;
   models: ModelOption[];
   initialMessages: UIMessage[];
+  title: string;
   locked: boolean; // true once the conversation has any messages
   conversationStatus: "draft" | "submitted";
   currentVersion: number;
@@ -59,6 +61,7 @@ export function ChatView({
   scenario,
   models,
   initialMessages,
+  title,
   locked,
   conversationStatus,
   currentVersion,
@@ -176,8 +179,9 @@ export function ChatView({
     setInput("");
     stickToBottom.current = true;
     // Name the conversation from its first message straight away, rather
-    // than waiting for the server to tell us what we already know.
-    if (messages.length === 0) {
+    // than waiting for the server to tell us what we already know. A name
+    // chosen by hand is left alone, matching what the server does.
+    if (messages.length === 0 && title === "New conversation") {
       const clean = text.replace(/\s+/g, " ").trim();
       store.patchConversation(conversationId, {
         title: clean.length <= 60 ? clean : clean.slice(0, 57) + "...",
@@ -273,30 +277,33 @@ export function ChatView({
   return (
     <div className="flex h-full flex-col">
       {/* Header: model is fixed once the conversation has started. */}
-      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <ModelPicker
-            models={models}
-            value={modelId}
-            onChange={() => {}}
-            disabled
-          />
+      <header className="flex items-center gap-3 border-b border-border px-4 py-2">
+        {/* The name takes whatever width is left and shortens with an
+            ellipsis. Everything to its right keeps its own width, so nothing
+            wraps or overlaps when the side panel is open on a laptop. */}
+        <EditableTitle conversationId={conversationId} title={title} />
+
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           {conversationStatus === "submitted" && (
-            <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
               Submitted v{currentVersion}
             </span>
           )}
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {locked && (
-            <span className="hidden text-xs text-muted-foreground lg:inline">
-              Model is fixed for this conversation
-            </span>
-          )}
+          {/* Once a conversation has started the model cannot change, so the
+              reason is a tooltip rather than a line of text competing with
+              the name for room. */}
+          <span title={locked ? "Model is fixed for this conversation" : undefined}>
+            <ModelPicker
+              models={models}
+              value={modelId}
+              onChange={() => {}}
+              disabled
+            />
+          </span>
           {!labelsOpen && (
             <Button variant="outline" size="sm" onClick={onToggleLabels}>
               <PanelRightOpen className="h-3.5 w-3.5" />
-              Labels &amp; scanners
+              <span className="hidden sm:inline">Labels &amp; scanners</span>
             </Button>
           )}
         </div>

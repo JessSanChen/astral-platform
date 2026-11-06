@@ -11,7 +11,7 @@ import {
 import { finishUsageEvent, reserveSlot, tokensUsedToday } from "@/lib/budget";
 import {
   appendMessage,
-  deriveTitle,
+  setDerivedTitle,
   getOwnedConversation,
   getVisibleMessages,
   touchConversation,
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
     });
     promptHistory = [...history, savedUserMessage];
     if (history.length === 0) {
-      await touchConversation(conversationId, { title: deriveTitle(text) });
+      await setDerivedTitle(conversationId, text);
     } else {
       await touchConversation(conversationId);
     }

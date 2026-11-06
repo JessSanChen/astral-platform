@@ -107,6 +107,20 @@ export function deriveTitle(text: string) {
   return clean.length <= 60 ? clean : clean.slice(0, 57) + "...";
 }
 
+/**
+ * Names a conversation after its first message, unless it has been named by
+ * hand already. Renaming an empty conversation and then writing in it would
+ * otherwise throw the chosen name away.
+ */
+export async function setDerivedTitle(id: string, text: string) {
+  await db
+    .update(conversation)
+    .set({ updatedAt: new Date(), lastMessageAt: new Date(), title: deriveTitle(text) })
+    .where(and(eq(conversation.id, id), eq(conversation.title, "New conversation")));
+  // Still counts as activity even when the name is left alone.
+  await touchConversation(id);
+}
+
 export async function touchConversation(id: string, patch: Partial<typeof conversation.$inferInsert> = {}) {
   await db
     .update(conversation)
