@@ -84,9 +84,17 @@ defining first.
   Change it before the event.
 - `ADMIN_EMAILS` currently grants organizer rights at sign-up. Confirm the
   final list.
-- The test accounts I created need clearing before real data arrives:
-  `DELETE FROM "user";` removes them and everything attached, leaving
-  settings, terms and scanner configurations alone.
+- The test accounts need clearing before real data arrives. Your own team
+  has already signed up, so delete by address rather than emptying the
+  table — every test account I made is at `example.com`:
+
+  ```sql
+  DELETE FROM "user" WHERE email LIKE '%@example.com';
+  ```
+
+  That removes those accounts and every transcript, review and nomination
+  attached to them, leaving your accounts, the settings, the terms and the
+  scanner configurations alone.
 
 ---
 

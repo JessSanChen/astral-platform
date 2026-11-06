@@ -192,5 +192,11 @@ The old `.vercel.app` address keeps working, so nothing breaks in the gap.
 - Decide who else needs `ADMIN_EMAILS`. It only takes effect at sign-up, and
   the seed promotes listed emails that already exist, so run the seed again
   after adding someone.
-- Delete the test accounts: `DELETE FROM "user";` removes them and everything
-  attached, leaving settings, terms and scanner configurations alone.
+- Delete the test accounts. Deleting a user removes everything attached to
+  them and leaves settings, terms and scanner configurations alone. Target
+  them by address rather than emptying the table, or you will take the
+  organizers' own accounts with them:
+
+  ```sql
+  DELETE FROM "user" WHERE email LIKE '%@example.com';
+  ```
