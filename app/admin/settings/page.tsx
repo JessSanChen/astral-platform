@@ -36,10 +36,16 @@ export default async function AdminSettings() {
 
       <Panel title="Exporting the data">
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Everything lives in Postgres and nothing is deleted, so the export can
-          wait until the end of the day. Submitted transcripts keep one
+          Everything lives in Postgres and nothing is deleted, so the export
+          can wait until the end of the day. Submitted transcripts keep one
           immutable snapshot per version, alongside the raw request and
           response from the provider.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          One line of JSON per record. Transcripts come first, then
+          nominations, and every line says which it is in its{" "}
+          <code className="rounded bg-muted px-1 text-xs">record</code> field,
+          so the file holds more lines than there are transcripts.
         </p>
         <a
           href="/api/admin/export"

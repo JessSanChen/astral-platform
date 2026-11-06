@@ -62,6 +62,10 @@ export async function GET() {
           ]);
 
         const line = {
+          // Every line says what it is. Without this, transcript lines were
+          // unmarked while nomination lines were not, so counting lines
+          // overstated the number of transcripts.
+          record: "transcript" as const,
           conversation_id: convo.id,
           model_id: convo.modelId,
           scenario: convo.scenario,
