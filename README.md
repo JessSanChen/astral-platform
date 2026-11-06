@@ -50,11 +50,13 @@ signs up.
 
 ## Build status
 
-Phases 1 to 5 are complete: app scaffold, database schema, authentication,
+Phases 1 to 8 are complete: app scaffold, database schema, authentication,
 event-code-gated sign-up, the profile and terms onboarding gate, the chat
 itself with model selection, scenarios, streaming, regenerate and full
 transcript persistence, the labeling and submit flow with versioned
-snapshots, and the safety scanner panel.
+snapshots, the safety scanner panel, independent review of other
+participants' transcripts, self-nomination for the prize tracks, and the
+organizer console.
 
 See [docs/BUILDLOG.md](docs/BUILDLOG.md) for what each phase delivered and
 step-by-step instructions for testing it yourself. The remaining plan is in

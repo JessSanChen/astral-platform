@@ -1127,6 +1127,81 @@ submitted.
 
 ---
 
+## Phase 8 — Organizer console
+
+Status: done. Reached from the far-left index, visible only to organizers.
+
+### What exists
+
+- **Overview.** Participants, transcripts submitted, independent reviews with
+  coverage, and spend today. Transcripts broken down by type and by how the
+  models responded, nominations by track, and a switch to pause chat for
+  everyone.
+- **Participants.** One row each, ranked by whichever prize you are judging.
+  Both counted prizes are columns: benign transcripts and reviews completed.
+  Also dual-use and adversarial counts, nominations, tokens used, and status.
+- **Opening a participant** shows everything they produced: each transcript
+  with its labels, stated goal, turn count and submission time; each review
+  they wrote in full; and their nominations. Counts cannot tell careful work
+  from clicking through, so this is for reading.
+- **Nominations** grouped by track, each entry in full with its slides link,
+  plus closing them now or at a set time.
+- **Settings.** Event code, default allowance, review batch size, the model
+  list, and the export.
+- **Per participant**, from the table: raise their allowance, set a temporary
+  password, and pause or unpause them.
+
+### What the export contains
+
+One line of JSON per submitted transcript, each self-contained: the
+conversation, every message with the raw request and response from the
+provider, the author's own labels, the author's profile, any independent
+review, every submitted version, and any scanner runs. Nominations follow as
+their own lines. Nothing needs joining back together later.
+
+It streams rather than being assembled in memory, so the size of the day does
+not decide whether it works.
+
+### An organizer who signed up too early
+
+The organizer role is granted at sign-up, from the `ADMIN_EMAILS` setting.
+Someone who registered before that setting was right would have been stuck as
+an ordinary participant with no way back, which is a poor thing to find out
+on the morning. Re-running the seed now promotes anyone listed:
+
+```bash
+npm run db:seed
+```
+
+### How to test it
+
+1. Make sure your email is in `ADMIN_EMAILS` and run `npm run db:seed`.
+2. Sign in. The index gains **Organize**.
+3. Create some activity from another account: a few transcripts with
+   different types, a review, a nomination.
+4. **Overview** should show those counts.
+5. **Participants**, then rank by each prize in turn. The ranked column is
+   emboldened.
+6. Open a participant and read their work. This is the quality audit.
+7. **Nominations**, then close them. A participant reloading the submit
+   console sees them closed with their entry still readable.
+8. **Settings**, then download the export and open it in a text editor. Each
+   line is one transcript.
+9. Sign in as an ordinary participant and visit `/admin`. You are sent back
+   to the chat.
+
+### Verified automatically
+
+A browser test creates two participants, three transcripts of differing
+types, a review and a nomination, then exercises every tab as an organizer:
+the counts, both leaderboard rankings, the audit view, closing nominations
+and a participant seeing that, and an ordinary participant being refused the
+console. The export was checked for structure: four transcripts and one
+nomination, each carrying the author profile, self labels, raw provider
+payloads and the independent review where one exists.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

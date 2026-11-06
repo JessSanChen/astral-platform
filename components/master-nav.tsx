@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   MessagesSquare,
   PanelLeft,
+  Settings2,
   Trophy,
 } from "lucide-react";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -17,6 +18,12 @@ const SECTIONS = [
   { href: "/review", label: "Review", icon: ClipboardCheck },
   { href: "/nominate", label: "Submit", icon: Trophy },
 ] as const;
+
+const ADMIN_SECTION = {
+  href: "/admin",
+  label: "Organize",
+  icon: Settings2,
+} as const;
 
 const STORAGE_KEY = "astral.nav.expanded";
 
@@ -94,7 +101,7 @@ export function MasterNav({
       </div>
 
       <div className={cn("flex flex-col gap-1 px-2", expanded ? "" : "items-center")}>
-        {SECTIONS.map((section) => {
+        {[...SECTIONS, ...(isAdmin ? [ADMIN_SECTION] : [])].map((section) => {
           const active =
             section.href === "/chat"
               ? pathname.startsWith("/chat")

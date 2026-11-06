@@ -54,7 +54,7 @@ export function NominationForm({
   const submitted = existing !== null || state.submissionCount !== undefined;
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
+    <div className="mx-auto max-w-2xl px-6 py-12">
       <Link
         href="/nominate"
         className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -185,6 +185,6 @@ export function NominationForm({
           </div>
         )}
       </form>
-    </main>
+    </div>
   );
 }

@@ -25,7 +25,7 @@ export default async function NominateHome() {
   const byTrack = new Map(mine.map((n) => [n.track, n]));
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
+    <div className="mx-auto max-w-2xl px-6 py-12">
       <div className="space-y-2">
         <h1 className="flex items-center gap-2 text-2xl font-semibold">
           <Trophy className="h-5 w-5" />
@@ -89,6 +89,6 @@ export default async function NominateHome() {
           );
         })}
       </div>
-    </main>
+    </div>
   );
 }

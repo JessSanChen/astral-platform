@@ -1,7 +1,7 @@
 import { db } from "@/db";
-import { eventSettings, termsVersion, judgeConfig } from "@/db/schema";
+import { eventSettings, termsVersion, judgeConfig, user } from "@/db/schema";
 import { DEFAULT_MODELS } from "@/lib/models";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 const PLACEHOLDER_TERMS = `# Astral Event — Participation Terms (PLACEHOLDER)
 
@@ -94,6 +94,25 @@ async function main() {
     console.log("seeded judge_config");
   } else {
     console.log("judge_config already present, leaving as is");
+  }
+
+  // Promote anyone listed as an organizer who signed up before the setting
+  // was right. The role is granted at sign-up, so without this an organizer
+  // who registered too early is stuck as an ordinary participant with no way
+  // back, which is a poor thing to discover on the morning of the event.
+  const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (adminEmails.length > 0) {
+    const promoted = await db
+      .update(user)
+      .set({ role: "admin" })
+      .where(and(inArray(sql`lower(${user.email})`, adminEmails), ne(user.role, "admin")))
+      .returning({ email: user.email });
+    if (promoted.length > 0) {
+      console.log(`promoted to organizer: ${promoted.map((p) => p.email).join(", ")}`);
+    }
   }
 
   console.log("seed complete");

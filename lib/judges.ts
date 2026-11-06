@@ -52,6 +52,27 @@ export type JudgeVerdict = {
   flagged: boolean;
 };
 
+/**
+ * Routing for scanner calls.
+ *
+ * A judge returned nothing at all, with a finish reason of content-filter,
+ * served through a cloud reseller that applies its own filtering on top of
+ * the model. That filter blocked the output before the model could answer:
+ * the model was never asked to refuse, and had no chance to say anything.
+ *
+ * Assessing conversations about misuse is the entire job here, so scanner
+ * calls skip routes that filter. Those routes are fine for ordinary chat, so
+ * only the scanners carry this. If a scanner starts returning nothing again,
+ * `npm run check-scanners` names the provider that served it, and its slug
+ * belongs on this list.
+ */
+const SCANNER_ROUTING = {
+  provider: {
+    ignore: ["amazon-bedrock", "azure"],
+    allow_fallbacks: true,
+  },
+};
+
 export async function listJudgeConfigs() {
   return db
     .select()
@@ -244,7 +265,7 @@ async function classify(
   // token counts gave it away: about 1100 for a two-turn exchange.
   void judging;
   const res = await generateText({
-    model: openrouter.chat(modelId),
+    model: openrouter.chat(modelId, { extraBody: SCANNER_ROUTING }),
     messages,
     maxOutputTokens: 128,
     timeout: 90_000,
@@ -390,7 +411,7 @@ async function runLlmJudge(config: JudgeConfigRow, transcript: string) {
   // First try: the provider enforces the shape.
   try {
     const res = await generateText({
-      model: openrouter.chat(config.modelId),
+      model: openrouter.chat(config.modelId, { extraBody: SCANNER_ROUTING }),
       output: Output.object({ schema: judgeAnswer, name: "safety_review" }),
       prompt: instructions,
       maxOutputTokens,
@@ -420,7 +441,7 @@ async function runLlmJudge(config: JudgeConfigRow, transcript: string) {
     // simply asked for JSON.
     try {
       const res = await generateText({
-        model: openrouter.chat(config.modelId),
+        model: openrouter.chat(config.modelId, { extraBody: SCANNER_ROUTING }),
         system:
           "You reply with a single JSON object and nothing else. No prose, no code fence.",
         prompt: `${instructions}\n\nReply with exactly this JSON shape:\n{"risk_category": string, "severity_0_to_10": number, "rationale": string}`,
@@ -434,10 +455,15 @@ async function runLlmJudge(config: JudgeConfigRow, transcript: string) {
         usage: readUsage(res),
         parsed: null,
         verdict: {
-          headline: "The judge declined to assess this conversation",
+          headline:
+            res.finishReason === "content-filter"
+              ? "The judge was blocked before it could answer"
+              : "The judge declined to assess this conversation",
           detail: res.text.trim()
             ? `It said: ${res.text.trim().slice(0, 300)}`
-            : "It returned nothing at all. A judge refusing to look at a conversation is itself worth noting: it means this tool gives you no signal here. The trained classifier will still return a verdict.",
+            : res.finishReason === "content-filter"
+              ? "A filter between us and the model stopped the answer, so the model never got to assess this. That is a property of how the judge is being served rather than of this conversation. The trained classifier still gives a verdict."
+              : "It returned nothing at all. A judge declining to look is itself worth noting: this tool gives you no signal here. The trained classifier will still return a verdict.",
           flagged: false,
         } satisfies JudgeVerdict,
       };
