@@ -33,6 +33,49 @@ export async function setPaused(userId: string, paused: boolean) {
   revalidatePath("/admin");
 }
 
+/**
+ * Granting or removing the organizer role.
+ *
+ * Until now the only way in was editing ADMIN_EMAILS, redeploying and
+ * re-running the seed, which needs a laptop and the production connection
+ * string. That is a poor position to be in when someone needs promoting
+ * mid-event.
+ *
+ * You cannot change your own role. The obvious misclick would lock you out
+ * of the console you need in order to undo it, and the only way back would
+ * be the database.
+ *
+ * That one rule is also what guarantees there is always an organizer left:
+ * the caller is one by definition, and cannot be the target, so demoting
+ * anyone else still leaves at least the caller. No separate "last organizer"
+ * check is needed, and one would never fire.
+ *
+ * ADMIN_EMAILS still grants the role at sign-up. A change made here is to
+ * this account only: if the email is on that list, a fresh sign-up would
+ * grant it again.
+ */
+export async function setOrganizer(userId: string, organizer: boolean) {
+  const current = await requireAdmin();
+
+  if (userId === current.user.id) {
+    return {
+      message:
+        "You cannot change your own role. Ask another organizer to do it.",
+    };
+  }
+
+  await db
+    .update(user)
+    .set({ role: organizer ? "admin" : "user", updatedAt: new Date() })
+    .where(eq(user.id, userId));
+  revalidatePath("/admin");
+  return {
+    message: organizer
+      ? "Made an organizer. It takes effect for them within about half a minute."
+      : "Organizer rights removed. Takes effect within about half a minute.",
+  };
+}
+
 export async function setChatPaused(paused: boolean) {
   await requireAdmin();
   await db

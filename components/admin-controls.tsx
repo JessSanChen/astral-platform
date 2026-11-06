@@ -9,6 +9,7 @@ import {
   resetPassword,
   setBudget,
   setChatPaused,
+  setOrganizer,
   setPaused,
 } from "@/app/admin/actions";
 
@@ -43,12 +44,18 @@ export function PauseChatButton({ paused }: { paused: boolean }) {
  */
 export function ParticipantActions({
   userId,
+  name,
   paused,
+  isOrganizer,
+  isSelf,
   budget,
   defaultBudget,
 }: {
   userId: string;
+  name: string;
   paused: boolean;
+  isOrganizer: boolean;
+  isSelf: boolean;
   budget: number | null;
   defaultBudget: number;
 }) {
@@ -116,7 +123,7 @@ export function ParticipantActions({
         </Button>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
           variant={paused ? "outline" : "danger"}
@@ -130,6 +137,25 @@ export function ParticipantActions({
         >
           {paused ? "Let them back in" : "Pause this account"}
         </Button>
+
+        {/* Your own role is not yours to change, so the control says so
+            rather than failing after the click. */}
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pending || isSelf}
+          title={isSelf ? "Ask another organizer to change your own role." : undefined}
+          onClick={() =>
+            start(async () => {
+              const result = await setOrganizer(userId, !isOrganizer);
+              setNote(result.message);
+              router.refresh();
+            })
+          }
+        >
+          {isOrganizer ? "Remove organizer" : "Make organizer"}
+        </Button>
+
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
           Close
         </Button>
@@ -137,7 +163,8 @@ export function ParticipantActions({
 
       {note && <p className="text-xs text-muted-foreground">{note}</p>}
       <p className="text-xs text-muted-foreground">
-        Pausing takes effect within about half a minute.
+        Changes to {name.split(" ")[0]}&apos;s account take effect within about
+        half a minute.
       </p>
     </div>
   );

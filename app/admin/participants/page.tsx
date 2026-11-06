@@ -19,7 +19,7 @@ export default async function Participants({
 }: {
   searchParams: Promise<{ sort?: string }>;
 }) {
-  await requireAdmin();
+  const me = await requireAdmin();
   const { sort } = await searchParams;
   const by = (SORTS.find((s) => s.key === sort)?.key ?? "benign") as Sort;
 
@@ -115,7 +115,10 @@ export default async function Participants({
                 <td className="px-3 py-2 text-right">
                   <ParticipantActions
                     userId={row.id}
+                    name={row.name}
                     paused={row.banned}
+                    isOrganizer={row.is_admin}
+                    isSelf={row.id === me.user.id}
                     budget={row.daily_token_budget}
                     defaultBudget={settings.defaultDailyTokenBudget}
                   />

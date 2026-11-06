@@ -82,8 +82,9 @@ defining first.
 
 - The admin password used for testing is weak and was shared in plain text.
   Change it before the event.
-- `ADMIN_EMAILS` currently grants organizer rights at sign-up. Confirm the
-  final list.
+- `ADMIN_EMAILS` grants organizer rights at sign-up. Confirm the final list.
+  Promoting someone afterwards is now a button in the participants table, so
+  this only has to be right for people who have not signed up yet.
 - The test accounts need clearing before real data arrives. Your own team
   has already signed up, so delete by address rather than emptying the
   table — every test account I made is at `example.com`:
@@ -182,15 +183,7 @@ labelling for free, so a replacement has to keep both.
 Where: `components/profile-fields.tsx`, `components/labels-panel.tsx`,
 `components/review-panel.tsx`, `components/ui/select.tsx`.
 
-### 10. Promoting organizers from the console
-
-Adding an organizer today means editing `ADMIN_EMAILS` in Vercel, redeploying
-and re-running the seed. Better Auth's admin plugin already stores a role per
-user and has `setRole`, so a toggle in the participants table is a button
-rather than a rebuild. Worth having before the day in case someone needs
-promoting at 10:30. Roughly half an hour.
-
-### 11. Admin-editable forms and agreement
+### 10. Admin-editable forms and agreement
 
 The profile questions live in code and the terms in a seeded row. Moving the
 question set into the database would let you add, remove and reorder fields
@@ -198,14 +191,14 @@ and edit the agreement without a code change. The terms half is mostly UI
 since that table is already versioned; the profile half needs the profile
 table to hold answers as structured data rather than fixed columns.
 
-### 12. Email format checking and password rules
+### 11. Email format checking and password rules
 
 Sign-up accepts whatever the browser's own email validation allows, which is
 lenient, and the only password rule is a minimum of eight characters. Worth
 tightening both, especially as there is no password reset by email: a typo in
 an address costs someone their account on the day.
 
-### 13. Forgot password by email
+### 12. Forgot password by email
 
 Not hard — Better Auth has `requestPasswordReset` and `resetPassword` built
 in. The work is almost entirely choosing an email provider and verifying the
@@ -213,7 +206,7 @@ domain so the mail is not treated as spam. Half a day, most of it waiting for
 DNS. Useless without working email on the day, which is why the event relies
 on an organizer resetting passwords instead. Worth adding afterwards.
 
-### 14. Email verification
+### 13. Email verification
 
 Better Auth supports it (`requireEmailVerification` plus a send-email hook).
 Same dependency on an email provider. Deliberately off for a one-day
