@@ -41,19 +41,41 @@ or a seed script run against the wrong one is a bad afternoon.
 
 ### 2. Apply the schema and seed it (3 min)
 
-From your laptop, pointing at the new database. The inline variable wins over
-`.env.local`, so nothing in your local setup changes:
+Every `db:` command reads `.env.local`, which is your own development
+database. Production values go in `.env.production.local`, which git ignores
+like every other env file, and the `prod:` commands read that instead.
+
+Create it now, in the project root:
+
+```
+DATABASE_URL=<neon-pooled-url>
+BETTER_AUTH_SECRET=<openssl rand -base64 32>
+BETTER_AUTH_URL=https://your-project.vercel.app
+OPENROUTER_API_KEY=sk-or-v1-...
+ADMIN_EMAILS=you@example.com
+EVENT_CODE=<pick-one>
+```
+
+Then:
 
 ```bash
-DATABASE_URL="<neon-pooled-url>" npm run db:migrate
+npm run prod:migrate
 ```
 
 ```bash
-DATABASE_URL="<neon-pooled-url>" EVENT_CODE="<pick-one>" ADMIN_EMAILS="you@example.com" npm run db:seed
+npm run prod:seed
 ```
+
+Each prints the database it is about to touch before it does anything —
+`neon-xyz.aws.neon.tech/neondb`, not a password — because the mistake that
+matters here is doing the right thing to the wrong database.
 
 The seed writes the event settings, version 1 of the terms, and the scanner
 configurations. It is safe to run again; it will not duplicate anything.
+
+A shell variable still beats the file for a one-off, so
+`DATABASE_URL="..." npm run db:migrate` works when you want to point at
+something that is neither of these.
 
 Migrations are run by hand on purpose. Wiring them into the build means every
 preview deployment migrates production, which is how a half-finished schema
@@ -90,7 +112,7 @@ in the app will fail.
 ### 4. Check it (5 min)
 
 ```bash
-DATABASE_URL="<neon-pooled-url>" npm run doctor
+npm run prod:doctor
 ```
 
 Then in the browser, on the deployed address:
@@ -102,7 +124,7 @@ Then in the browser, on the deployed address:
 5. Visit `/admin`. You should be let in.
 
 If replies fail, it is almost always `OPENROUTER_BASE_URL` left set, or a key
-without credit. `npm run check-models` against production tells you which.
+without credit. `npm run prod:check-models` tells you which.
 
 ---
 
@@ -134,7 +156,7 @@ npm run db:generate
 ```
 
 ```bash
-DATABASE_URL="<neon-pooled-url>" npm run db:migrate
+npm run prod:migrate
 ```
 
 Then push. Migrating before the code ships means the new column exists by the
@@ -163,8 +185,8 @@ The old `.vercel.app` address keeps working, so nothing breaks in the gap.
 
 - Change `EVENT_CODE` in the admin console to the code you will read out, and
   not before — anyone with the old one can still sign up until you do.
-- `npm run check-models` and `npm run check-scanners` against production, so
-  a model that has been retired is a thing you find now rather than at 10am.
+- `npm run prod:check-models` and `npm run prod:check-scanners`, so a model
+  that has been retired is a thing you find now rather than at 10am.
 - Replace the placeholder terms. They are seeded as version 1; publishing a
   version 2 makes everyone accept it again, so do this before people sign up.
 - Decide who else needs `ADMIN_EMAILS`. It only takes effect at sign-up, and
