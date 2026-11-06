@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BookOpen,
   ClipboardCheck,
   MessagesSquare,
   PanelLeft,
@@ -17,6 +18,7 @@ const SECTIONS = [
   { href: "/chat", label: "My chats", icon: MessagesSquare },
   { href: "/review", label: "Review", icon: ClipboardCheck },
   { href: "/nominate", label: "Submit", icon: Trophy },
+  { href: "/guide", label: "How it works", icon: BookOpen },
 ] as const;
 
 const ADMIN_SECTION = {
