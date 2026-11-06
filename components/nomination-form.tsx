@@ -8,6 +8,7 @@ import {
   type NominationState,
 } from "@/app/nominate/actions";
 import { Button } from "@/components/ui/button";
+import { CollaboratorPicker } from "@/components/collaborator-picker";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -119,24 +120,17 @@ export function NominationForm({
         {track === "collaborative" && (
           <Field
             label="Who did you work with?"
-            htmlFor="collaborators"
-            hint="Start typing to pick from the participant list, or write names freely."
+            htmlFor="collaborators-input"
+            hint="Pick from the participant list, or type a name that is not on it. Press Enter to add each one."
             error={e.collaborators}
           >
-            <Input
-              id="collaborators"
+            <CollaboratorPicker
               name="collaborators"
-              list="participant-names"
               value={values.collaborators}
-              onChange={(ev) => set("collaborators", ev.target.value)}
+              onChange={(v) => set("collaborators", v)}
+              participantNames={participantNames}
               disabled={locked}
-              placeholder="Ada Lovelace, Rosalind Franklin"
             />
-            <datalist id="participant-names">
-              {participantNames.map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
           </Field>
         )}
 
