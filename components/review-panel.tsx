@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { submitReview, type ReviewState } from "@/app/review/actions";
+import { ActionForm } from "@/components/action-form";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
@@ -55,7 +56,7 @@ export function ReviewPanel({
   const done = alreadyReviewed || state.submissionCount !== undefined;
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <ActionForm action={action} className="flex h-full flex-col">
       <input type="hidden" name="conversationId" value={conversationId} />
 
       <div className="border-b border-border px-4 py-3">
@@ -183,6 +184,6 @@ export function ReviewPanel({
           </p>
         )}
       </div>
-    </form>
+    </ActionForm>
   );
 }

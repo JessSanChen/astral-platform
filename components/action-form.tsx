@@ -37,3 +37,23 @@ export function ActionForm({
     </form>
   );
 }
+
+/**
+ * The same idea for a form with more than one thing it can do — say Submit
+ * and Save. Its buttons are ordinary buttons that call this with the action
+ * they want, instead of submit buttons carrying a formAction, which clears
+ * the form just as <form action={...}> does. The form is read from the
+ * button that was pressed, so nothing has to be wired up between them.
+ */
+export function useFormAction() {
+  const [, startTransition] = useTransition();
+  return (
+    event: React.MouseEvent<HTMLButtonElement>,
+    action: (formData: FormData) => void,
+  ) => {
+    const form = event.currentTarget.form;
+    if (!form) return;
+    const data = new FormData(form);
+    startTransition(() => action(data));
+  };
+}

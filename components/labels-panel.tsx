@@ -7,6 +7,7 @@ import {
   submitTranscript,
   type LabelsState,
 } from "@/app/chat/[conversationId]/actions";
+import { useFormAction } from "@/components/action-form";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -33,7 +34,12 @@ export type LabelValues = {
   notes: string | null;
 };
 
-export type TurnOption = { id: string; seq: number; role: string; preview: string };
+export type TurnOption = {
+  id: string;
+  seq: number;
+  role: string;
+  preview: string;
+};
 
 export function LabelsPanel({
   conversationId,
@@ -78,8 +84,10 @@ export function LabelsPanel({
   const [openNotes, setOpenNotes] = useState(false);
   const { patchConversation } = useConversationStore();
   const e = state.errors ?? {};
+  const runAction = useFormAction();
   const version = state.submittedVersion ?? currentVersion;
-  const submitted = status === "submitted" || state.submittedVersion !== undefined;
+  const submitted =
+    status === "submitted" || state.submittedVersion !== undefined;
 
   // Tell the rest of the interface that this conversation is now submitted,
   // so the sidebar shows it straight away rather than on the next load.
@@ -92,7 +100,7 @@ export function LabelsPanel({
   }, [state.submittedVersion, conversationId, patchConversation]);
 
   return (
-    <form className="flex h-full flex-col">
+    <form onSubmit={(e) => e.preventDefault()} className="flex h-full flex-col">
       <input type="hidden" name="conversationId" value={conversationId} />
 
       <div className="border-b border-border px-4 py-3">
@@ -105,7 +113,11 @@ export function LabelsPanel({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        <Field label="What kind of transcript is this?" htmlFor="type" error={e.type}>
+        <Field
+          label="What kind of transcript is this?"
+          htmlFor="type"
+          error={e.type}
+        >
           <Select
             id="type"
             name="type"
@@ -235,7 +247,9 @@ export function LabelsPanel({
               id="keyTurnMessageId"
               name="keyTurnMessageId"
               value={values.keyTurnMessageId ?? ""}
-              onChange={(ev) => set("keyTurnMessageId", ev.target.value || null)}
+              onChange={(ev) =>
+                set("keyTurnMessageId", ev.target.value || null)
+              }
             >
               <option value="">No particular turn</option>
               {turns.map((t) => (
@@ -278,7 +292,9 @@ export function LabelsPanel({
       </div>
 
       <div className="space-y-2 border-t border-border px-4 py-3">
-        {state.message && <p className="text-xs text-danger">{state.message}</p>}
+        {state.message && (
+          <p className="text-xs text-danger">{state.message}</p>
+        )}
         {state.submittedVersion && !state.message && (
           <p className="flex items-center gap-1.5 text-xs text-accent">
             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -296,8 +312,8 @@ export function LabelsPanel({
 
         <div className="flex gap-2">
           <Button
-            type="submit"
-            formAction={action}
+            type="button"
+            onClick={(e) => runAction(e, action)}
             disabled={pending || !hasMessages}
             className="flex-1"
           >
@@ -310,8 +326,8 @@ export function LabelsPanel({
                 : "Submit transcript"}
           </Button>
           <Button
-            type="submit"
-            formAction={saveAction}
+            type="button"
+            onClick={(e) => runAction(e, saveAction)}
             variant="outline"
             disabled={saving}
           >

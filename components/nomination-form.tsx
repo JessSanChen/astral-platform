@@ -7,6 +7,7 @@ import {
   submitNomination,
   type NominationState,
 } from "@/app/nominate/actions";
+import { ActionForm } from "@/components/action-form";
 import { Button } from "@/components/ui/button";
 import { CollaboratorPicker } from "@/components/collaborator-picker";
 import { Field } from "@/components/ui/field";
@@ -82,7 +83,7 @@ export function NominationForm({
         </p>
       )}
 
-      <form action={action} className="mt-6 space-y-5">
+      <ActionForm action={action} className="mt-6 space-y-5">
         <input type="hidden" name="track" value={track} />
 
         <Field
@@ -178,7 +179,7 @@ export function NominationForm({
             )}
           </div>
         )}
-      </form>
+      </ActionForm>
     </div>
   );
 }
