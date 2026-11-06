@@ -135,22 +135,31 @@ export function MasterNav({
       <div className={cn("mt-auto border-t border-border p-2", expanded ? "" : "px-1")}>
         {expanded ? (
           <div className="space-y-2">
-            <div className="px-1.5">
+            {/* Who you are, and the way to your own profile. */}
+            <Link
+              href="/profile"
+              className={cn(
+                "block rounded-[var(--radius)] px-1.5 py-1 transition-colors hover:bg-muted",
+                pathname.startsWith("/profile") && "bg-card shadow-sm",
+              )}
+            >
               <p className="truncate text-sm font-medium">{userName}</p>
               <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
               {isAdmin && (
                 <p className="mt-0.5 text-xs font-medium text-accent">Organizer</p>
               )}
-            </div>
+            </Link>
             <SignOutButton className="w-full" />
           </div>
         ) : (
-          <div
+          <Link
+            href="/profile"
             title={`${userName} (${userEmail})`}
-            className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-card text-xs font-medium"
+            aria-label="Your profile"
+            className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-card text-xs font-medium hover:bg-muted"
           >
             {initials(userName)}
-          </div>
+          </Link>
         )}
       </div>
     </nav>
