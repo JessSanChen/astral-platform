@@ -415,8 +415,9 @@ so they are configuration and UI work rather than new infrastructure.
   (`requireEmailVerification` plus a send-email hook). It needs an email
   provider (Resend, Postmark, SES) wired up, which we skip for a one-day
   in-person event. Flip it on and add the provider post-event.
-- **Themed dropdowns on the onboarding form.** The profile form currently
-  uses the browser's native `<select>`, which renders as the operating
+- **Themed dropdowns on the profile questions.** Onboarding and the profile
+  page now share one set of fields (`components/profile-fields.tsx`), which
+  still uses the browser's native `<select>`. That renders as the operating
   system's own dropdown and looks out of place against the rest of the
   design. Replace with a custom listbox component that matches the theme.
   Keep keyboard navigation and screen-reader labelling, which the native
@@ -451,7 +452,31 @@ purpose because they depend on sending email, which is friction we do not
 want with 60 people in a room for one day. The third (admin roles) is on
 under the hood; only its management UI is deferred.
 
-## 11. Known limitation: no document or sequence input
+## 11. One trap worth knowing about: forms and server actions
+
+React clears a form's DOM once an action returns, whether the action was
+passed to `<form action={...}>` or carried on a submit button's
+`formAction`. For a form that can be rejected this is wrong: the answers are
+still on screen and the person is expected to correct one of them.
+
+Controlling the values does not help a `<select>`. React writes a DOM value
+only when the prop changes, and after the reset the prop has not changed, so
+the select keeps whatever the reset left it with — the first option, or the
+value the server last rendered — while the text fields beside it keep what
+was typed. Half the form survives, which is harder to notice than losing all
+of it.
+
+Every form here with a reject path therefore goes through
+`components/action-form.tsx`, which calls the action from a transition
+instead. `ActionForm` wraps a form with one action; `useFormAction` is for a
+form with several, such as the labels panel's Submit and Save, where each
+button calls the action it wants and the form is read from the button that
+was pressed.
+
+If you add a form that can come back with errors, use one of those. If you
+add one that cannot — a search box, a filter — `<form action>` is fine.
+
+## 12. Known limitation: no document or sequence input
 
 The MVP chat is text-only; participants cannot upload files or sequences.
 This is a deliberate safety choice (we do not want people pasting material

@@ -117,6 +117,26 @@ cannot reach any other page until both steps are complete.
 - Top bar: participant name, remaining budget indicator (simple, e.g. "Plenty"
   / "Running low"), sign out.
 - Right side: collapsible **Judge panel** (see 3.7).
+- A conversation is named after its first message. **Decided: the name can be
+  changed**, by clicking it above the conversation or through the menu that
+  appears on a conversation in the list when the pointer is over it. A name
+  chosen by hand is never replaced by the first message. The default is a
+  guess that stops being useful once a conversation has gone somewhere, and
+  organizers reading transcripts afterwards benefit from a name someone chose
+  on purpose.
+
+### 3.3a Profile
+
+Reached from the participant's name in the sidebar. It shows what the account
+has done today — transcripts submitted, reviews finished, nominations entered
+— along with the email, whether the account is an organizer, and which terms
+version was accepted and when.
+
+**Decided: the profile answers can be corrected at any point.** A role picked
+in a hurry at the door would otherwise need an organizer with database access
+to fix, and the research team wants expertise that matches the transcripts it
+is attached to. The questions are the same ones asked at onboarding, from one
+shared definition.
 
 ### 3.4 New conversation
 
@@ -272,7 +292,8 @@ counting. Participants put their own work forward and present it.
 - The collaborative track also asks who they worked with. **Decided: free
   text, with participant names offered as suggestions while typing.** Nobody
   is forced to pick an exact match while in a hurry, but names still line up
-  afterwards.
+  afterwards. Each name becomes a chip, and one that matches a participant is
+  marked, so a misspelling is visible while it can still be corrected.
 - **Decided: when nominations close, entries stay readable.** The fields are
   disabled and the submit button disappears, rather than the console shutting.
 - Nominations close at a time the admin sets, or immediately when the admin

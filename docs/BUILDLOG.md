@@ -1202,6 +1202,111 @@ payloads and the independent review where one exists.
 
 ---
 
+## Round 9: naming, profiles, and forms that keep your answers
+
+Four changes, three asked for and one found while testing them.
+
+### Conversation names
+
+Every chat is still named after its first message, but the name can now be
+changed: click it in the header, or use the menu that appears on a
+conversation in the left-hand list when the pointer is over it. Both write
+to the shared client store first, so the heading and the list agree
+straight away.
+
+A name chosen by hand is no longer replaced by the first message, on the
+client and on the server, so naming an empty conversation and then writing
+in it keeps the name.
+
+The chat header was rebuilt in passing. The name takes whatever width is
+left and shortens with an ellipsis; the model name sits on the right with
+its "fixed for this conversation" note as a tooltip. Before, with the side
+panel open on a laptop, the name was squeezed to nothing while the model
+name wrapped over the text beside it.
+
+### Collaborator picker
+
+The browser's own `datalist` dropdown is gone. Names are chips now: typing
+filters the participant list, Enter or a click adds the highlighted one,
+Backspace or the chip's cross removes one. A name that matches a
+participant is marked, so a misspelling the organizers would have to
+untangle later is visible while it can still be fixed. Anything can still
+be typed, since a collaborator may be absent from the list.
+
+The posted value is still one comma-separated string, so the action, the
+schema and the export did not change.
+
+### Profile page
+
+Reachable from the name in the sidebar. It shows what the account has done
+today — transcripts submitted, reviews finished, nominations entered, each
+linking back to that console — plus the email, whether the account is an
+organizer, and which terms version was accepted and when. The profile
+answers can be corrected, so a role picked in a hurry at the door does not
+need an organizer with database access to fix.
+
+The questions themselves now live in one component shared with onboarding,
+validated by the schema both already used.
+
+### Forms that lost your answers
+
+Found while testing the profile page, and older than it.
+
+React clears a form's DOM once an action passed to `<form action={...}>`
+returns, and the same for an action carried on a submit button's
+`formAction`. Controlled values do not save a `<select>` from this, because
+React only writes the DOM value when the prop changes, and after the reset
+the prop has not.
+
+So any form that could be rejected lost every dropdown answer while keeping
+the typed text. The review form was the worst of it: leave the goal box
+blank and all four dropdowns blanked out behind a plausible-looking error.
+The labels panel did the same, which is the "labels form lost answers"
+problem from an earlier round that making it controlled did not actually
+fix.
+
+Forms with a reject path now call their action from a transition
+(`components/action-form.tsx`), which does not trigger the reset. The
+labels panel has two actions, so its buttons call the one they want and the
+form is read from the button that was pressed.
+
+Also fixed: forgetting the terms checkbox saved the profile and then said
+the terms "have been updated since you last accepted them", to someone who
+had never accepted any.
+
+### How to test it
+
+1. Open a chat and click its name in the header. Rename it. The list on the
+   left changes at the same moment. Reload; it is still there.
+2. Hover a conversation in the list, use the three dots, rename it there.
+   Type a name with spaces in it — the click must not follow the link.
+3. Start a conversation, rename it before writing anything, then send a
+   message. Your name survives.
+4. On the collaborative nomination track, type a few letters of another
+   participant's name, pick them with Enter, then add a name that is not on
+   the list. Remove one with its cross and one with Backspace.
+5. Click your name at the bottom of the sidebar. Check the counts against
+   what you have done, change your affiliation, and save. Your name in the
+   sidebar changes too.
+6. In the review console, fill in everything except the goal box and
+   submit. You get an error and keep every answer. Fill the box in and
+   submit for real.
+7. Same in the labels panel: answer two questions, press Submit, get the
+   error, and check nothing was lost. Save still works on its own.
+
+### Verified automatically
+
+Browser tests cover each of the above against a production build: renaming
+from both places and the name surviving a reload and a later message; the
+picker's filtering, keyboard use, free text, both ways of removing a chip,
+and the value surviving a submit and reload; the profile page's counts
+against the same numbers read straight from SQL, an edit saving and showing
+in the sidebar, and a rejected save keeping every field including the
+selects; the same rejected-then-completed path for the review form, the
+labels panel and a nomination.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge
