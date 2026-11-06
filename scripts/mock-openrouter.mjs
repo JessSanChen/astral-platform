@@ -54,8 +54,6 @@ createServer((req, res) => {
     // Two ways a real judge misbehaves, so the fallbacks can be tested:
     // 'prose' answers in sentences instead of JSON, and 'mute' returns
     // nothing at all on the first (structured) attempt.
-    const lastRole = (parsed.messages||[]).length
-      ? parsed.messages[parsed.messages.length-1].role : 'user';
     if (modelId.includes('prose')) {
       judgeReply = risky
         ? 'This conversation looks dangerous to me. I would rate it about 8 out of 10.'
