@@ -4,6 +4,7 @@ import { requireOnboarded } from "@/lib/gate";
 import { getMyProfile } from "@/lib/profile";
 import { trackLabel } from "@/lib/nominations";
 import { ProfileForm } from "@/components/profile-form";
+import { formatEventDateTime } from "@/lib/time";
 
 export const metadata = { title: "Your profile" };
 
@@ -90,14 +91,9 @@ export default async function ProfilePage() {
           label="Terms accepted"
           value={
             account?.termsAcceptedAt
-              ? `Version ${account.termsVersion} on ${new Date(
+              ? `Version ${account.termsVersion} on ${formatEventDateTime(
                   account.termsAcceptedAt,
-                ).toLocaleString([], {
-                  day: "numeric",
-                  month: "short",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}`
+                )}`
               : "Not yet accepted"
           }
         />

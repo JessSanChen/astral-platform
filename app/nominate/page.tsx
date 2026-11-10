@@ -6,15 +6,9 @@ import {
   listMyNominations,
   nominationStatus,
 } from "@/lib/nominations";
+import { formatEventDateTime } from "@/lib/time";
 
-function when(date: Date) {
-  return date.toLocaleString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    day: "numeric",
-    month: "short",
-  });
-}
+const when = formatEventDateTime;
 
 export default async function NominateHome() {
   const { user } = await requireOnboarded();

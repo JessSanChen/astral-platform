@@ -4,15 +4,9 @@ import { nominationsByTrack } from "@/lib/admin";
 import { NOMINATION_TRACKS, nominationStatus } from "@/lib/nominations";
 import { Panel } from "@/components/admin-ui";
 import { NominationLock } from "@/components/admin-nomination-lock";
+import { formatEventDateTime } from "@/lib/time";
 
-function when(d: Date) {
-  return new Date(d).toLocaleString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    day: "numeric",
-    month: "short",
-  });
-}
+const when = formatEventDateTime;
 
 export default async function AdminNominations() {
   await requireAdmin();
@@ -40,6 +34,9 @@ export default async function AdminNominations() {
         </div>
         <div className="mt-3">
           <NominationLock
+            // Rebuilt when the stored time changes, so the field always
+            // shows what is saved rather than what was typed last.
+            key={status.closeAt?.toISOString() ?? "none"}
             locked={status.closedByOrganizer}
             closeAt={status.closeAt?.toISOString() ?? null}
           />

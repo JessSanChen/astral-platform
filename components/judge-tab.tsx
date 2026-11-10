@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { useConversationStore, type JudgeRun } from "@/components/conversation-store";
 import { cn } from "@/lib/utils";
+import { formatEventTime } from "@/lib/time";
 
 type JudgeConfig = { id: string; name: string; kind: string };
 
@@ -15,7 +16,7 @@ function startedAt(iso?: string) {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return formatEventTime(d);
 }
 
 export function JudgeTab({ conversationId }: { conversationId: string }) {

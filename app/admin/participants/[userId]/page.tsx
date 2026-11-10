@@ -1,3 +1,4 @@
+import { formatEventDateTime } from "@/lib/time";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Lock } from "lucide-react";
@@ -20,13 +21,7 @@ const INTENT_LABELS: Record<string, string> = {
 };
 
 function when(d: Date | null | undefined) {
-  if (!d) return "";
-  return new Date(d).toLocaleString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    day: "numeric",
-    month: "short",
-  });
+  return d ? formatEventDateTime(d) : "";
 }
 
 /**

@@ -9,6 +9,7 @@ import {
 } from "@/app/nominate/actions";
 import { ActionForm } from "@/components/action-form";
 import { Button } from "@/components/ui/button";
+import { formatEventTime } from "@/lib/time";
 import { CollaboratorPicker } from "@/components/collaborator-picker";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -76,7 +77,7 @@ export function NominationForm({
           <span>
             Nominations are closed
             {closeAt
-              ? ` as of ${new Date(closeAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+              ? ` as of ${formatEventTime(closeAt)}`
               : ""}
             . {existing ? "Your entry is below, as submitted." : "No entry was submitted for this track."}
           </span>
@@ -171,10 +172,7 @@ export function NominationForm({
             {existing && (
               <span className="text-xs text-muted-foreground">
                 Last saved{" "}
-                {new Date(existing.updatedAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {formatEventTime(existing.updatedAt)}
               </span>
             )}
           </div>
