@@ -28,8 +28,12 @@ type Result = {
   latencies: number[];
 };
 
+// Different on every run, so a second run does not collide with the accounts
+// the first one left behind and report seventy failed sign-ups.
+const RUN = Date.now().toString(36);
+
 async function runUser(n: number): Promise<Result> {
-  const email = `load${n}@example.test`;
+  const email = `load-${RUN}-${n}@example.test`;
   const res: Result = { email, ok: false, replies: 0, errors: [], latencies: [] };
   const jar: string[] = [];
   // Better Auth rejects requests whose Origin does not match the configured

@@ -17,8 +17,8 @@
  *
  * Usage: node scripts/with-env.mjs <env-file> <command> [args...]
  */
-import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { loadEnvFile } from "./load-env.mjs";
 
 const [envFile, ...command] = process.argv.slice(2);
 
@@ -27,10 +27,9 @@ if (!envFile || command.length === 0) {
   process.exit(1);
 }
 
-let contents;
-try {
-  contents = readFileSync(envFile, "utf8");
-} catch {
+// A variable already set in the shell wins, so a one-off override still
+// works without editing the file.
+if (!loadEnvFile(envFile)) {
   console.error(
     `\n${envFile} does not exist.\n\n` +
       "Create it with the production values, the same shape as .env.example.\n" +
@@ -38,16 +37,6 @@ try {
       "See docs/DEPLOY.md.\n",
   );
   process.exit(1);
-}
-
-for (const line of contents.split("\n")) {
-  const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i);
-  if (!match) continue;
-  const [, key, rawValue] = match;
-  // A variable already set in the shell wins, so a one-off override still
-  // works without editing the file.
-  if (process.env[key]) continue;
-  process.env[key] = rawValue.replace(/^["']|["']$/g, "");
 }
 
 if (!process.env.DATABASE_URL) {

@@ -9,31 +9,13 @@
  * Development only: it is wired to `npm run dev`, never to a deployment,
  * where migrations are applied deliberately as part of releasing.
  */
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import postgres from "postgres";
+import { loadLocalEnv } from "./load-env.mjs";
 
-function loadEnvFile() {
-  if (process.env.DATABASE_URL) return;
-  for (const file of [".env.local", ".env"]) {
-    let contents;
-    try {
-      contents = readFileSync(file, "utf8");
-    } catch {
-      continue;
-    }
-    for (const line of contents.split("\n")) {
-      const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i);
-      if (!match) continue;
-      const [, key, rawValue] = match;
-      if (process.env[key]) continue;
-      process.env[key] = rawValue.replace(/^["']|["']$/g, "");
-    }
-  }
-}
-
-loadEnvFile();
+loadLocalEnv();
 
 if (!process.env.DATABASE_URL) {
   console.error(

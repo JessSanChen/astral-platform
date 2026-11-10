@@ -1,20 +1,5 @@
-import { requireOnboarded } from "@/lib/gate";
-import { MasterNav } from "@/components/master-nav";
+import { AppShell } from "@/components/app-shell";
 
-export default async function NominateLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const { user, isAdmin } = await requireOnboarded();
-  return (
-    <div className="flex h-screen">
-      <MasterNav
-        userName={user.name}
-        userEmail={user.email}
-        isAdmin={isAdmin}
-      />
-      <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
-    </div>
-  );
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return <AppShell>{children}</AppShell>;
 }
