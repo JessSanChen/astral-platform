@@ -1,4 +1,5 @@
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import { after } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { message as messageTable } from "@/db/schema";
@@ -73,13 +74,26 @@ export async function POST(req: Request) {
   if (cu.needsProfile || cu.needsTerms)
     return fail("onboarding", "Finish your profile first.", 403);
 
-  const body = (await req.json()) as {
+  const body = (await req.json().catch(() => ({}))) as {
     conversationId?: string;
     messages?: UIMessage[];
     regenerate?: boolean;
   };
   const { conversationId, messages: uiMessages = [], regenerate = false } = body;
   if (!conversationId) return fail("bad_request", "Missing conversation.", 400);
+
+  // Read the new message before anything is claimed on the participant's
+  // behalf, so a request that is going to be refused for being empty does
+  // not first use up one of their sends for the minute.
+  const incoming = uiMessages[uiMessages.length - 1];
+  const text = regenerate
+    ? ""
+    : (incoming?.parts
+        ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join("") ?? "");
+  if (!regenerate && !text.trim())
+    return fail("bad_request", "Message is empty.", 400);
 
   // Fetched together: none of these depend on each other, and every round
   // trip here delays the first token the participant sees.
@@ -155,14 +169,6 @@ export async function POST(req: Request) {
       promptHistory = history.slice(0, -1);
     }
   } else {
-    const incoming = uiMessages[uiMessages.length - 1];
-    const text =
-      incoming?.parts
-        ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
-        .map((p) => p.text)
-        .join("") ?? "";
-    if (!text.trim()) return fail("bad_request", "Message is empty.", 400);
-
     const savedUserMessage = await appendMessage({
       conversationId,
       role: "user",
@@ -177,8 +183,21 @@ export async function POST(req: Request) {
     }
   }
 
+  // Leave out assistant turns that came back empty.
+  //
+  // A refusal with no text, a provider's own filter and a failed request are
+  // all kept in the transcript as an empty assistant turn, because for this
+  // study they are results. But sent back as part of the next prompt they
+  // are an empty message, which some providers refuse outright, and each
+  // refusal would add another one: the conversation could never continue
+  // past its first refusal. The scanners already skip these for the same
+  // reason. What the model is sent is recorded on each reply as raw_request,
+  // so the omission is visible in the data rather than implied.
+  const promptTurns = promptHistory.filter(
+    (m) => m.role !== "assistant" || m.content.trim().length > 0,
+  );
   const modelMessages = await convertToModelMessages(
-    promptHistory.map((m) => ({
+    promptTurns.map((m) => ({
       role: m.role,
       parts: (m.parts as UIMessage["parts"]) ?? [{ type: "text", text: m.content }],
     })),
@@ -293,7 +312,14 @@ export async function POST(req: Request) {
   // a reply is still arriving. Without this the generation is abandoned
   // mid-flight and the reply is lost; with it the reply finishes and is
   // saved, so it is simply there when they come back.
-  void result.consumeStream();
+  const consumed = result.consumeStream();
+  // Reading is not enough on its own where the host stops a function once
+  // its response has ended, which a closed tab ends early. `after` tells the
+  // host there is still work in hand, so the function is kept until the
+  // reply has been read to the end and saved, within maxDuration.
+  after(async () => {
+    await consumed;
+  });
 
   // Pass the provider's own wording through to the participant. Without this
   // every failure reads as a generic "something went wrong", which gives

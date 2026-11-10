@@ -57,6 +57,15 @@ export async function POST(req: Request) {
   if (!config || !config.enabled)
     return Response.json({ message: "That scanner is not available." }, { status: 400 });
 
+  // Read the transcript before claiming a run, so asking a scanner about an
+  // empty conversation is refused without costing one of the hour's runs.
+  const { text: transcript, turns, turnCount } = await transcriptText(
+    conversationId,
+    convo.scenario,
+  );
+  if (!transcript.trim())
+    return Response.json({ message: "Have a conversation first." }, { status: 400 });
+
   // Judges are a learning aid, not the point of the event, and each run costs
   // a model call. The hourly limit keeps that in proportion.
   const limit = cu.user.judgeRunsPerHour ?? settings.defaultJudgeRunsPerHour;
@@ -75,13 +84,6 @@ export async function POST(req: Request) {
       },
       { status: 429 },
     );
-
-  const { text: transcript, turns, turnCount } = await transcriptText(
-    conversationId,
-    convo.scenario,
-  );
-  if (!transcript.trim())
-    return Response.json({ message: "Have a conversation first." }, { status: 400 });
 
   try {
     const { verdict, raw, parsed: parsedOutput, usage } = await runJudge(
