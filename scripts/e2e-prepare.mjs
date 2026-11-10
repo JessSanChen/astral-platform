@@ -7,6 +7,9 @@
 import { spawnSync } from "node:child_process";
 import { loadEnvFile } from "./load-env.mjs";
 
+// Where the address came from matters to the person reading the output, so
+// work it out before anything is loaded over it.
+const fromEnvironment = Boolean(process.env.DATABASE_URL);
 const usedTestFile = loadEnvFile(".env.test.local");
 loadEnvFile(".env.local");
 
@@ -14,12 +17,13 @@ if (!process.env.DATABASE_URL) {
   console.error("\nNo DATABASE_URL in .env.test.local or .env.local.\n");
   process.exit(1);
 }
+const source = fromEnvironment
+  ? "from the environment"
+  : usedTestFile
+    ? "from .env.test.local"
+    : "from .env.local: your development database";
 const { hostname, pathname } = new URL(process.env.DATABASE_URL);
-console.log(
-  `\n  preparing ${hostname}${pathname}` +
-    (usedTestFile ? " (from .env.test.local)" : " (from .env.local: your development database)") +
-    "\n",
-);
+console.log(`\n  preparing ${hostname}${pathname} (${source})\n`);
 
 for (const command of [
   ["npx", "drizzle-kit", "migrate"],

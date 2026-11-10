@@ -1,0 +1,86 @@
+# Runs on every push: the checks a change has to pass before it should be
+# trusted, in the order that fails fastest.
+#
+# No secrets are needed. Model replies in the browser tests come from the
+# stand-in provider in scripts/mock-openrouter.mjs, and the database is a
+# throwaway Postgres that exists only for the length of the run.
+#
+# docs/TESTING.md explains what this covers and how to make it gate merges.
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+# A newer push to the same branch makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, types and browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: astral
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/astral
+      EVENT_CODE: ci-event-code
+      BETTER_AUTH_SECRET: ci-only-secret-not-used-anywhere-else
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Create tables and seed data
+        run: npm run test:e2e:prepare
+
+      # Builds the app for production and drives it in a real browser.
+      - name: Browser tests
+        run: npm run test:e2e
+
+      # What the browser saw when something failed: a report with a
+      # screenshot and a step-by-step trace for each failing test.
+      - name: Keep the test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
