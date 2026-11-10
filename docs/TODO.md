@@ -24,8 +24,8 @@ first, then by what blocks what.
 
 | # | What | Kind | Size | Status |
 |---|------|------|------|--------|
-| A | Email OpenRouter safety | Action | 30 min | Not started |
-| B | Ask Emre for a second OpenRouter account | Action | 10 min | Not started |
+| A | Email OpenRouter safety | Action | 30 min | Done 2026-11-10 |
+| B | Ask Emre for a second OpenRouter account | Action | 10 min | Done 2026-11-10 |
 | C | Get the team testing, collect feedback | Action | Ongoing | Not started |
 | D | Sign-off on the labeling draft | Decision | 1 conversation | Waiting on Colby and Dev |
 | E | Rebuild the three forms to the draft | Build | 2–4 days | Blocked on D |
