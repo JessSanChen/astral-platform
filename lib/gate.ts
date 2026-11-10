@@ -3,7 +3,7 @@ import { cache } from "react";
 import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { termsVersion } from "@/db/schema";
-import { getSession } from "@/lib/session";
+import { getFreshSession, getSession } from "@/lib/session";
 import { CACHE_KEYS, cached } from "@/lib/cache";
 
 /**
@@ -36,13 +36,28 @@ type AppUserFields = {
  * terms version. Cached per request.
  */
 export const getCurrentUser = cache(async () => {
-  const session = await getSession();
+  let session = await getSession();
   if (!session) return null;
   // The session already carries the user row, including our own columns (see
   // lib/auth.ts), so there is no second read of the same row here. On a
   // hosted database that saved round trip is on every page load.
-  const u = session.user as typeof session.user & AppUserFields;
+  let u = session.user as typeof session.user & AppUserFields;
   const latestTermsVersion = await getLatestTermsVersion();
+
+  // The session is cached in a cookie for half a minute, and whenever that
+  // copy says someone cannot proceed it is confirmed against the database
+  // first (see lib/session.ts). Being behind on the terms is one of those
+  // cases, and the only one that needs the latest version to recognise, so
+  // it is handled here. Without it, accepting newly published terms sent the
+  // participant straight back to the same page, again and again, until the
+  // cookie expired.
+  if (u.termsAcceptedAt && (u.termsVersion ?? 0) < latestTermsVersion) {
+    const fresh = await getFreshSession();
+    if (!fresh) return null;
+    session = fresh;
+    u = fresh.user as typeof fresh.user & AppUserFields;
+  }
+
   return {
     session,
     user: u,
@@ -67,6 +82,8 @@ export async function requireOnboarded() {
 export async function requireAdmin() {
   const cu = await getCurrentUser();
   if (!cu) redirect("/sign-in");
+  // Pausing an account stops it, whatever its role.
+  if (cu.user.banned) redirect("/paused");
   if (!cu.isAdmin) redirect("/chat");
   return cu;
 }

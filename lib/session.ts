@@ -28,8 +28,18 @@ export const getSession = cache(async () => {
     user.banned === true || !user.profileCompletedAt || !user.termsAcceptedAt;
   if (!looksBlocked) return session;
 
+  return getFreshSession();
+});
+
+/**
+ * The session read from the database, ignoring the cookie's copy.
+ *
+ * For the cases where the cached copy says someone cannot proceed and that
+ * may simply be out of date. Cached per request like the one above.
+ */
+export const getFreshSession = cache(async () => {
   return auth.api.getSession({
-    headers: requestHeaders,
+    headers: await headers(),
     query: { disableCookieCache: true },
   });
 });
