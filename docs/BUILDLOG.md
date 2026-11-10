@@ -1409,6 +1409,60 @@ submitted transcript; and the prompt sent after a stored empty refusal.
 
 ---
 
+## Round 11: dropdowns of our own, and tests that live in the repository
+
+### Dropdowns
+
+Every dropdown is now the app's own: the five profile questions, five in the
+labels panel, four in the review form and the scanner picker. The browser's
+`<select>` opens the operating system's menu, which looked different on every
+machine and like none of them belonged here.
+
+Replacing it means taking on what it did for free, so the new one
+(`components/ui/select.tsx`) follows the standard pattern for this control:
+
+- **Keyboard.** Arrows, Home and End, Enter or Space to choose, Escape to
+  back out, Tab to move on taking the highlighted option along, and typing
+  to jump to an option by its first letters.
+- **Screen readers.** It announces itself as a combobox, whether it is open
+  and which option is current, and takes its name from the field's label.
+- **Forms.** It posts with its form through a hidden input.
+
+The menu is drawn at the top of the page rather than inside the side panel,
+where it would be cut off at the panel's edge, and opens upwards when there
+is no room below.
+
+One behaviour changed: the browser no longer blocks a form with an empty
+dropdown before it is sent. The server's own message appears under the field
+instead, which is the same wording for every field and every browser.
+
+### Tests in the repository
+
+Until now every browser check was a script written for the occasion and
+thrown away. The dropdown change broke all of them at once, since each drove
+forms through the old control, so this round's were written to stay.
+
+`e2e/` has 21 Playwright tests in six files: getting in, the dropdown
+itself, a transcript from first message to second version, independent
+review, nominations and the organizer console. Several are the scenarios
+from the code review, kept so those fixes cannot quietly come undone: the
+event code enforced by the endpoint, a review tied to the version read, the
+blind review showing nothing of the author's, the closing time from a laptop
+on Tokyo time, and the allowance typed with commas.
+
+They drive a production build in a real browser. Model replies come from the
+stand-in provider, so nothing is spent and no model needs to be up.
+
+### How to test it
+
+1. Open any form and use a dropdown with the mouse, then with the keyboard
+   only: Tab to it, arrow down, type a few letters, Enter.
+2. In the labels panel, open the last dropdown with the window made short.
+   It opens upwards rather than off the screen.
+3. `npm run test:e2e`, after the one-time setup in the README.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

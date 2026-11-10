@@ -183,18 +183,7 @@ can be compared.
 
 Roughly in the order I would do it. None of it blocks the event.
 
-### 9. Themed dropdowns
-
-The profile questions, the labels panel and the review form use the browser's
-native `<select>`, which renders as the operating system's own dropdown and
-looks out of place against everything else. A custom listbox would match the
-design. The native control gives keyboard navigation and screen-reader
-labelling for free, so a replacement has to keep both.
-
-Where: `components/profile-fields.tsx`, `components/labels-panel.tsx`,
-`components/review-panel.tsx`, `components/ui/select.tsx`.
-
-### 10. Admin-editable forms and agreement
+### 9. Admin-editable forms and agreement
 
 The profile questions live in code and the terms in a seeded row. Moving the
 question set into the database would let you add, remove and reorder fields
@@ -202,14 +191,14 @@ and edit the agreement without a code change. The terms half is mostly UI
 since that table is already versioned; the profile half needs the profile
 table to hold answers as structured data rather than fixed columns.
 
-### 11. Email format checking and password rules
+### 10. Email format checking and password rules
 
 Sign-up accepts whatever the browser's own email validation allows, which is
 lenient, and the only password rule is a minimum of eight characters. Worth
 tightening both, especially as there is no password reset by email: a typo in
 an address costs someone their account on the day.
 
-### 12. Forgot password by email
+### 11. Forgot password by email
 
 Not hard — Better Auth has `requestPasswordReset` and `resetPassword` built
 in. The work is almost entirely choosing an email provider and verifying the
@@ -217,7 +206,7 @@ domain so the mail is not treated as spam. Half a day, most of it waiting for
 DNS. Useless without working email on the day, which is why the event relies
 on an organizer resetting passwords instead. Worth adding afterwards.
 
-### 13. Email verification
+### 12. Email verification
 
 Better Auth supports it (`requireEmailVerification` plus a send-email hook).
 Same dependency on an email provider. Deliberately off for a one-day

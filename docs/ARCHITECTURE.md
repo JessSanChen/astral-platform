@@ -445,13 +445,6 @@ so they are configuration and UI work rather than new infrastructure.
   (`requireEmailVerification` plus a send-email hook). It needs an email
   provider (Resend, Postmark, SES) wired up, which we skip for a one-day
   in-person event. Flip it on and add the provider post-event.
-- **Themed dropdowns on the profile questions.** Onboarding and the profile
-  page now share one set of fields (`components/profile-fields.tsx`), which
-  still uses the browser's native `<select>`. That renders as the operating
-  system's own dropdown and looks out of place against the rest of the
-  design. Replace with a custom listbox component that matches the theme.
-  Keep keyboard navigation and screen-reader labelling, which the native
-  control gives us for free today.
 - **Admin-editable forms and agreement.** The profile questions and the
   confidentiality agreement are currently defined in code (`lib/labels.ts`)
   and the seeded terms row. Move the question set into the database so the
