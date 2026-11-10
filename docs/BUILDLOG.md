@@ -1463,6 +1463,54 @@ stand-in provider, so nothing is spent and no model needs to be up.
 
 ---
 
+## Round 12: checks that run by themselves
+
+Until now the only thing that ran automatically was Vercel's build, which
+catches a change that does not compile and nothing else. The browser tests
+from round 11 existed but only ran when someone remembered to.
+
+### What was added
+
+**`.github/workflows/ci.yml`**: one GitHub Actions job on every push to any
+branch. It installs, lints, typechecks, starts an empty Postgres, creates
+the tables and seed data, builds for production, and runs all 21 browser
+tests. No secrets are involved: replies come from the stand-in provider and
+the database is thrown away at the end. A failing run keeps its report, with
+a screenshot and a step-by-step trace per failed test, for a week.
+
+**`docs/TESTING.md`**: what each kind of check is for, how to run the
+browser tests yourself, which database they use, what they cover and what
+they do not, how to add one, and how to read a failure.
+
+**`scripts/e2e-prepare.mjs`** now says when its database address came from
+the environment, which is the case in CI, instead of claiming it was read
+from `.env.local`.
+
+### How it was checked before being pushed
+
+The whole job was rehearsed locally first, in the same mode CI uses: a
+database created empty, migrated from nothing, seeded from environment
+variables alone, then the full suite against a fresh production build.
+Migrating from nothing had not been exercised since the first week; every
+database since had been migrated one step at a time.
+
+### The first run
+
+Passed on GitHub in 3 minutes 7 seconds: lint, typecheck, an empty database
+migrated and seeded, and all 21 browser tests green. It raised one warning,
+that two of the standard actions it used were built for a retired version
+of Node, and those were moved to their current versions straight after.
+
+### What it does not do
+
+It reports; it does not block. Vercel publishes `main` on every push whether
+or not this has passed. Making a red run stop a merge needs changes to
+arrive by pull request and `main` to require the check, which is a
+repository setting only the owner can change. The steps are in
+`docs/TESTING.md`.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

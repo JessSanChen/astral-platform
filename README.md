@@ -7,6 +7,7 @@ conversation, and submit it. Everything is stored in Postgres for later
 experiments.
 
 - Deploying it: [docs/DEPLOY.md](docs/DEPLOY.md)
+- Tests and CI: [docs/TESTING.md](docs/TESTING.md)
 - Build log and test instructions: [docs/BUILDLOG.md](docs/BUILDLOG.md)
 - Open decisions and remaining work: [docs/TODO.md](docs/TODO.md)
 - Product spec: [docs/SPEC.md](docs/SPEC.md)
