@@ -1,15 +1,16 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   conversation,
+  message,
   profile,
   submission,
   transcriptLabels,
 } from "@/db/schema";
 import { getCurrentUser } from "@/lib/gate";
-import { getOwnedConversation, getVisibleMessages } from "@/lib/conversations";
+import { getOwnedConversation } from "@/lib/conversations";
 import { draftLabelsSchema, submitLabelsSchema } from "@/lib/labels-schema";
 
 export type LabelsState = {
@@ -18,6 +19,21 @@ export type LabelsState = {
   savedAt?: number;
   submittedVersion?: number;
 };
+
+/**
+ * Who may change labels or submit. The same conditions the pages apply, since
+ * an action can be called without ever loading the page: a paused account
+ * could otherwise keep submitting transcripts towards a prize.
+ */
+async function activeUser() {
+  const cu = await getCurrentUser();
+  if (!cu) return { error: "Please sign in again." } as const;
+  if (cu.user.banned)
+    return { error: "An organizer has paused your account." } as const;
+  if (cu.needsProfile || cu.needsTerms)
+    return { error: "Finish your profile first." } as const;
+  return { cu } as const;
+}
 
 function readForm(formData: FormData) {
   const str = (k: string) => {
@@ -43,8 +59,9 @@ export async function saveLabels(
   _prev: LabelsState,
   formData: FormData,
 ): Promise<LabelsState> {
-  const cu = await getCurrentUser();
-  if (!cu) return { message: "Please sign in again." };
+  const who = await activeUser();
+  if ("error" in who) return { message: who.error };
+  const { cu } = who;
   const conversationId = String(formData.get("conversationId"));
 
   let convo;
@@ -77,8 +94,9 @@ export async function submitTranscript(
   _prev: LabelsState,
   formData: FormData,
 ): Promise<LabelsState> {
-  const cu = await getCurrentUser();
-  if (!cu) return { message: "Please sign in again." };
+  const who = await activeUser();
+  if ("error" in who) return { message: who.error };
+  const { cu } = who;
   const conversationId = String(formData.get("conversationId"));
 
   let convo;
@@ -88,17 +106,9 @@ export async function submitTranscript(
     return { message: "Conversation not found." };
   }
 
-  if (convo.lockedAt) {
-    return {
-      message:
-        "This transcript has been independently reviewed, so its labels are now fixed.",
-    };
-  }
-
-  const messages = await getVisibleMessages(conversationId);
-  if (messages.length === 0) {
-    return { message: "Have a conversation before submitting it." };
-  }
+  const LOCKED =
+    "This transcript has been independently reviewed, so its labels are now fixed.";
+  if (convo.lockedAt) return { message: LOCKED };
 
   const parsed = submitLabelsSchema.safeParse(readForm(formData));
   if (!parsed.success) {
@@ -118,10 +128,42 @@ export async function submitTranscript(
     .from(profile)
     .where(eq(profile.userId, cu.user.id));
 
-  const version = convo.currentVersion + 1;
   const now = new Date();
 
-  await db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
+    // Take the conversation's row for the length of this transaction, and
+    // decide everything from what is read under that lock.
+    //
+    // The checks above were made before it, so on their own they leave a gap:
+    // a review landing in between would lock the transcript and this would
+    // still write a new version after it, and two submits at once would both
+    // compute the same version number. A reviewer's submit and a new message
+    // being saved take this same lock, so all three happen one at a time.
+    const [fresh] = await tx
+      .select({
+        lockedAt: conversation.lockedAt,
+        currentVersion: conversation.currentVersion,
+        firstSubmittedAt: conversation.firstSubmittedAt,
+      })
+      .from(conversation)
+      .where(
+        and(eq(conversation.id, conversationId), eq(conversation.userId, cu.user.id)),
+      )
+      .for("update");
+    if (!fresh) return { kind: "gone" as const };
+    if (fresh.lockedAt) return { kind: "locked" as const };
+
+    const messages = await tx
+      .select()
+      .from(message)
+      .where(
+        and(eq(message.conversationId, conversationId), isNull(message.supersededBy)),
+      )
+      .orderBy(asc(message.seq));
+    if (messages.length === 0) return { kind: "empty" as const };
+
+    const version = fresh.currentVersion + 1;
+
     await tx
       .insert(transcriptLabels)
       .values({ conversationId, ...labelValues(labels), updatedAt: now })
@@ -175,14 +217,20 @@ export async function submitTranscript(
       .set({
         status: "submitted",
         currentVersion: version,
-        firstSubmittedAt: convo.firstSubmittedAt ?? now,
+        firstSubmittedAt: fresh.firstSubmittedAt ?? now,
         lastSubmittedAt: now,
         updatedAt: now,
       })
-      .where(
-        and(eq(conversation.id, conversationId), eq(conversation.userId, cu.user.id)),
-      );
+      .where(eq(conversation.id, conversationId));
+
+    return { kind: "submitted" as const, version };
   });
+
+  if (outcome.kind === "gone") return { message: "Conversation not found." };
+  if (outcome.kind === "locked") return { message: LOCKED };
+  if (outcome.kind === "empty")
+    return { message: "Have a conversation before submitting it." };
+  const version = outcome.version;
 
   // Deliberately no revalidatePath here. It would clear the browser's cached
   // copy of every conversation, so each later switch would go back to the

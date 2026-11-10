@@ -11,6 +11,7 @@ import {
 import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
 import { Chat } from "@ai-sdk/react";
+import type { LabelValues } from "@/components/labels-panel";
 
 export type StoredConversation = {
   id: string;
@@ -61,6 +62,18 @@ type Store = {
   isFirstOpen: (id: string) => boolean;
   isGenerating: (id: string) => boolean;
   setGenerating: (id: string, value: boolean) => void;
+  /**
+   * The labels form as the participant last left it, per conversation.
+   *
+   * The page a conversation is rendered from is cached in the browser so that
+   * switching is instant, which means the labels it carries are the ones from
+   * when it was first loaded. Anything that rebuilt the form from them (a
+   * submit, switching to the scanners tab and back, leaving the conversation
+   * and returning) showed those old values, usually blank, over answers that
+   * had been given and saved since.
+   */
+  getLabelDraft: (id: string) => LabelValues | undefined;
+  setLabelDraft: (id: string, values: LabelValues) => void;
   // The right-hand panel's state lives here so the chosen tab and the
   // scanner results survive moving between conversations.
   rightTab: RightTab;
@@ -99,6 +112,7 @@ export function ConversationStoreProvider({
   // Refs, not state: changing these must not re-render the whole chat.
   const chats = useRef(new Map<string, Chat<UIMessage>>());
   const generating = useRef(new Set<string>());
+  const labelDrafts = useRef(new Map<string, LabelValues>());
   const [generatingTick, setGeneratingTick] = useState(0);
   const [rightTab, setRightTab] = useState<RightTab>("labels");
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -144,6 +158,14 @@ export function ConversationStoreProvider({
     return chat;
   }, []);
 
+  const getLabelDraft = useCallback(
+    (id: string) => labelDrafts.current.get(id),
+    [],
+  );
+  const setLabelDraft = useCallback((id: string, values: LabelValues) => {
+    labelDrafts.current.set(id, values);
+  }, []);
+
   const isGenerating = useCallback(
     (id: string) => generating.current.has(id),
     // generatingTick forces consumers to re-read after a change.
@@ -171,6 +193,8 @@ export function ConversationStoreProvider({
       isFirstOpen,
       isGenerating,
       setGenerating,
+      getLabelDraft,
+      setLabelDraft,
       rightTab,
       setRightTab,
       rightPanelOpen,
@@ -189,6 +213,8 @@ export function ConversationStoreProvider({
       isFirstOpen,
       isGenerating,
       setGenerating,
+      getLabelDraft,
+      setLabelDraft,
     ],
   );
 

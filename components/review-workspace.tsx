@@ -59,6 +59,7 @@ export function ReviewWorkspace({
         <ReviewPanel
           key={transcript.conversationId}
           conversationId={transcript.conversationId}
+          reviewedVersion={transcript.submittedVersion}
           existing={existing}
           alreadyReviewed={alreadyReviewed}
           submissionCount={submissionCount}

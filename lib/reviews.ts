@@ -1,6 +1,13 @@
 import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { conversation, message, review, reviewClaim } from "@/db/schema";
+import {
+  conversation,
+  message,
+  review,
+  reviewClaim,
+  submission,
+} from "@/db/schema";
+import { deriveTitle } from "@/lib/conversations";
 import { getEventSettings } from "@/lib/openrouter";
 
 export type ReviewableTranscript = {
@@ -81,13 +88,33 @@ export async function releaseBatch(reviewerId: string) {
     );
 }
 
+/**
+ * What a reviewer sees a transcript listed as: the start of its first
+ * message, which they are about to read anyway.
+ *
+ * Not the conversation's title. Authors can rename their conversations, so a
+ * title can say who wrote it or what they were attempting, and showing that
+ * in the review list would tell the reviewer exactly what a blind review
+ * exists to keep from them.
+ */
+const firstUserMessage = sql<string | null>`(
+  select m.content from ${message} m
+  where m.conversation_id = ${conversation.id}
+    and m.role = 'user' and m.superseded_by is null
+  order by m.seq limit 1
+)`;
+
+function listingTitle(firstMessage: string | null) {
+  return firstMessage?.trim() ? deriveTitle(firstMessage) : "Transcript";
+}
+
 /** The transcripts this reviewer is holding and has not yet reviewed. */
 export async function listClaimed(reviewerId: string) {
-  return db
+  const rows = await db
     .select({
       conversationId: reviewClaim.conversationId,
       claimedAt: reviewClaim.claimedAt,
-      title: conversation.title,
+      firstMessage: firstUserMessage,
       modelId: conversation.modelId,
     })
     .from(reviewClaim)
@@ -99,22 +126,30 @@ export async function listClaimed(reviewerId: string) {
       ),
     )
     .orderBy(asc(reviewClaim.claimedAt));
+  return rows.map(({ firstMessage, ...row }) => ({
+    ...row,
+    title: listingTitle(firstMessage),
+  }));
 }
 
 /** This reviewer's completed reviews, most recently submitted first. */
 export async function listCompleted(reviewerId: string) {
-  return db
+  const rows = await db
     .select({
       conversationId: review.conversationId,
       updatedAt: review.updatedAt,
       submissionCount: review.submissionCount,
-      title: conversation.title,
+      firstMessage: firstUserMessage,
       modelId: conversation.modelId,
     })
     .from(review)
     .innerJoin(conversation, eq(conversation.id, review.conversationId))
     .where(eq(review.reviewerId, reviewerId))
     .orderBy(desc(review.updatedAt));
+  return rows.map(({ firstMessage, ...row }) => ({
+    ...row,
+    title: listingTitle(firstMessage),
+  }));
 }
 
 /**
@@ -148,20 +183,52 @@ export async function getTranscriptForReview(
     );
   if (!claim) return null;
 
-  const rows = await db
-    .select()
-    .from(message)
-    .where(eq(message.conversationId, conversationId))
-    .orderBy(asc(message.seq));
+  // Show the submitted version, not the conversation as it is now.
+  //
+  // The author can keep chatting after submitting, right up until a review
+  // lands and locks the transcript. Reading the live messages meant a
+  // reviewer could be shown turns that were never submitted, and the review
+  // was then recorded against whatever version existed when they pressed
+  // submit rather than the one they had read. A submission is an immutable
+  // snapshot, so reading that is what makes "version N was reviewed" true.
+  const [mine] = await db
+    .select({ reviewedVersion: review.reviewedVersion })
+    .from(review)
+    .where(
+      and(
+        eq(review.conversationId, conversationId),
+        eq(review.reviewerId, reviewerId),
+      ),
+    );
+  const version = mine?.reviewedVersion ?? convo.currentVersion;
+
+  const [submitted] = await db
+    .select({ snapshot: submission.snapshot })
+    .from(submission)
+    .where(
+      and(
+        eq(submission.conversationId, conversationId),
+        eq(submission.version, version),
+      ),
+    );
+  if (!submitted) return null;
+
+  const snapshot = submitted.snapshot as {
+    modelId?: string;
+    scenario?: string | null;
+    messages?: { seq: number; role: "user" | "assistant"; content: string }[];
+  };
 
   return {
     conversationId,
-    modelId: convo.modelId,
-    scenario: convo.scenario,
-    submittedVersion: convo.currentVersion,
-    turns: rows
-      .filter((m) => !m.supersededBy)
-      .map((m) => ({ seq: m.seq, role: m.role, content: m.content })),
+    modelId: snapshot.modelId ?? convo.modelId,
+    scenario: snapshot.scenario ?? null,
+    submittedVersion: version,
+    turns: (snapshot.messages ?? []).map((m) => ({
+      seq: m.seq,
+      role: m.role,
+      content: m.content,
+    })),
   };
 }
 

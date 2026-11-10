@@ -66,11 +66,22 @@ export function LabelsPanel({
     saveLabels,
     {},
   );
+  const { patchConversation, getLabelDraft, setLabelDraft } =
+    useConversationStore();
   // Controlled, not uncontrolled. React resets a form once its action
   // finishes, which would revert every box to the value it had when the
   // component mounted and silently drop a participant's answers on the
   // second submit. Holding the values in state makes them survive.
-  const [values, setValues] = useState(labels);
+  //
+  // They start from the store's copy when there is one. The `labels` prop is
+  // whatever the server had when this page was first rendered, and the page
+  // is cached, so it goes stale the moment anything is typed.
+  const [values, setValues] = useState(
+    () => getLabelDraft(conversationId) ?? labels,
+  );
+  useEffect(() => {
+    setLabelDraft(conversationId, values);
+  }, [conversationId, values, setLabelDraft]);
   const set = <K extends keyof LabelValues>(key: K, value: LabelValues[K]) =>
     setValues((v) => ({ ...v, [key]: value }));
   const toggleTag = (tag: string, on: boolean) =>
@@ -82,7 +93,6 @@ export function LabelsPanel({
     }));
 
   const [openNotes, setOpenNotes] = useState(false);
-  const { patchConversation } = useConversationStore();
   const e = state.errors ?? {};
   const runAction = useFormAction();
   const version = state.submittedVersion ?? currentVersion;

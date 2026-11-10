@@ -96,7 +96,6 @@ export function ConversationWorkspace(props: {
           <div className="min-h-0 flex-1">
             {rightTab === "labels" ? (
               <LabelsPanel
-                key={`v${currentVersion}`}
                 conversationId={props.conversationId}
                 labels={props.labels}
                 turns={props.turns}

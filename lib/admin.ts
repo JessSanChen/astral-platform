@@ -7,10 +7,33 @@ import {
   nomination,
   profile,
   review,
+  submission,
   transcriptLabels,
   usageEvent,
   user,
 } from "@/db/schema";
+
+/**
+ * A label as it was submitted, read from the current version's snapshot.
+ *
+ * The transcript_labels row is the author's working copy: it is saved as
+ * they type, and they can go on editing it after submitting, towards a
+ * version they may never submit. Counting from it meant relabelling a
+ * submitted transcript and pressing Save moved it between prize columns
+ * with no new version to show for it. What was submitted is in the
+ * snapshot, and that is what the organizers are counting.
+ */
+const submittedLabel = (field: "type" | "modelBehaviour" | "goalText") =>
+  // The field name is written into the query rather than bound. As a bound
+  // value, the same expression in SELECT and GROUP BY would carry two
+  // different parameters and Postgres would not recognise them as one.
+  sql<string | null>`${submission.snapshot}->'labels'->>${sql.raw(`'${field}'`)}`;
+
+/** Joins a conversation to the snapshot of its current submitted version. */
+const currentSubmission = and(
+  eq(submission.conversationId, conversation.id),
+  eq(submission.version, conversation.currentVersion),
+);
 
 /** Headline numbers for the overview. */
 export async function overview() {
@@ -34,17 +57,17 @@ export async function overview() {
       })
       .from(conversation),
     db
-      .select({ type: transcriptLabels.type, n: count() })
-      .from(transcriptLabels)
-      .innerJoin(conversation, eq(conversation.id, transcriptLabels.conversationId))
+      .select({ type: submittedLabel("type"), n: count() })
+      .from(conversation)
+      .innerJoin(submission, currentSubmission)
       .where(eq(conversation.status, "submitted"))
-      .groupBy(transcriptLabels.type),
+      .groupBy(submittedLabel("type")),
     db
-      .select({ behaviour: transcriptLabels.modelBehaviour, n: count() })
-      .from(transcriptLabels)
-      .innerJoin(conversation, eq(conversation.id, transcriptLabels.conversationId))
+      .select({ behaviour: submittedLabel("modelBehaviour"), n: count() })
+      .from(conversation)
+      .innerJoin(submission, currentSubmission)
       .where(eq(conversation.status, "submitted"))
-      .groupBy(transcriptLabels.modelBehaviour),
+      .groupBy(submittedLabel("modelBehaviour")),
     db.select({ n: count() }).from(review),
     db.select({ track: nomination.track, n: count() }).from(nomination).groupBy(nomination.track),
     db
@@ -121,12 +144,14 @@ export async function participantTable() {
     left join (
       select conv.user_id,
              count(*) filter (where conv.status = 'submitted') as submitted,
-             count(*) filter (where conv.status = 'submitted' and tl.type = 'benign') as benign,
-             count(*) filter (where conv.status = 'submitted' and tl.type = 'dual_use') as dual_use,
-             count(*) filter (where conv.status = 'submitted' and tl.type = 'adversarial') as adversarial,
+             count(*) filter (where conv.status = 'submitted' and s.snapshot->'labels'->>'type' = 'benign') as benign,
+             count(*) filter (where conv.status = 'submitted' and s.snapshot->'labels'->>'type' = 'dual_use') as dual_use,
+             count(*) filter (where conv.status = 'submitted' and s.snapshot->'labels'->>'type' = 'adversarial') as adversarial,
              max(conv.last_submitted_at) as last_at
       from conversation conv
-      left join transcript_labels tl on tl.conversation_id = conv.id
+      -- The labels as submitted, not the author's working copy.
+      left join submission s
+        on s.conversation_id = conv.id and s.version = conv.current_version
       group by conv.user_id
     ) c on c.user_id = u.id
     left join (
@@ -180,13 +205,16 @@ export async function participantDetail(userId: string) {
           lastSubmittedAt: conversation.lastSubmittedAt,
           createdAt: conversation.createdAt,
           lockedAt: conversation.lockedAt,
-          type: transcriptLabels.type,
-          behaviour: transcriptLabels.modelBehaviour,
-          goalText: transcriptLabels.goalText,
+          // As submitted where there is a submission; the working copy for
+          // a draft that has none yet.
+          type: sql<string | null>`coalesce(${submittedLabel("type")}, ${transcriptLabels.type}::text)`,
+          behaviour: sql<string | null>`coalesce(${submittedLabel("modelBehaviour")}, ${transcriptLabels.modelBehaviour}::text)`,
+          goalText: sql<string | null>`coalesce(${submittedLabel("goalText")}, ${transcriptLabels.goalText})`,
           turns: sql<number>`(select count(*) from ${message} m where m.conversation_id = ${conversation.id} and m.superseded_by is null)::int`,
         })
         .from(conversation)
         .leftJoin(transcriptLabels, eq(transcriptLabels.conversationId, conversation.id))
+        .leftJoin(submission, currentSubmission)
         .where(eq(conversation.userId, userId))
         .orderBy(desc(conversation.createdAt)),
       db

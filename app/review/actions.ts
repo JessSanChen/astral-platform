@@ -11,6 +11,9 @@ export type ReviewState = {
   errors?: Record<string, string>;
   message?: string;
   submissionCount?: number;
+  /** Set when the transcript changed under the reviewer; a timestamp so
+   *  that a second occurrence is still seen as new. */
+  staleAt?: number;
 };
 
 type Intent = "benign" | "dual_use" | "adversarial" | "unclear";
@@ -64,18 +67,31 @@ export async function submitReview(
   const v = parsed.data;
   const now = new Date();
 
-  const [convo] = await db
-    .select({ currentVersion: conversation.currentVersion })
-    .from(conversation)
-    .where(eq(conversation.id, conversationId));
+  // The version the reviewer was shown, carried by the form. The review is
+  // of that version and no other.
+  const readVersion = Number(formData.get("reviewedVersion"));
 
-  const saved = await db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
+    // Hold the conversation's row for the length of this transaction. The
+    // author's own submit takes the same lock, so "is this still the version
+    // that was read" and "lock it" cannot be separated by a resubmission
+    // slipping in between.
+    const [convo] = await tx
+      .select({ currentVersion: conversation.currentVersion })
+      .from(conversation)
+      .where(eq(conversation.id, conversationId))
+      .for("update");
+    if (!convo) return { kind: "gone" as const };
+    if (!Number.isInteger(readVersion) || convo.currentVersion !== readVersion) {
+      return { kind: "stale" as const };
+    }
+
     const [row] = await tx
       .insert(review)
       .values({
         conversationId,
         reviewerId: user.id,
-        reviewedVersion: convo?.currentVersion ?? null,
+        reviewedVersion: readVersion,
         intent: v.intent as Intent,
         misusePresent: v.misusePresent,
         actor: v.actor as Actor,
@@ -115,10 +131,20 @@ export async function submitReview(
       .set({ lockedAt: now })
       .where(eq(conversation.id, conversationId));
 
-    return row;
+    return { kind: "saved" as const, submissionCount: row?.submissionCount ?? 1 };
   });
 
-  return { submissionCount: saved?.submissionCount ?? 1 };
+  if (outcome.kind === "gone") {
+    return { message: "This transcript no longer exists." };
+  }
+  if (outcome.kind === "stale") {
+    return {
+      staleAt: Date.now(),
+      message:
+        "The author submitted a newer version while you were reading, and it has just been loaded on the left. Check your answers still fit what is there now, then submit again.",
+    };
+  }
+  return { submissionCount: outcome.submissionCount };
 }
 
 export async function refreshBatch() {

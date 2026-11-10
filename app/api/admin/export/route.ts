@@ -82,7 +82,15 @@ export async function GET() {
                 profile: authorProfile ?? null,
               }
             : null,
-          self_labels: labels ?? null,
+          // The labels as submitted with the current version. The author's
+          // working copy can move on afterwards without a new version, so it
+          // is given separately rather than passed off as what was submitted.
+          self_labels:
+            (
+              submissions.find((s) => s.version === convo.currentVersion)
+                ?.snapshot as { labels?: unknown } | undefined
+            )?.labels ?? null,
+          draft_labels: labels ?? null,
           independent_review: theirReview ?? null,
           messages: messages.map((m) => ({
             seq: m.seq,

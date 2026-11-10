@@ -26,11 +26,14 @@ export type ReviewValues = {
 
 export function ReviewPanel({
   conversationId,
+  reviewedVersion,
   existing,
   alreadyReviewed,
   submissionCount,
 }: {
   conversationId: string;
+  /** The submitted version on screen, which is the one being reviewed. */
+  reviewedVersion: number;
   existing: ReviewValues;
   alreadyReviewed: boolean;
   submissionCount: number;
@@ -49,6 +52,15 @@ export function ReviewPanel({
     announced.current = state.submissionCount;
     router.refresh();
   }, [state.submissionCount, router]);
+  // The author resubmitted while this was open. Fetch the version that now
+  // exists; the answers already entered stay where they are, since this
+  // component is not remounted by a refresh.
+  const staleSeen = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (state.staleAt === undefined || staleSeen.current === state.staleAt) return;
+    staleSeen.current = state.staleAt;
+    router.refresh();
+  }, [state.staleAt, router]);
   const [values, setValues] = useState(existing);
   const set = <K extends keyof ReviewValues>(k: K, v: ReviewValues[K]) =>
     setValues((prev) => ({ ...prev, [k]: v }));
@@ -58,6 +70,7 @@ export function ReviewPanel({
   return (
     <ActionForm action={action} className="flex h-full flex-col">
       <input type="hidden" name="conversationId" value={conversationId} />
+      <input type="hidden" name="reviewedVersion" value={reviewedVersion} />
 
       <div className="border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold">Your assessment</h2>
