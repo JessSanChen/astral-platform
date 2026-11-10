@@ -47,7 +47,12 @@ async function runUser(n: number): Promise<Result> {
 
   const signUp = await fetch(`${BASE}/api/auth/sign-up/email`, {
     method: "POST",
-    headers: { "content-type": "application/json", origin: BASE },
+    headers: {
+      "content-type": "application/json",
+      origin: BASE,
+      // The server refuses a sign-up without the event code.
+      "x-event-code": process.env.EVENT_CODE ?? "",
+    },
     body: JSON.stringify({ name: `Load ${n}`, email, password: "loadtest12345" }),
   });
   if (!signUp.ok) {

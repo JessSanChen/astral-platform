@@ -1,14 +1,15 @@
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
-
-const adminEmails = (process.env.ADMIN_EMAILS ?? "")
-  .split(",")
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean);
+import {
+  EVENT_CODE_HEADER,
+  EVENT_CODE_REJECTED,
+  eventCodeMatches,
+} from "@/lib/event-code";
 
 /**
  * Where this instance is served from.
@@ -111,19 +112,30 @@ export const auth = betterAuth({
     }),
     nextCookies(),
   ],
-  databaseHooks: {
-    user: {
-      create: {
-        // Grant the admin role at creation time for configured emails.
-        before: async (u) => {
-          if (adminEmails.includes(u.email.toLowerCase())) {
-            return { data: { ...u, role: "admin" } };
-          }
-          return { data: u };
-        },
-      },
-    },
+  hooks: {
+    /**
+     * The event code is enforced here, on the endpoint that creates the
+     * account, and nowhere else.
+     *
+     * It used to be checked by the sign-up page calling a separate endpoint
+     * first. That only stopped people who used the page: posting straight to
+     * the sign-up endpoint created an account with no code at all, so
+     * changing the code to close registration closed nothing.
+     */
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-up/email") return;
+      const code = ctx.headers?.get(EVENT_CODE_HEADER);
+      if (!(await eventCodeMatches(code))) {
+        throw new APIError("FORBIDDEN", { message: EVENT_CODE_REJECTED });
+      }
+    }),
   },
+  // Nothing here grants the organizer role. It used to be given at sign-up
+  // to any address listed in ADMIN_EMAILS, but addresses are not verified,
+  // so whoever registered a listed address first became an organizer, with
+  // the export and everyone's password reset in reach. The role is now only
+  // ever given by an existing organizer (app/admin/actions.ts) or by the
+  // seed script, which needs the database credentials to run.
 });
 
 export type Session = typeof auth.$Infer.Session;

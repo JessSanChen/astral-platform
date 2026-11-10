@@ -45,9 +45,12 @@ This document says **what** the system does. `ARCHITECTURE.md` says **how**.
 | Participant | Event attendee             | Sign up, complete profile, accept terms, chat, label, submit, run judge |
 | Admin       | Jess | Everything a participant can, plus the admin console                   |
 
-Admin is a role on the user row (Better Auth admin plugin). It is granted
-automatically at sign-up to any email listed in the `ADMIN_EMAILS` environment
-variable. Promoting other users to admin from the console is post-MVP.
+Admin is a role on the user row (Better Auth admin plugin). **Decided: it is
+never granted at sign-up.** Addresses are not verified, so giving the role to
+whoever registers a listed address gives it to whoever registers first. The
+first organizer is promoted by the seed script, which needs the database
+credentials to run, and every later one by an existing organizer from the
+participants table.
 
 ---
 

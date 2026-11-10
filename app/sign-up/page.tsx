@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signUp, useSession } from "@/lib/auth-client";
+import { EVENT_CODE_HEADER } from "@/lib/event-code-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,19 +31,13 @@ export default function SignUpPage() {
     setError(null);
     setLoading(true);
 
-    // Validate the event code first via our own endpoint.
-    const check = await fetch("/api/event-code", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code: eventCode }),
-    });
-    if (!check.ok) {
-      setError("That event code is not valid. Ask the organizer for today's code.");
-      setLoading(false);
-      return;
-    }
-
-    const { error } = await signUp.email({ name, email, password });
+    // The code travels with the request that creates the account, and the
+    // server refuses the account without it. Checking it in a separate call
+    // first would only be advice to the browser.
+    const { error } = await signUp.email(
+      { name, email, password },
+      { headers: { [EVENT_CODE_HEADER]: eventCode } },
+    );
     if (error) {
       setError(error.message ?? "Could not create account.");
       setLoading(false);

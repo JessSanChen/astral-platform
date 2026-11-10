@@ -368,7 +368,7 @@ DATABASE_URL                 Neon pooled connection string
 BETTER_AUTH_SECRET           random 32+ bytes
 BETTER_AUTH_URL              https://<your domain>
 OPENROUTER_API_KEY           server-side only
-ADMIN_EMAILS                 comma-separated; these users get is_admin on sign-up
+ADMIN_EMAILS                 read by the seed script only: promotes existing accounts
 ```
 
 Repository layout (planned):

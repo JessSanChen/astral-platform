@@ -96,7 +96,7 @@ change reaches the real database.
 | `DATABASE_URL` | The Neon **pooled** connection string |
 | `BETTER_AUTH_SECRET` | A fresh one: `openssl rand -base64 32`. Not the one from your laptop. |
 | `OPENROUTER_API_KEY` | Your OpenRouter key |
-| `ADMIN_EMAILS` | Your email, comma-separated for more |
+| `ADMIN_EMAILS` | Not needed in Vercel. Only the seed script reads it, from `.env.production.local` |
 | `EVENT_CODE` | The same code you seeded |
 | `BETTER_AUTH_URL` | Fill in after the first deploy, step 5 |
 
@@ -117,7 +117,10 @@ npm run prod:doctor
 
 Then in the browser, on the deployed address:
 
-1. Sign up with the email in `ADMIN_EMAILS`, using the event code.
+1. Sign up with your own address, using the event code. Then run
+   `npm run prod:seed` once more: it promotes the addresses in
+   `ADMIN_EMAILS` that now have accounts, which is how the first organizer
+   comes to exist. Sign out and back in to pick the role up at once.
 2. Finish onboarding, send one message, and watch it stream.
 3. Open the Scanners tab and run both.
 4. Submit the transcript with labels.
@@ -189,9 +192,9 @@ The old `.vercel.app` address keeps working, so nothing breaks in the gap.
   that has been retired is a thing you find now rather than at 10am.
 - Replace the placeholder terms. They are seeded as version 1; publishing a
   version 2 makes everyone accept it again, so do this before people sign up.
-- Decide who else needs `ADMIN_EMAILS`. It only takes effect at sign-up, and
-  the seed promotes listed emails that already exist, so run the seed again
-  after adding someone.
+- Decide who else should be an organizer and promote them from the
+  participants table once they have signed up. Nothing grants the role at
+  sign-up any more, so there is no list to get right in advance.
 - Delete the test accounts. Deleting a user removes everything attached to
   them and leaves settings, terms and scanner configurations alone. Target
   them by address rather than emptying the table, or you will take the

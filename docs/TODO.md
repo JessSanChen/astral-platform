@@ -82,9 +82,10 @@ defining first.
 
 - The admin password used for testing is weak and was shared in plain text.
   Change it before the event.
-- `ADMIN_EMAILS` grants organizer rights at sign-up. Confirm the final list.
-  Promoting someone afterwards is now a button in the participants table, so
-  this only has to be right for people who have not signed up yet.
+- Organizer rights are no longer granted at sign-up. The remaining
+  organizers get promoted from the participants table once they have signed
+  up themselves. `ADMIN_EMAILS` can be removed from Vercel; only the seed
+  script reads it now.
 - The test accounts need clearing before real data arrives. Your own team
   has already signed up, so delete by address rather than emptying the
   table — every test account I made is at `example.com`:

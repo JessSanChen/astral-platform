@@ -31,9 +31,10 @@ npm run db:seed              # settings, terms v1, judge configs
 npm run dev                  # http://localhost:3000
 ```
 
-Environment variables are documented in `.env.example`. The admin role is
-granted automatically to any email listed in `ADMIN_EMAILS` when that user
-signs up.
+Environment variables are documented in `.env.example`. To become the first
+organizer, sign up, then run `npm run db:seed` with your address in
+`ADMIN_EMAILS`: the seed promotes listed accounts that already exist. After
+that, organizers promote each other from the participants table.
 
 ### Useful scripts
 

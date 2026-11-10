@@ -96,10 +96,12 @@ async function main() {
     console.log("judge_config already present, leaving as is");
   }
 
-  // Promote anyone listed as an organizer who signed up before the setting
-  // was right. The role is granted at sign-up, so without this an organizer
-  // who registered too early is stuck as an ordinary participant with no way
-  // back, which is a poor thing to discover on the morning of the event.
+  // Promote the listed accounts. This is how the first organizer comes to
+  // exist: nothing grants the role at sign-up, because addresses are not
+  // verified and whoever registered a listed address first would get it.
+  // Running this needs the database credentials, which is the check. It
+  // promotes whichever account holds each address, so list only people who
+  // have already signed up themselves.
   const adminEmails = (process.env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
@@ -112,6 +114,19 @@ async function main() {
       .returning({ email: user.email });
     if (promoted.length > 0) {
       console.log(`promoted to organizer: ${promoted.map((p) => p.email).join(", ")}`);
+    }
+    // Say who was listed but has no account, since listing them does nothing
+    // on its own any more and silence would read as success.
+    const existing = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(inArray(sql`lower(${user.email})`, adminEmails));
+    const have = new Set(existing.map((e) => e.email.toLowerCase()));
+    const missing = adminEmails.filter((e) => !have.has(e));
+    if (missing.length > 0) {
+      console.log(
+        `no account yet for: ${missing.join(", ")}. Once they have signed up, promote them from the participants table, or run this again.`,
+      );
     }
   }
 

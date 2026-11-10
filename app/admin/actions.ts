@@ -36,10 +36,10 @@ export async function setPaused(userId: string, paused: boolean) {
 /**
  * Granting or removing the organizer role.
  *
- * Until now the only way in was editing ADMIN_EMAILS, redeploying and
- * re-running the seed, which needs a laptop and the production connection
- * string. That is a poor position to be in when someone needs promoting
- * mid-event.
+ * This is the only way the role is given once the event is running. The
+ * seed script can promote an existing account too, but that needs a laptop
+ * and the production connection string, which is the wrong shape of task
+ * when someone needs promoting mid-event.
  *
  * You cannot change your own role. The obvious misclick would lock you out
  * of the console you need in order to undo it, and the only way back would
@@ -49,10 +49,6 @@ export async function setPaused(userId: string, paused: boolean) {
  * the caller is one by definition, and cannot be the target, so demoting
  * anyone else still leaves at least the caller. No separate "last organizer"
  * check is needed, and one would never fire.
- *
- * ADMIN_EMAILS still grants the role at sign-up. A change made here is to
- * this account only: if the email is on that list, a fresh sign-up would
- * grant it again.
  */
 export async function setOrganizer(userId: string, organizer: boolean) {
   const current = await requireAdmin();
