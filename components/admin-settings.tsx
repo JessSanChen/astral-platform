@@ -10,6 +10,7 @@ import {
   setEventCode,
   setReviewBatchSize,
 } from "@/app/admin/actions";
+import { parseWholeNumber } from "@/lib/numbers";
 
 export function EventSettingsForm({
   eventCode,
@@ -28,13 +29,30 @@ export function EventSettingsForm({
   const [note, setNote] = useState<string | null>(null);
 
   function save() {
+    // Check every field before saving any of them. This one button writes
+    // all three settings, so an unreadable allowance must stop the save
+    // rather than be stored as zero alongside an event code that was the
+    // only thing being changed.
+    const tokens = parseWholeNumber(budget);
+    const size = parseWholeNumber(batch);
+    if (!code.trim()) return setNote("The event code cannot be empty.");
+    if (tokens === null || tokens < 1)
+      return setNote(
+        "The daily allowance must be a whole number above zero. Nothing was saved.",
+      );
+    if (size === null || size < 1 || size > 50)
+      return setNote(
+        "The review batch must be a whole number from 1 to 50. Nothing was saved.",
+      );
+
     start(async () => {
-      await Promise.all([
+      const results = await Promise.all([
         setEventCode(code),
-        setDefaultBudget(Number(budget) || 0),
-        setReviewBatchSize(Number(batch) || 5),
+        setDefaultBudget(tokens),
+        setReviewBatchSize(size),
       ]);
-      setNote("Saved.");
+      const refused = results.find((r) => r && r.message)?.message;
+      setNote(refused ?? "Saved.");
       router.refresh();
     });
   }

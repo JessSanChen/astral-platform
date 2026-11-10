@@ -15,13 +15,24 @@ function settingsChanged() {
   revalidatePath("/admin");
 }
 
+/**
+ * A participant's own daily allowance, or null to go back to the default.
+ *
+ * Refuses anything that is not a positive whole number. An allowance of zero
+ * stops the account from chatting, which is what pausing is for and says so;
+ * arriving at it by a mistyped number should not be possible.
+ */
 export async function setBudget(userId: string, tokens: number | null) {
   await requireAdmin();
+  if (tokens !== null && (!Number.isSafeInteger(tokens) || tokens < 1)) {
+    return { message: "Enter a whole number of tokens above zero." };
+  }
   await db
     .update(user)
     .set({ dailyTokenBudget: tokens, updatedAt: new Date() })
     .where(eq(user.id, userId));
   revalidatePath("/admin");
+  return { message: null };
 }
 
 export async function setPaused(userId: string, paused: boolean) {
@@ -101,6 +112,7 @@ export async function setNominationsCloseAt(iso: string | null) {
 
 export async function setReviewBatchSize(size: number) {
   await requireAdmin();
+  if (!Number.isFinite(size)) return;
   const clamped = Math.max(1, Math.min(50, Math.round(size)));
   await db
     .update(eventSettings)
@@ -109,13 +121,24 @@ export async function setReviewBatchSize(size: number) {
   settingsChanged();
 }
 
+/**
+ * The allowance everyone gets unless given their own.
+ *
+ * Zero or an unreadable number is refused rather than stored: it would turn
+ * every participant away with "you have reached today's limit" within
+ * seconds. Stopping chat for the room is a separate, labelled control.
+ */
 export async function setDefaultBudget(tokens: number) {
   await requireAdmin();
+  if (!Number.isSafeInteger(tokens) || tokens < 1) {
+    return { message: "Enter a whole number of tokens above zero." };
+  }
   await db
     .update(eventSettings)
-    .set({ defaultDailyTokenBudget: Math.max(0, Math.round(tokens)), updatedAt: new Date() })
+    .set({ defaultDailyTokenBudget: tokens, updatedAt: new Date() })
     .where(eq(eventSettings.id, 1));
   settingsChanged();
+  return { message: null };
 }
 
 export async function setEventCode(code: string) {

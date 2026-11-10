@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { parseWholeNumber } from "@/lib/numbers";
 import {
   resetPassword,
   setBudget,
@@ -62,7 +63,8 @@ export function ParticipantActions({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [open, setOpen] = useState(false);
-  const [newBudget, setNewBudget] = useState(String(budget ?? defaultBudget));
+  // Blank means "no allowance of their own", which is the default.
+  const [newBudget, setNewBudget] = useState(budget ? String(budget) : "");
   const [password, setPassword] = useState("");
   const [note, setNote] = useState<string | null>(null);
 
@@ -80,7 +82,8 @@ export function ParticipantActions({
         <Input
           value={newBudget}
           onChange={(e) => setNewBudget(e.target.value)}
-          className="h-8 w-32"
+          placeholder={`Default: ${defaultBudget.toLocaleString("en-US")}`}
+          className="h-8 w-44"
           aria-label="Daily token allowance"
         />
         <Button
@@ -88,8 +91,19 @@ export function ParticipantActions({
           disabled={pending}
           onClick={() =>
             start(async () => {
-              await setBudget(userId, Number(newBudget) || 0);
-              setNote("Allowance updated.");
+              const blank = newBudget.trim() === "";
+              const tokens = blank ? null : parseWholeNumber(newBudget);
+              if (!blank && (tokens === null || tokens < 1)) {
+                setNote(
+                  "Enter a whole number of tokens above zero, or leave it blank for the default. Nothing was changed.",
+                );
+                return;
+              }
+              const result = await setBudget(userId, tokens);
+              setNote(
+                result.message ??
+                  (blank ? "Back to the default allowance." : "Allowance updated."),
+              );
               router.refresh();
             })
           }
