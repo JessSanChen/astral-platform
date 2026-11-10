@@ -10,7 +10,196 @@ settled and most are mine rather than yours.
 unfinished and tell me the order you want it in.
 
 Each item says where it lives, so acting on it is an edit rather than a hunt.
-The first section is the only one that actually blocks the event.
+**Up next** is the working priority list and is re-sorted as new asks come
+in. Everything below it is reference detail; of that, **Blocking the event**
+is the only section that actually stops the day.
+
+---
+
+## Up next
+
+Last re-sorted 2026-11-10, after the Slack threads on testing, labels,
+review supply, the Theo call notes and provider bans. Ordered by lead time
+first, then by what blocks what.
+
+| # | What | Kind | Size | Status |
+|---|------|------|------|--------|
+| A | Email OpenRouter safety | Action | 30 min | Not started |
+| B | Ask Emre for a second OpenRouter account | Action | 10 min | Not started |
+| C | Get the team testing, collect feedback | Action | Ongoing | Not started |
+| D | Sign-off on the labeling draft | Decision | 1 conversation | Waiting on Colby and Dev |
+| E | Rebuild the three forms to the draft | Build | 2–4 days | Blocked on D |
+| F | Second reviews when the pool runs dry | Build | 1 day | Agreed with Colby; build with E |
+| G | Replace placeholder text | Writing | 1 day | Feeds from C |
+| H | Ground rules for the intro session | Writing | 1–2 hours | Agreed with Dev |
+| I | Benign then adversarial, or mixed? | Decision | — | Open |
+| J | Attribute requests to users at OpenRouter | Build | 1 hour | Not started |
+| K | One OpenRouter key per participant | Build | 2–3 days | Recommend not doing |
+| L | Per-turn timestamps | — | — | Already done |
+| M | Similar-transcript check | Analysis | After the event | Later |
+
+### A. Email OpenRouter safety — do first
+
+safety@openrouter.ai: what the research is, that the adversarial traffic is
+deliberate red-teaming under supervision, the date and expected volume, the
+models, and a contact. Approval takes about five business days, so this has
+the longest lead time of anything here and costs almost nothing. Mention that
+each request carries a per-participant identifier (J) and that organizers can
+pause any participant instantly — both make the request easier to grant.
+
+### B. Second OpenRouter account — ask now
+
+A request to Emre. On our side, switching is changing `OPENROUTER_API_KEY` in
+Vercel and redeploying, which is a few minutes. Worth having the second key
+ready and tested with `npm run check-models` before the day rather than
+creating it under pressure. Note budgets and costs are counted in our own
+database, so they carry over a switch unchanged.
+
+### C. Team testing and feedback
+
+Ask was: test the platform and feed back on (1) UI and UX, (2) text, all of
+which is placeholder, and (3) bugs. What it actually takes:
+
+- Testers need the event code and should sign up with real addresses, not
+  `example.com` — those get deleted by item 4's cleanup.
+- One shared place to drop feedback (a doc or a Slack thread), so it can be
+  triaged in one pass.
+- Steer testers away from the labels and review forms until E lands, or the
+  feedback is on forms that are about to be replaced. Chat, submitting,
+  nominations, the home page and the admin console are all stable.
+- Reviewing needs someone else's submitted transcript, so two testers have to
+  work together to see the whole loop.
+
+### D. Sign-off on the labeling draft
+
+There is now a working draft of all three forms (intake, self-documentation,
+independent review). It settles most of the open questions in items 5–7.
+Before building, confirm three things that change more than the forms:
+
+- **Transcript type goes away.** The draft replaces benign / dual use /
+  adversarial with *actor posture* on the author side and drops it from the
+  review entirely. The admin counts, the benign prize (item 3), the export
+  and the scanner rubric (item 8) all key off transcript type today. Agree
+  what replaces it — most likely "Legitimate work" counts as benign.
+- **"One row per detected refusal" needs a detector.** Nothing detects
+  refusals today. Simplest reliable option: the author marks which assistant
+  turns were refusals, and judges each one. Automatic detection by the
+  scanner is possible but would be wrong sometimes, and the form would be
+  wrong with it.
+- **"Can't judge this" writes a row.** That means a new record of skipped
+  transcripts with a reason, and skipping must release the transcript to
+  someone else, not just hide it.
+
+### E. Rebuild the forms to the draft
+
+Three pieces, in order of size:
+
+1. **Intake** — small. Adds hands-on lab experience, biosecurity / DURC
+   familiarity and a 1–5 confidence; extends the subdomain list; renames two
+   options. One migration on `profile`; existing answers stay valid except
+   anyone who chose a renamed option.
+2. **Self-documentation** — medium to large. New fields: actor posture, did
+   you get what you were after, refusal judgements per turn, missed refusal
+   with a message pointer, subject and activity tags split in two. Touches
+   `lib/labels.ts`, `lib/labels-schema.ts`, `transcript_labels`,
+   `components/labels-panel.tsx`, the submission snapshot, admin counts and
+   the export.
+3. **Independent review** — large. New fields: escalate to a safety reviewer,
+   two separate confidences, misuse becomes yes / no / can't tell, a shorter
+   five-way actor list, observable indicators, refusal appropriateness,
+   transcript quality, and the can't-judge button. Touches
+   `lib/review-schema.ts`, the `review` table and its enums,
+   `components/review-panel.tsx`, `lib/reviews.ts` and the admin pages.
+
+The scanner rubric (item 8) should be realigned to the new axes afterwards,
+so the three sources stay comparable.
+
+### F. Second reviews when the pool runs dry
+
+The concern: writing a transcript takes far longer than reviewing one, so
+reviewers will run out. Colby's answer, agreed: once every transcript has one
+review, hand out second reviews; once everything has two, tell reviewers to
+go and write transcripts instead.
+
+Today the database allows exactly one review per transcript
+(`review_conversation_uq`), so this is a real change:
+
+- Allow up to two reviews per transcript, one per reviewer.
+- Batches prefer unreviewed transcripts and fall back to once-reviewed ones,
+  never handing someone a transcript they wrote or already reviewed.
+- A second reviewer must not see the first review.
+- An empty batch says "everything has been reviewed twice — go and write
+  more" rather than showing an empty list.
+- Admin pages and the export show a list of reviews rather than one.
+- Leaderboard counts and item 3 need saying whether a second review counts
+  the same as a first.
+
+Do it in the same migration as the review half of E, since both rebuild the
+`review` table. Inter-reviewer agreement falls out as a bonus for analysis.
+
+### G. Placeholder text
+
+Every visible string was written as a placeholder. Collect it from testers'
+notes (C) and items 1 and 2, then rewrite in one pass rather than piecemeal.
+Most of it is in `components/about-astral.tsx` and the form labels in
+`lib/labels.ts` and `lib/review-schema.ts`.
+
+### H. Ground rules for the intro session
+
+Agreed in the Theo thread: banning participants from talking is
+unenforceable and takes the fun out. Instead, say at the start:
+
+- Talking about approaches is fine; do not copy each other's prompts.
+- Be mindful with the models: do not fire clearly toxic or adversarial chats
+  back to back. Mix in other work. (This is the main ban mitigation that
+  costs nothing.)
+
+These can also go on the How it works page so they are on screen all day.
+
+### I. Benign then adversarial, or mixed?
+
+Open. A morning-benign / afternoon-adversarial split guarantees coverage of
+both but concentrates all the risky traffic into a few hours, which is the
+pattern most likely to get flagged. Letting people mix freely spreads it out.
+Nothing in the app enforces the split either way, so this is a briefing and
+schedule decision only (feeds item 2). Mixing does make the benign prize's
+16:00 deadline the only time structure left.
+
+### J. Attribute requests to users at OpenRouter
+
+OpenRouter accepts a stable end-user identifier on each request, meant for
+exactly this: abuse detection per user rather than per account. Passing the
+participant's id (not their name or email) in the chat route and scanner
+calls is roughly a one-line change in `app/api/chat/route.ts` and
+`lib/judges.ts` — confirm the option name in the provider when doing it.
+Gets most of what per-user keys would give for almost none of the work.
+
+### K. One OpenRouter key per participant — recommend not doing
+
+The idea: per-user keys so one key can be disabled. What it would take:
+OpenRouter's provisioning API to create a key for each participant at
+sign-up, storing them encrypted, picking the key per request in the chat
+route and scanners, revoking on pause, plus testing it at load.
+
+Why it is probably not worth it: the platform already stops a participant
+instantly (pause or ban on the participants table, checked on every message),
+with per-user budgets. Separate keys do not prevent an account ban, which is
+the actual risk. J covers the attribution half. Revisit only if OpenRouter
+asks for it in reply to A.
+
+### L. Per-turn timestamps — already done
+
+Every message already records `created_at` when it is written, and assistant
+messages record `latency_ms` too. Both are in the admin export. Nothing to
+build; tell Colby. On the hypothesis: time between turns is a noisy proxy for
+effort because people switch tabs, so it is best used in aggregate or to spot
+outliers, not per transcript.
+
+### M. Similar-transcript check
+
+Dev's suggestion: after the event, throw out transcripts that look too
+similar to each other. An analysis step on the export, not a build. Note it
+in the write-up plan.
 
 ---
 
@@ -76,6 +265,10 @@ precise enough to settle an argument at 16:30.
   benign, or submitted and passed a check?
 - **What disqualifies a review?** There is no quality flag on reviews at all
   at the moment, which is worth deciding alongside item 7.
+- The labeling draft (D) adds *transcript quality* to the review, which can
+  serve as the check for the first question, and removes transcript type,
+  so "benign" needs redefining. Second reviews (F) raise whether a second
+  review counts the same on the leaderboard.
 
 The admin console ranks on raw counts today and shows you each person's work
 so you can audit by eye. If you want a rule applied automatically, it needs
@@ -117,6 +310,9 @@ than stopping the day.
 
 ### 5. The intake form
 
+*Mostly answered by the labeling draft — see D and E above. Kept for the
+reasoning.*
+
 Where: `lib/labels.ts` — `PROFILE_ROLES`, `DEGREES`, `YEARS_EXPERIENCE`,
 `BACKGROUNDS`, `SUBDOMAINS`, `AI_FAMILIARITY`.
 
@@ -134,6 +330,8 @@ life-science subdomains, familiarity with AI chatbots, optional free note.
 
 ### 6. Self-documentation labels
 
+*Mostly answered by the labeling draft — see D and E above.*
+
 Where: `lib/labels.ts` — `TRANSCRIPT_TYPES`, `ROLE_PRESETS`,
 `MODEL_BEHAVIOURS`, `DOMAIN_TAGS`, `CHALLENGE_FLAGS`.
 
@@ -147,6 +345,9 @@ Where: `lib/labels.ts` — `TRANSCRIPT_TYPES`, `ROLE_PRESETS`,
   distinct from what it did?
 
 ### 7. Reviewer labels
+
+*Mostly answered by the labeling draft, which adds per-answer confidence,
+refusal appropriateness and a transcript-quality flag — see D and E above.*
 
 Where: `lib/review-schema.ts` — `REVIEW_INTENTS`, `REVIEW_ACTORS`,
 `CONFIDENCE_LABELS`. The newest of these, so the least settled.
