@@ -38,18 +38,9 @@ export const EMPTY_PROFILE: ProfileFieldValues = {
   expertiseNote: "",
 };
 
-function Options({ values }: { values: readonly string[] }) {
-  return (
-    <>
-      <option value="">Select...</option>
-      {values.map((v) => (
-        <option key={v} value={v}>
-          {v}
-        </option>
-      ))}
-    </>
-  );
-}
+/** These lists are plain words, each its own label. */
+const asOptions = (values: readonly string[]) =>
+  values.map((v) => ({ value: v, label: v }));
 
 /**
  * The profile questions, shared by onboarding and the profile page.
@@ -79,18 +70,6 @@ export function ProfileFields({
     (field: "name" | "affiliation" | "expertiseNote") =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onChange(field, e.target.value);
-  const choice =
-    (
-      field:
-        | "role"
-        | "highestDegree"
-        | "yearsExperience"
-        | "primaryBackground"
-        | "aiFamiliarity",
-    ) =>
-    (e: React.ChangeEvent<HTMLSelectElement>) =>
-      onChange(field, e.target.value);
-
   return (
     <>
       <Field label="Full name" htmlFor="name" error={errors.name}>
@@ -124,11 +103,9 @@ export function ProfileFields({
             id="role"
             name="role"
             value={values.role}
-            onChange={choice("role")}
-            required
-          >
-            <Options values={PROFILE_ROLES} />
-          </Select>
+            onChange={(v) => onChange("role", v)}
+            options={asOptions(PROFILE_ROLES)}
+          />
         </Field>
         <Field
           label="Highest degree"
@@ -139,11 +116,9 @@ export function ProfileFields({
             id="highestDegree"
             name="highestDegree"
             value={values.highestDegree}
-            onChange={choice("highestDegree")}
-            required
-          >
-            <Options values={DEGREES} />
-          </Select>
+            onChange={(v) => onChange("highestDegree", v)}
+            options={asOptions(DEGREES)}
+          />
         </Field>
         <Field
           label="Years of experience"
@@ -154,11 +129,9 @@ export function ProfileFields({
             id="yearsExperience"
             name="yearsExperience"
             value={values.yearsExperience}
-            onChange={choice("yearsExperience")}
-            required
-          >
-            <Options values={YEARS_EXPERIENCE} />
-          </Select>
+            onChange={(v) => onChange("yearsExperience", v)}
+            options={asOptions(YEARS_EXPERIENCE)}
+          />
         </Field>
         <Field
           label="Primary background"
@@ -169,11 +142,9 @@ export function ProfileFields({
             id="primaryBackground"
             name="primaryBackground"
             value={values.primaryBackground}
-            onChange={choice("primaryBackground")}
-            required
-          >
-            <Options values={BACKGROUNDS} />
-          </Select>
+            onChange={(v) => onChange("primaryBackground", v)}
+            options={asOptions(BACKGROUNDS)}
+          />
         </Field>
       </div>
 
@@ -215,11 +186,9 @@ export function ProfileFields({
           id="aiFamiliarity"
           name="aiFamiliarity"
           value={values.aiFamiliarity}
-          onChange={choice("aiFamiliarity")}
-          required
-        >
-          <Options values={AI_FAMILIARITY} />
-        </Select>
+          onChange={(v) => onChange("aiFamiliarity", v)}
+          options={asOptions(AI_FAMILIARITY)}
+        />
       </Field>
 
       <Field

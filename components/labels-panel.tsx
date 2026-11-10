@@ -132,15 +132,9 @@ export function LabelsPanel({
             id="type"
             name="type"
             value={values.type ?? ""}
-            onChange={(ev) => set("type", ev.target.value || null)}
-          >
-            <option value="">Select...</option>
-            {TRANSCRIPT_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </Select>
+            onChange={(v) => set("type", v || null)}
+            options={TRANSCRIPT_TYPES}
+          />
         </Field>
 
         <Field
@@ -152,15 +146,9 @@ export function LabelsPanel({
             id="rolePreset"
             name="rolePreset"
             value={values.rolePreset ?? ""}
-            onChange={(ev) => set("rolePreset", ev.target.value || null)}
-          >
-            <option value="">Select...</option>
-            {ROLE_PRESETS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </Select>
+            onChange={(v) => set("rolePreset", v || null)}
+            options={ROLE_PRESETS.map((r) => ({ value: r, label: r }))}
+          />
         </Field>
 
         <Field
@@ -200,15 +188,9 @@ export function LabelsPanel({
             id="modelBehaviour"
             name="modelBehaviour"
             value={values.modelBehaviour ?? ""}
-            onChange={(ev) => set("modelBehaviour", ev.target.value || null)}
-          >
-            <option value="">Select...</option>
-            {MODEL_BEHAVIOURS.map((b) => (
-              <option key={b.value} value={b.value}>
-                {b.label}
-              </option>
-            ))}
-          </Select>
+            onChange={(v) => set("modelBehaviour", v || null)}
+            options={MODEL_BEHAVIOURS}
+          />
         </Field>
 
         <Field label="Topics covered" error={e.domainTags}>
@@ -257,17 +239,15 @@ export function LabelsPanel({
               id="keyTurnMessageId"
               name="keyTurnMessageId"
               value={values.keyTurnMessageId ?? ""}
-              onChange={(ev) =>
-                set("keyTurnMessageId", ev.target.value || null)
-              }
-            >
-              <option value="">No particular turn</option>
-              {turns.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.seq}. {t.role === "user" ? "You" : "Model"}: {t.preview}
-                </option>
-              ))}
-            </Select>
+              onChange={(v) => set("keyTurnMessageId", v || null)}
+              options={[
+                { value: "", label: "No particular turn" },
+                ...turns.map((t) => ({
+                  value: t.id,
+                  label: `[${t.seq}] ${t.role === "user" ? "You" : "Model"}: ${t.preview}`,
+                })),
+              ]}
+            />
           </Field>
 
           <Field
@@ -278,15 +258,9 @@ export function LabelsPanel({
               id="challengeFlag"
               name="challengeFlag"
               value={values.challengeFlag ?? ""}
-              onChange={(ev) => set("challengeFlag", ev.target.value || null)}
-            >
-              <option value="">No comment</option>
-              {CHALLENGE_FLAGS.map((f) => (
-                <option key={f.value} value={f.value}>
-                  {f.label}
-                </option>
-              ))}
-            </Select>
+              onChange={(v) => set("challengeFlag", v || null)}
+              options={[{ value: "", label: "No comment" }, ...CHALLENGE_FLAGS]}
+            />
           </Field>
 
           <Field label="Anything else worth knowing?" htmlFor="notes">

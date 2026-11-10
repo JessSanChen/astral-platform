@@ -86,15 +86,9 @@ export function ReviewPanel({
             id="intent"
             name="intent"
             value={values.intent ?? ""}
-            onChange={(ev) => set("intent", ev.target.value || null)}
-          >
-            <option value="">Select...</option>
-            {REVIEW_INTENTS.map((i) => (
-              <option key={i.value} value={i.value}>
-                {i.label}
-              </option>
-            ))}
-          </Select>
+            onChange={(v) => set("intent", v || null)}
+            options={REVIEW_INTENTS}
+          />
         </Field>
 
         <Field
@@ -107,14 +101,12 @@ export function ReviewPanel({
             id="misusePresent"
             name="misusePresent"
             value={values.misusePresent === null ? "" : values.misusePresent ? "yes" : "no"}
-            onChange={(ev) =>
-              set("misusePresent", ev.target.value === "" ? null : ev.target.value === "yes")
-            }
-          >
-            <option value="">Select...</option>
-            <option value="yes">Yes, an attempt at misuse</option>
-            <option value="no">No</option>
-          </Select>
+            onChange={(v) => set("misusePresent", v === "" ? null : v === "yes")}
+            options={[
+              { value: "yes", label: "Yes, an attempt at misuse" },
+              { value: "no", label: "No" },
+            ]}
+          />
         </Field>
 
         <Field label="Who does the person appear to be?" htmlFor="actor" error={e.actor}>
@@ -122,15 +114,9 @@ export function ReviewPanel({
             id="actor"
             name="actor"
             value={values.actor ?? ""}
-            onChange={(ev) => set("actor", ev.target.value || null)}
-          >
-            <option value="">Select...</option>
-            {REVIEW_ACTORS.map((a) => (
-              <option key={a.value} value={a.value}>
-                {a.label}
-              </option>
-            ))}
-          </Select>
+            onChange={(v) => set("actor", v || null)}
+            options={REVIEW_ACTORS}
+          />
         </Field>
 
         <Field
@@ -152,17 +138,12 @@ export function ReviewPanel({
             id="confidence"
             name="confidence"
             value={values.confidence ? String(values.confidence) : ""}
-            onChange={(ev) =>
-              set("confidence", ev.target.value ? Number(ev.target.value) : null)
-            }
-          >
-            <option value="">Select...</option>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                {CONFIDENCE_LABELS[n]}
-              </option>
-            ))}
-          </Select>
+            onChange={(v) => set("confidence", v ? Number(v) : null)}
+            options={[1, 2, 3, 4, 5].map((n) => ({
+              value: String(n),
+              label: CONFIDENCE_LABELS[n],
+            }))}
+          />
         </Field>
 
         <Field label="Anything else worth noting?" htmlFor="notes">

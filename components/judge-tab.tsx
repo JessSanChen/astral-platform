@@ -87,15 +87,10 @@ export function JudgeTab({ conversationId }: { conversationId: string }) {
         </p>
         <Select
           value={selected}
-          onChange={(e) => setChosen(e.target.value)}
+          onChange={setChosen}
           aria-label="Scanner"
-        >
-          {configs.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
+          options={configs.map((c) => ({ value: c.id, label: c.name }))}
+        />
         <Button onClick={run} disabled={running || !selected} className="w-full">
           {running ? "Running..." : "Run on this conversation"}
         </Button>
