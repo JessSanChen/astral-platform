@@ -49,6 +49,27 @@ that, organizers promote each other from the participants table.
 | `npm run load-test -- 70 3` | Simulate 70 participants chatting at once |
 | `npm run check-models` | Check every model against OpenRouter with your key |
 | `npm run doctor`      | Check database, schema, models and scanners end to end |
+| `npm run test:e2e`    | Drive the built app in a real browser (see below) |
+
+### End-to-end tests
+
+`e2e/` holds Playwright tests that sign up, chat, label, submit, review,
+nominate and run the organizer console the way a person would, in a real
+browser against a production build. Replies come from the stand-in provider,
+so a run needs no API key and costs nothing.
+
+```bash
+npx playwright install chromium   # once per machine
+npm run test:e2e:prepare          # once per database: tables and seed data
+npm run test:e2e                  # run them; add -- --ui to watch
+```
+
+They use the `DATABASE_URL` in `.env.test.local` if that file exists, and the
+one in `.env.local` otherwise. The tests create accounts at `@e2e.test`,
+change event settings while they run, and clean up afterwards, so a database
+of their own is the tidy choice: a second free Neon project, with its pooled
+connection string in `.env.test.local`. They never read
+`.env.production.local`.
 
 ## Build status
 

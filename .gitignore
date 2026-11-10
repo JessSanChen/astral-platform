@@ -263,3 +263,8 @@ next-env.d.ts
 
 # allow the template, keep real env files ignored
 !.env.example
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/

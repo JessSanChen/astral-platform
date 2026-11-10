@@ -23,7 +23,9 @@
     "doctor": "tsx --env-file=.env.local scripts/doctor.ts",
     "predev": "node scripts/migrate-if-needed.mjs",
     "check-scanners": "tsx --env-file=.env.local scripts/check-scanners.ts",
-    "preview": "node scripts/migrate-if-needed.mjs && next build && next start"
+    "preview": "node scripts/migrate-if-needed.mjs && next build && next start",
+    "test:e2e": "playwright test",
+    "test:e2e:prepare": "node scripts/e2e-prepare.mjs"
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.166",
@@ -44,6 +46,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
