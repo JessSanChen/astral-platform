@@ -59,6 +59,9 @@ What is **not** on the page because I do not know it:
 
 - Venue and room.
 - Run of day. It currently says nothing beyond the two deadlines.
+- The time zone. Every time in the app is shown in Boston time and labelled
+  as such. If the event moves, it is one constant: `EVENT_TIME_ZONE` in
+  `lib/time.ts`.
 - Whether food is provided, wifi details, who to ask for help.
 
 A short schedule is the single biggest improvement left to that page.
@@ -92,6 +95,13 @@ defining first.
 
   ```sql
   DELETE FROM "user" WHERE email LIKE '%@example.com';
+
+  -- A transcript is locked when it is reviewed. Deleting a reviewer deletes
+  -- their reviews, so unlock whatever they had reviewed, or its author stays
+  -- shut out of a transcript that no longer has a review.
+  UPDATE conversation SET locked_at = NULL
+  WHERE locked_at IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM review r WHERE r.conversation_id = conversation.id);
   ```
 
   That removes those accounts and every transcript, review and nomination

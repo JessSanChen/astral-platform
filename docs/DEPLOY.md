@@ -202,4 +202,11 @@ The old `.vercel.app` address keeps working, so nothing breaks in the gap.
 
   ```sql
   DELETE FROM "user" WHERE email LIKE '%@example.com';
+
+  -- A transcript is locked when it is reviewed. Deleting a reviewer deletes
+  -- their reviews, so unlock whatever they had reviewed, or its author stays
+  -- shut out of a transcript that no longer has a review.
+  UPDATE conversation SET locked_at = NULL
+  WHERE locked_at IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM review r WHERE r.conversation_id = conversation.id);
   ```

@@ -319,13 +319,43 @@ raw payloads are joined at export to keep snapshots small).
 - Participants can only read their own conversations (every query filters by
   `user_id`; no conversation id is trusted from the client without that join).
 - Passwords hashed by Better Auth (scrypt). Sessions are HTTP-only cookies.
-- Event code is compared server-side with a constant-time comparison.
+- The event code is required by the endpoint that creates the account
+  (`hooks.before` in `lib/auth.ts`), sent by the form in a header, and
+  compared in constant time. A check made anywhere else is advice to the
+  browser: the first version checked it in a separate call and the account
+  endpoint accepted anyone.
+- The organizer role is never granted at sign-up. Addresses are not verified,
+  so a rule of "this address is an organizer" gives the role to whoever
+  registers the address first. It is given by an existing organizer, or by
+  the seed script, which needs the database credentials.
+- A blind review shows the reviewer nothing the author wrote about the
+  conversation: no author, no labels, and no conversation title, since
+  titles can be renamed. The review list shows the first message instead.
 - Transcripts intentionally contain sensitive content. The database is not
   public; exports are downloaded only by the admin. Add Neon IP allowlisting
   if the team wants it later.
 - Logs must never include message content. Log ids and token counts only.
 
 ---
+
+### What is true of the data, and what keeps it true
+
+Three statements the dataset relies on, each of which was false at some point
+and is now held by the database rather than by care:
+
+- **A review is of a known version.** Reviewers read a submission snapshot,
+  never the live conversation. The form carries that version, and the review
+  is refused if the author has submitted a newer one meanwhile. The author's
+  submit and the reviewer's submit both lock the conversation row first, so
+  no version can be created after a transcript is locked.
+- **The labels on a submitted transcript are the ones submitted.** The
+  `transcript_labels` row is a working copy that the author can keep editing.
+  Counts, the audit view and the export's `self_labels` read the current
+  version's snapshot; the working copy is exported separately as
+  `draft_labels`.
+- **A time means the same thing to everyone.** Everything is stored as an
+  instant and shown in the event's zone with the zone named (`lib/time.ts`).
+  Nothing is formatted in the server's zone or the browser's.
 
 ## 7. Scale and performance
 

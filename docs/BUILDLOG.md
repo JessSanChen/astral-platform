@@ -1307,6 +1307,108 @@ labels panel and a nomination.
 
 ---
 
+## Round 10: what a code review found
+
+A review of the whole build, read for the three things this app has got
+wrong before: who can do what, what happens when two people act at once, and
+whether the dataset says what happened. Ten findings, all fixed, plus one
+more that turned up while testing the fixes.
+
+### Two ways in that should not have existed
+
+**Organizer by email.** Any new account whose address was in `ADMIN_EMAILS`
+became an organizer at sign-up. Addresses are not verified, so the role went
+to whoever registered a listed address first, and two listed addresses had no
+account. An organizer can export every transcript with its author's details
+and set anyone's password. Nothing grants the role at sign-up now: an
+organizer promotes from the participants table, and the seed promotes listed
+accounts that already exist, which is how the first one comes about.
+
+**Event code.** It was checked by the sign-up page before creating the
+account, and not by the endpoint that creates it. Posting to that endpoint
+directly made an account with no code. The endpoint now requires it.
+
+### Three ways the dataset could be wrong
+
+**Reviews of the wrong version.** Reviewers saw the live conversation, which
+the author can keep adding to after submitting, and the review was recorded
+against whatever version existed at the moment they pressed submit. They now
+read the submitted snapshot, and a review is refused if a newer version has
+appeared in the meantime; the new one loads beside the answers already
+entered.
+
+**Labels that changed without a version.** The labels row is a working copy.
+The leaderboard, the overview and the export read it as though it were what
+had been submitted, so relabelling a submitted transcript and pressing Save
+moved it between prize columns. Counts come from the submitted snapshot now.
+The export has the submitted labels as `self_labels` and the working copy as
+`draft_labels`.
+
+**A blind review that was not.** The review list showed each transcript's
+title, and titles can now be renamed to anything. It shows the start of the
+first message instead.
+
+### Five things that would have gone wrong on the day
+
+- **The deadline.** A closing time of 15:00 read back to the organizer as
+  20:00 and moved five hours later each time it was saved again; participants
+  were shown "8:00 PM". Every time is now in Boston time and says so.
+- **Refusals ended conversations.** An empty reply was sent back to the
+  provider in the next prompt, and some providers reject an empty message, so
+  a conversation could not continue past its first refusal.
+- **Replies lost when a tab closed.** The server kept reading the reply but
+  did not tell the host it was still working. Needs watching on the deployed
+  site; it cannot be reproduced locally.
+- **New terms looped.** Accepting a newly published version sent people back
+  to accept it again for up to half a minute.
+- **An allowance of zero.** Typing the allowance the way the console displays
+  it, with commas, stored zero for everyone.
+
+### Found while testing
+
+After a successful submit the labels form went blank, and submitting again
+was refused for empty fields. The form was being rebuilt from the labels the
+page first loaded with, and that page is cached in the browser. The working
+copy now lives in the client store with the messages, so it also survives a
+visit to the scanners tab or to another conversation.
+
+### Smaller things
+
+Refused requests no longer use up a send or a scanner run. Paused accounts
+can no longer save labels, submit, or reach the organizer console. The
+cleanup SQL now unlocks transcripts whose reviewer was deleted. Three
+identical page layouts and three copies of an env-file reader are one each.
+
+### How to test it
+
+1. Sign out, and try to create an account with a wrong event code. Then, if
+   you are comfortable with `curl`, post to `/api/auth/sign-up/email` with no
+   `x-event-code` header: it is refused.
+2. In the organizer console, set nominations to close at 15:00. Reload: the
+   field still says 15:00, and the line under it says "3:00 PM EST". The
+   participants' page says the same.
+3. Submit a transcript, then add a message and rename the conversation. From
+   another account, open it for review: you see the submitted turns only, and
+   the list shows its first message, not the new name.
+4. With that review page open, resubmit as the author, then submit the
+   review. You are told it changed, the new version loads, and your answers
+   are still there.
+5. Submit a transcript as benign, change the type and press Save. The
+   participants table still counts it as benign.
+6. In Settings, type the allowance as `5,000,000` and save; then try `abc`.
+7. Submit a transcript and look at the labels form: it still holds your
+   answers, and says "Submitted as version 1".
+
+### Verified automatically
+
+Each of the above against a production build, with an author and a reviewer
+in separate browsers acting at the same time; the time handling with the
+machine set to UTC, Los Angeles and Tokyo and a browser on Tokyo time; the
+counts and the export read back after changing the working copy under a
+submitted transcript; and the prompt sent after a stored empty refusal.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge
