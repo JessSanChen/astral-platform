@@ -5,6 +5,7 @@ import { admin } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
+import { emailProblem, passwordProblem } from "@/lib/credentials";
 import {
   EVENT_CODE_HEADER,
   EVENT_CODE_REJECTED,
@@ -128,6 +129,22 @@ export const auth = betterAuth({
       if (!(await eventCodeMatches(code))) {
         throw new APIError("FORBIDDEN", { message: EVENT_CODE_REJECTED });
       }
+
+      // The same checks the form makes, made again where they count. With
+      // no email on the day there is nothing to catch a mistyped address
+      // and no way for someone to reset a password themselves, so both are
+      // worth getting right at the door.
+      const body = (ctx.body ?? {}) as {
+        name?: unknown;
+        email?: unknown;
+        password?: unknown;
+      };
+      const name = typeof body.name === "string" ? body.name : "";
+      const email = typeof body.email === "string" ? body.email : "";
+      const password = typeof body.password === "string" ? body.password : "";
+      const problem =
+        emailProblem(email) ?? passwordProblem(password, { name, email });
+      if (problem) throw new APIError("BAD_REQUEST", { message: problem });
     }),
   },
   // Nothing here grants the organizer role. It used to be given at sign-up

@@ -57,7 +57,7 @@ async function runUser(n: number): Promise<Result> {
       // The server refuses a sign-up without the event code.
       "x-event-code": process.env.EVENT_CODE ?? "",
     },
-    body: JSON.stringify({ name: `Load ${n}`, email, password: "loadtest12345" }),
+    body: JSON.stringify({ name: `Load ${n}`, email, password: "river-stone-4821" }),
   });
   if (!signUp.ok) {
     res.errors.push(`signup ${signUp.status}`);

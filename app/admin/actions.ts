@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { eventSettings, user } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { passwordProblem } from "@/lib/credentials";
 import { requireAdmin } from "@/lib/gate";
 import { CACHE_KEYS, invalidate } from "@/lib/cache";
 
@@ -161,9 +162,11 @@ export async function setEventCode(code: string) {
  */
 export async function resetPassword(userId: string, newPassword: string) {
   await requireAdmin();
-  if (newPassword.length < 8) {
-    return { message: "Use at least 8 characters." };
-  }
+  // A temporary password is held to the same rules as one chosen at
+  // sign-up. It is read out across a room, so it should not also be one of
+  // the first things anyone would try.
+  const problem = passwordProblem(newPassword);
+  if (problem) return { message: problem };
   try {
     // The caller's own headers, so the login system sees the organizer's
     // session rather than a cookie assembled here.
