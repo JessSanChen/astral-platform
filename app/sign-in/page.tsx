@@ -38,7 +38,7 @@ export default function SignInPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-6">
-      <h1 className="text-2xl font-semibold">Sign in</h1>
+      <h1 className="font-serif text-3xl font-medium tracking-tight">Sign in</h1>
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>

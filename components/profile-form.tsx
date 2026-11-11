@@ -36,7 +36,7 @@ export function ProfileForm({
 
   return (
     <ActionForm action={action} className="space-y-5">
-      <h2 className="text-lg font-semibold">About you</h2>
+      <h2 className="font-serif text-xl font-medium">About you</h2>
 
       <ProfileFields
         values={values}

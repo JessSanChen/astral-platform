@@ -69,7 +69,7 @@ export default function SignUpPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Create your account</h1>
+        <h1 className="font-serif text-3xl font-medium tracking-tight">Create your account</h1>
         <p className="text-sm text-muted-foreground">
           You will set up your profile next.
         </p>

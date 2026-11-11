@@ -34,7 +34,7 @@ export function OnboardingForm({ needsProfile, needsTerms, defaultName, terms }:
       {needsProfile && (
         <section className="space-y-5">
           <div>
-            <h2 className="text-lg font-semibold">About you</h2>
+            <h2 className="font-serif text-xl font-medium">About you</h2>
             <p className="text-sm text-muted-foreground">
               This is attached to every transcript you submit, so the research team
               knows the expertise behind it. It is never shown to other participants.
@@ -54,7 +54,7 @@ export function OnboardingForm({ needsProfile, needsTerms, defaultName, terms }:
       {needsTerms && terms && (
         <section className="space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">Terms and conditions</h2>
+            <h2 className="font-serif text-xl font-medium">Terms and conditions</h2>
             <p className="text-sm text-muted-foreground">Version {terms.version}. Please read before continuing.</p>
           </div>
           <div className="markdown max-h-72 overflow-y-auto rounded-[var(--radius)] border border-border bg-card p-4 text-sm leading-relaxed">

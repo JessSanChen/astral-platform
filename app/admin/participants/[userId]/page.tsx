@@ -53,7 +53,7 @@ export default async function ParticipantDetail({
       </Link>
 
       <div>
-        <h1 className="text-xl font-semibold">{account.name}</h1>
+        <h1 className="font-serif text-2xl font-medium tracking-tight">{account.name}</h1>
         <p className="text-sm text-muted-foreground">{account.email}</p>
         {profile && (
           <p className="mt-1 text-sm text-muted-foreground">

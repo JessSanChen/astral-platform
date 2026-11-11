@@ -14,7 +14,7 @@ export default async function ReviewHome() {
   return (
     <div className="mx-auto flex h-full max-w-xl flex-col justify-center gap-5 px-6 py-12">
       <div className="space-y-2">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold">
+        <h1 className="flex items-center gap-2 font-serif text-3xl font-medium tracking-tight">
           <ClipboardCheck className="h-5 w-5" />
           Review other people&apos;s transcripts
         </h1>

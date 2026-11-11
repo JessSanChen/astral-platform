@@ -1,16 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fbfbfa;
-  --foreground: #1a1a1a;
-  --muted: #f0f0ee;
-  --muted-foreground: #6b6b6b;
-  --border: #e4e4e1;
-  --card: #ffffff;
-  --primary: #1a1a1a;
+  /* Warm paper, ink, and one accent. The accent is a deep sage: dark enough
+     to read as text on the page (about 5.5:1) and to carry white text when it
+     fills a button (about 5.9:1). Red is kept only for errors and for actions
+     that destroy something. */
+  --background: #f8f7f2;
+  --foreground: #1d1c19;
+  --muted: #efede5;
+  --muted-foreground: #65635b;
+  --border: #e1ded3;
+  --card: #fffffd;
+  --accent: #4f6b51;
+  --primary: var(--accent);
   --primary-foreground: #ffffff;
-  --accent: #2563eb;
-  --danger: #dc2626;
+  --danger: #b3261e;
   --radius: 0.625rem;
 }
 
@@ -26,6 +30,7 @@
   --color-accent: var(--accent);
   --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-newsreader), Georgia, "Times New Roman", serif;
   --font-mono: var(--font-geist-mono);
 }
 
@@ -49,11 +54,23 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* Ticked boxes and native controls take the accent, not the browser blue. */
+input[type="checkbox"],
+input[type="radio"],
+progress {
+  accent-color: var(--accent);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
 /* Minimal styling for rendered markdown (terms, chat replies). */
 .markdown > * + * { margin-top: 0.6em; }
-.markdown h1 { font-size: 1.15rem; font-weight: 600; }
-.markdown h2 { font-size: 1.05rem; font-weight: 600; }
-.markdown h3 { font-size: 1rem; font-weight: 600; }
+.markdown h1, .markdown h2, .markdown h3 { font-family: var(--font-serif); font-weight: 600; }
+.markdown h1 { font-size: 1.3rem; }
+.markdown h2 { font-size: 1.18rem; }
+.markdown h3 { font-size: 1.08rem; }
 .markdown ul, .markdown ol { padding-left: 1.4em; }
 .markdown ul { list-style: disc; }
 .markdown ol { list-style: decimal; }

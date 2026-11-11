@@ -67,7 +67,7 @@ export function NominationForm({
       </Link>
 
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold">{label}</h1>
+        <h1 className="font-serif text-3xl font-medium tracking-tight">{label}</h1>
         <p className="text-sm leading-relaxed text-muted-foreground">{blurb}</p>
       </div>
 

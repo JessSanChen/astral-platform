@@ -95,9 +95,9 @@ export function MasterNav({
         {expanded && (
           <Link
             href="/chat"
-            className="mr-1 text-sm font-semibold tracking-[0.18em]"
+            className="mr-1 font-serif text-lg font-medium leading-none tracking-tight"
           >
-            ASTRAL
+            Astral
           </Link>
         )}
       </div>

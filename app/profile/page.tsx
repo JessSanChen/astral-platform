@@ -40,7 +40,7 @@ export default async function ProfilePage() {
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-6 py-12">
       <div className="space-y-1">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold">
+        <h1 className="flex items-center gap-2 font-serif text-3xl font-medium tracking-tight">
           <UserRound className="h-5 w-5" />
           Your profile
         </h1>
