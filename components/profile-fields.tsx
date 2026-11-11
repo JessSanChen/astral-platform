@@ -104,6 +104,8 @@ export function ProfileFields({
             name="role"
             value={values.role}
             onChange={(v) => onChange("role", v)}
+            required
+            invalid={Boolean(errors.role)}
             options={asOptions(PROFILE_ROLES)}
           />
         </Field>
@@ -117,6 +119,8 @@ export function ProfileFields({
             name="highestDegree"
             value={values.highestDegree}
             onChange={(v) => onChange("highestDegree", v)}
+            required
+            invalid={Boolean(errors.highestDegree)}
             options={asOptions(DEGREES)}
           />
         </Field>
@@ -130,6 +134,8 @@ export function ProfileFields({
             name="yearsExperience"
             value={values.yearsExperience}
             onChange={(v) => onChange("yearsExperience", v)}
+            required
+            invalid={Boolean(errors.yearsExperience)}
             options={asOptions(YEARS_EXPERIENCE)}
           />
         </Field>
@@ -143,6 +149,8 @@ export function ProfileFields({
             name="primaryBackground"
             value={values.primaryBackground}
             onChange={(v) => onChange("primaryBackground", v)}
+            required
+            invalid={Boolean(errors.primaryBackground)}
             options={asOptions(BACKGROUNDS)}
           />
         </Field>
@@ -187,6 +195,8 @@ export function ProfileFields({
           name="aiFamiliarity"
           value={values.aiFamiliarity}
           onChange={(v) => onChange("aiFamiliarity", v)}
+          required
+          invalid={Boolean(errors.aiFamiliarity)}
           options={asOptions(AI_FAMILIARITY)}
         />
       </Field>

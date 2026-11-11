@@ -133,6 +133,8 @@ export function LabelsPanel({
             name="type"
             value={values.type ?? ""}
             onChange={(v) => set("type", v || null)}
+            required
+            invalid={Boolean(e.type)}
             options={TRANSCRIPT_TYPES}
           />
         </Field>
@@ -147,6 +149,8 @@ export function LabelsPanel({
             name="rolePreset"
             value={values.rolePreset ?? ""}
             onChange={(v) => set("rolePreset", v || null)}
+            required
+            invalid={Boolean(e.rolePreset)}
             options={ROLE_PRESETS.map((r) => ({ value: r, label: r }))}
           />
         </Field>
@@ -189,6 +193,8 @@ export function LabelsPanel({
             name="modelBehaviour"
             value={values.modelBehaviour ?? ""}
             onChange={(v) => set("modelBehaviour", v || null)}
+            required
+            invalid={Boolean(e.modelBehaviour)}
             options={MODEL_BEHAVIOURS}
           />
         </Field>

@@ -57,7 +57,8 @@ export function ReviewPanel({
   // component is not remounted by a refresh.
   const staleSeen = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (state.staleAt === undefined || staleSeen.current === state.staleAt) return;
+    if (state.staleAt === undefined || staleSeen.current === state.staleAt)
+      return;
     staleSeen.current = state.staleAt;
     router.refresh();
   }, [state.staleAt, router]);
@@ -81,12 +82,18 @@ export function ReviewPanel({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        <Field label="What kind of conversation does this look like?" htmlFor="intent" error={e.intent}>
+        <Field
+          label="What kind of conversation does this look like?"
+          htmlFor="intent"
+          error={e.intent}
+        >
           <Select
             id="intent"
             name="intent"
             value={values.intent ?? ""}
             onChange={(v) => set("intent", v || null)}
+            required
+            invalid={Boolean(e.intent)}
             options={REVIEW_INTENTS}
           />
         </Field>
@@ -100,8 +107,18 @@ export function ReviewPanel({
           <Select
             id="misusePresent"
             name="misusePresent"
-            value={values.misusePresent === null ? "" : values.misusePresent ? "yes" : "no"}
-            onChange={(v) => set("misusePresent", v === "" ? null : v === "yes")}
+            value={
+              values.misusePresent === null
+                ? ""
+                : values.misusePresent
+                  ? "yes"
+                  : "no"
+            }
+            onChange={(v) =>
+              set("misusePresent", v === "" ? null : v === "yes")
+            }
+            required
+            invalid={Boolean(e.misusePresent)}
             options={[
               { value: "yes", label: "Yes, an attempt at misuse" },
               { value: "no", label: "No" },
@@ -109,12 +126,18 @@ export function ReviewPanel({
           />
         </Field>
 
-        <Field label="Who does the person appear to be?" htmlFor="actor" error={e.actor}>
+        <Field
+          label="Who does the person appear to be?"
+          htmlFor="actor"
+          error={e.actor}
+        >
           <Select
             id="actor"
             name="actor"
             value={values.actor ?? ""}
             onChange={(v) => set("actor", v || null)}
+            required
+            invalid={Boolean(e.actor)}
             options={REVIEW_ACTORS}
           />
         </Field>
@@ -133,12 +156,18 @@ export function ReviewPanel({
           />
         </Field>
 
-        <Field label="How confident are you?" htmlFor="confidence" error={e.confidence}>
+        <Field
+          label="How confident are you?"
+          htmlFor="confidence"
+          error={e.confidence}
+        >
           <Select
             id="confidence"
             name="confidence"
             value={values.confidence ? String(values.confidence) : ""}
             onChange={(v) => set("confidence", v ? Number(v) : null)}
+            required
+            invalid={Boolean(e.confidence)}
             options={[1, 2, 3, 4, 5].map((n) => ({
               value: String(n),
               label: CONFIDENCE_LABELS[n],
@@ -158,7 +187,9 @@ export function ReviewPanel({
       </div>
 
       <div className="space-y-2 border-t border-border px-4 py-3">
-        {state.message && <p className="text-xs text-danger">{state.message}</p>}
+        {state.message && (
+          <p className="text-xs text-danger">{state.message}</p>
+        )}
         {state.submissionCount !== undefined && !state.message && (
           <p className="flex items-center gap-1.5 text-xs text-accent">
             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -166,11 +197,7 @@ export function ReviewPanel({
           </p>
         )}
         <Button type="submit" disabled={pending} className="w-full">
-          {pending
-            ? "Saving..."
-            : done
-              ? "Submit again"
-              : "Submit review"}
+          {pending ? "Saving..." : done ? "Submit again" : "Submit review"}
         </Button>
         {done && submissionCount > 1 && (
           <p className="text-center text-xs text-muted-foreground">

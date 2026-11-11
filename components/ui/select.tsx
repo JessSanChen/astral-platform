@@ -51,6 +51,8 @@ export function Select({
   options,
   placeholder = "Select...",
   disabled,
+  required,
+  invalid,
   className,
   "aria-label": ariaLabel,
 }: {
@@ -61,6 +63,14 @@ export function Select({
   options: readonly SelectOption[];
   placeholder?: string;
   disabled?: boolean;
+  /** Announced to a screen reader, as the native control's `required` was. */
+  required?: boolean;
+  /**
+   * True when the form has complained about this field. The complaint itself
+   * is found by convention: `Field` gives its error text the id
+   * `<field id>-error`, and this points at it.
+   */
+  invalid?: boolean;
   className?: string;
   "aria-label"?: string;
 }) {
@@ -233,8 +243,19 @@ export function Select({
         aria-controls={listId}
         aria-activedescendant={open ? optionId(active) : undefined}
         aria-label={ariaLabel}
+        aria-required={required || undefined}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid && id ? `${id}-error` : undefined}
         disabled={disabled}
-        onClick={() => (open ? setOpen(false) : openMenu())}
+        onClick={() => {
+          // Safari and Firefox on a Mac do not give a button focus when it
+          // is clicked. Without focus none of the keyboard handling below
+          // receives anything, so someone who opens the list with the mouse
+          // and then types, or presses Escape, gets no response.
+          triggerRef.current?.focus();
+          if (open) setOpen(false);
+          else openMenu();
+        }}
         onKeyDown={onKeyDown}
         onBlur={() => setOpen(false)}
         className={cn(

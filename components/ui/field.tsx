@@ -19,7 +19,13 @@ export function Field({
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
       {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {/* The id lets the control point at its own complaint, so a screen
+          reader announces it with the field rather than somewhere below. */}
+      {error && (
+        <p id={htmlFor ? `${htmlFor}-error` : undefined} className="text-xs text-danger">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
