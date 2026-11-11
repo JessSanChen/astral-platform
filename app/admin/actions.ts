@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { eventSettings, user } from "@/db/schema";
+import { eventSettings, termsVersion, user } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { passwordProblem } from "@/lib/credentials";
 import { requireAdmin } from "@/lib/gate";
@@ -177,5 +177,62 @@ export async function resetPassword(userId: string, newPassword: string) {
     return { message: null };
   } catch (e) {
     return { message: (e as Error).message ?? "Could not set the password." };
+  }
+}
+
+/**
+ * Publishes a new version of the terms.
+ *
+ * A version is never edited once published. People agreed to that exact
+ * text, and changing it under them would make their agreement mean
+ * something they did not see. A correction is a new version, which asks
+ * everyone to accept again on their next page.
+ *
+ * This is how the placeholder terms get replaced without anyone opening a
+ * SQL console.
+ */
+export async function publishTerms(body: string) {
+  await requireAdmin();
+  const text = body.replace(/\r\n/g, "\n").trim();
+  if (text.length < 20) {
+    return { message: "That is too short to be the terms. Nothing was published." };
+  }
+
+  const [latest] = await db
+    .select({ version: termsVersion.version, body: termsVersion.body })
+    .from(termsVersion)
+    .orderBy(sql`${termsVersion.version} desc`)
+    .limit(1);
+  if (latest && latest.body.trim() === text) {
+    return {
+      message: `That is the same text as version ${latest.version}. Nothing was published.`,
+    };
+  }
+
+  try {
+    // The next number is worked out in the same statement that inserts it.
+    // Two organizers publishing at once cannot both get the same one: the
+    // second insert fails on the primary key and is reported, not merged.
+    const [published] = await db
+      .insert(termsVersion)
+      .select(
+        db
+          .select({
+            version: sql<number>`coalesce(max(${termsVersion.version}), 0) + 1`.as("version"),
+            body: sql<string>`${text}`.as("body"),
+            publishedAt: sql<Date>`now()`.as("published_at"),
+          })
+          .from(termsVersion),
+      )
+      .returning({ version: termsVersion.version });
+
+    invalidate(CACHE_KEYS.latestTermsVersion);
+    revalidatePath("/admin");
+    return { version: published.version, message: null };
+  } catch {
+    return {
+      message:
+        "Another version was published at the same moment. Reload to see it before trying again.",
+    };
   }
 }
