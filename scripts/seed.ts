@@ -24,6 +24,7 @@ By participating you agree that:
 const LIMITS = { dailyTokens: 5_000_000, judgeRunsPerHour: 40, chatPerMinute: 20 };
 
 const REFRESH_MODELS = process.argv.includes("--models");
+const REFRESH_LIMITS = process.argv.includes("--limits");
 
 async function main() {
   const eventCode = process.env.EVENT_CODE ?? "astral-boston";
@@ -47,22 +48,32 @@ async function main() {
     });
     console.log("seeded event_settings");
   } else {
-    // Keep the limits in sync on re-runs. The event code and model list are
-    // left alone, since the admin may have changed them deliberately, unless
-    // --models is passed to pull the list from lib/models.ts again.
-    await db
-      .update(eventSettings)
-      .set({
-        defaultDailyTokenBudget: LIMITS.dailyTokens,
-        defaultJudgeRunsPerHour: LIMITS.judgeRunsPerHour,
-        chatRequestsPerMinute: LIMITS.chatPerMinute,
-        ...(REFRESH_MODELS ? { enabledModels: DEFAULT_MODELS } : {}),
-      })
-      .where(eq(eventSettings.id, 1));
+    // Leave an existing row as the organizers have it.
+    //
+    // This used to put the limits back to the values in the code on every
+    // run, which was harmless while the seed was only ever run once. It is
+    // now also how the first organizer is promoted, so it gets run again on
+    // a live event, and doing so quietly undid any allowance raised in the
+    // console. Each thing it can overwrite now has to be asked for.
+    const changes = {
+      ...(REFRESH_LIMITS
+        ? {
+            defaultDailyTokenBudget: LIMITS.dailyTokens,
+            defaultJudgeRunsPerHour: LIMITS.judgeRunsPerHour,
+            chatRequestsPerMinute: LIMITS.chatPerMinute,
+          }
+        : {}),
+      ...(REFRESH_MODELS ? { enabledModels: DEFAULT_MODELS } : {}),
+    };
+    if (Object.keys(changes).length > 0) {
+      await db.update(eventSettings).set(changes).where(eq(eventSettings.id, 1));
+    }
     console.log(
-      REFRESH_MODELS
-        ? "event_settings present; refreshed limits and model list"
-        : "event_settings present; refreshed default limits (pass --models to reload the model list)",
+      "event_settings present; " +
+        (REFRESH_LIMITS ? "limits reset to the defaults" : "limits left as they are") +
+        ", " +
+        (REFRESH_MODELS ? "model list reloaded from lib/models.ts" : "model list left as it is") +
+        " (--limits and --models change those)",
     );
   }
 

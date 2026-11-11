@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { sql } from "./db";
 import {
   choose,
   fillLabels,
@@ -116,6 +117,60 @@ test.describe("a conversation, from first message to submitted transcript", () =
     await expect(page.getByText(/Reply \d+ to: What is a codon\?/)).toHaveCount(1);
     await expect(page.getByText("[2]")).toBeVisible();
     await expect(page.getByText("[3]")).toHaveCount(0);
+    await context.close();
+  });
+
+  test("a conversation carries on after a reply that came back empty", async ({ browser }) => {
+    const { page, context } = await newParticipant(browser, "Rhea Refused");
+    const id = await startConversation(page);
+    await say(page, "A first question.");
+
+    // A refusal with no text, stored exactly as the app stores one. The
+    // stand-in provider cannot be made to refuse a model the event offers,
+    // so the turn is written in directly.
+    await sql`
+      insert into message (conversation_id, seq, role, content)
+      values (${id}, 3, 'user', 'A question the model declines.')
+    `;
+    await sql`
+      insert into message (conversation_id, seq, role, content, parts, finish_reason)
+      values (${id}, 4, 'assistant', '', ${sql.json([{ type: "text", text: "" }])}, 'content-filter')
+    `;
+    await page.reload();
+    await expect(page.getByText("A question the model declines.")).toBeVisible();
+
+    // The stand-in answers the last user turn it was sent, which is now
+    // the declined question and the follow-up joined together.
+    const composer = page.getByPlaceholder("Send a message...");
+    await composer.fill("A follow-up after the refusal.");
+    await composer.press("Enter");
+    await expect(page.getByText(/Reply \d+ to: A question the model declines\./)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
+
+    // What the model was sent: nothing empty, and never the same speaker
+    // twice running. The two user turns either side of the refusal arrive
+    // as one.
+    const [reply] = await sql`
+      select raw_request from message
+      where conversation_id = ${id} and role = 'assistant' and content <> ''
+      order by seq desc limit 1
+    `;
+    const sent = (reply.raw_request as { messages: { role: string; content: unknown }[] }).messages;
+    const text = (m: { content: unknown }) =>
+      typeof m.content === "string"
+        ? m.content
+        : (m.content as { text?: string }[]).map((c) => c.text ?? "").join("");
+    expect(sent.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+    expect(sent.every((m) => text(m).trim().length > 0)).toBe(true);
+    expect(text(sent[2])).toContain("A question the model declines.");
+    expect(text(sent[2])).toContain("A follow-up after the refusal.");
+
+    // The transcript itself still holds the empty turn.
+    const [{ count }] = await sql`
+      select count(*)::int from message
+      where conversation_id = ${id} and role = 'assistant' and content = ''
+    `;
+    expect(count).toBe(1);
     await context.close();
   });
 

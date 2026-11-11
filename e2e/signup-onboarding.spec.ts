@@ -134,6 +134,13 @@ test.describe("getting in", () => {
 
     await expect(page.getByText("Please choose a range.")).toBeVisible();
     await expect(page).toHaveURL(/\/onboarding$/);
+    // A screen reader is told which field it is: the dropdown is marked
+    // invalid and described by the complaint, and the others are not.
+    const years = page.getByLabel("Years of experience");
+    await expect(years).toHaveAttribute("aria-invalid", "true");
+    await expect(years).toHaveAttribute("aria-required", "true");
+    await expect(years).toHaveAccessibleDescription("Please choose a range.");
+    await expect(page.getByLabel("Role", { exact: true })).not.toHaveAttribute("aria-invalid");
     await expect(page.getByLabel("Affiliation")).toHaveValue("Somewhere");
     await expect(page.getByLabel("Role", { exact: true })).toContainText("Postdoc");
     await expect(page.getByLabel("Primary background")).toContainText("Both");

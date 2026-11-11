@@ -1,3 +1,4 @@
+import { assertNotProduction, assertPrepared } from "../scripts/e2e-guard.mjs";
 import { removeTestAccounts, sql } from "./db";
 
 /**
@@ -15,6 +16,11 @@ export default async function globalSetup() {
   // guarding against is the right tests against the wrong database.
   const { hostname, pathname } = new URL(url);
   console.log(`\n  e2e database: ${hostname}${pathname}\n`);
+
+  // Everything below this changes the database. Stop here unless it is one
+  // the tests have been given.
+  assertNotProduction(url);
+  await assertPrepared(sql);
 
   let settings;
   try {

@@ -53,6 +53,11 @@ test.describe("the dropdown", () => {
     const degree = page.getByLabel("Highest degree");
     await expect(degree).toHaveRole("combobox");
     await degree.click();
+    // Opened with the mouse, it still answers to the keyboard.
+    await expect(degree).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toBeHidden();
+    await degree.click();
 
     const list = page.getByRole("listbox");
     await expect(list.getByRole("option")).toHaveCount(6);

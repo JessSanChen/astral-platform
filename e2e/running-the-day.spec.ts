@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { SETTINGS_TTL_MS } from "@/lib/cache";
 import { sql } from "./db";
 import { newOrganizer, newParticipant, say, startConversation } from "./helpers";
 
@@ -6,9 +7,6 @@ import { newOrganizer, newParticipant, say, startConversation } from "./helpers"
  * The controls an organizer reaches for during the event, each checked from
  * the participant's side as well: what matters is what the room sees.
  */
-/** How long the app may go on using settings it read a moment ago. */
-const SETTINGS_WINDOW = 10_500;
-
 test.describe("running the day", () => {
   test("pausing chat stops everyone, and resuming lets them carry on", async ({ browser }) => {
     const participant = await newParticipant(browser, "Paula Paused");
@@ -23,11 +21,8 @@ test.describe("running the day", () => {
         organizer.page.getByRole("button", { name: "Resume chat for everyone" }),
       ).toBeVisible();
 
-      // The pause reaches the chat within ten seconds, not at once: the
-      // settings are remembered briefly rather than read on every message.
-      await participant.page.waitForTimeout(SETTINGS_WINDOW);
-
-      // The participant's next message is turned away, and told why.
+      // The very next message is turned away, and told why. On one server
+      // a pause is immediate; it is only other servers that take a moment.
       const composer = participant.page.getByPlaceholder("Send a message...");
       await composer.fill("A question during the pause.");
       await composer.press("Enter");
@@ -41,7 +36,6 @@ test.describe("running the day", () => {
         organizer.page.getByRole("button", { name: "Pause chat for everyone" }),
       ).toBeVisible();
 
-      await participant.page.waitForTimeout(SETTINGS_WINDOW);
       await say(participant.page, "A question after the pause.");
     } finally {
       await sql`update event_settings set chat_paused = false where id = 1`;
@@ -102,6 +96,9 @@ test.describe("running the day", () => {
   test("publishing new terms asks everyone to accept them, once", async ({ browser }) => {
     const participant = await newParticipant(browser, "Tess Terms");
     const organizer = await newOrganizer(browser, "Oscar Organizer");
+    // The participant is in the middle of a conversation when it happens.
+    await startConversation(participant.page);
+    await say(participant.page, "A question before the terms change.");
     const [{ max: before }] = await sql`select max(version)::int as max from terms_version`;
     const marker = `Terms written by a test at ${Date.now()}.`;
     const text = `# Terms for the test\n\n${marker}\n\n- You agree to the new thing.`;
@@ -125,9 +122,16 @@ test.describe("running the day", () => {
       await expect(admin.getByText(`Version ${before + 1} is in force`)).toBeVisible();
       await expect(admin.getByText("Every version")).toBeVisible();
 
-      // The participant, mid-session, is sent to the new terms.
+      // The participant has not moved. Their next message is refused, for
+      // the right reason, with the way forward in front of them.
       const page = participant.page;
-      await page.goto("/chat");
+      const composer = page.getByPlaceholder("Send a message...");
+      await composer.fill("A question after the terms change.");
+      await composer.press("Enter");
+      await expect(page.getByText("The terms have been updated.")).toBeVisible();
+      await expect(page.getByText("Finish your profile")).toHaveCount(0);
+      await expect(page.getByText("Your message is still saved")).toHaveCount(0);
+      await page.getByRole("link", { name: "Read and accept the updated terms" }).click();
       await page.waitForURL("**/onboarding");
       await expect(page.getByRole("heading", { name: "Updated terms" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Terms for the test" })).toBeVisible();
@@ -150,11 +154,12 @@ test.describe("running the day", () => {
       await expect(page.getByText(`Version ${before + 1} on`)).toBeVisible();
     } finally {
       // Put the terms back, so the next sign-up is asked for the version it
-      // was before this test. The app remembers the latest version number
-      // for ten seconds, and a sign-up inside that window would be told the
-      // terms had changed under it, so wait the window out.
+      // was before this test. Deleting it here goes behind the app's back,
+      // so the app goes on believing in the deleted version until its copy
+      // expires, and a sign-up inside that window would be told the terms
+      // had changed under it. Wait the window out.
       await sql`delete from terms_version where version > ${before}`;
-      await participant.page.waitForTimeout(SETTINGS_WINDOW);
+      await participant.page.waitForTimeout(SETTINGS_TTL_MS + 500);
       await participant.context.close();
       await organizer.context.close();
     }

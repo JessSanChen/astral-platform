@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { formatEventDateTime, fromEventInputValue } from "@/lib/time";
 import { sql } from "./db";
-import { newOrganizer, newParticipant, signIn, submittedTranscript } from "./helpers";
+import { newOrganizer, newParticipant, say, signIn, submittedTranscript } from "./helpers";
 
 test.describe("the organizer console", () => {
   test("is closed to participants", async ({ browser }) => {
@@ -18,6 +18,8 @@ test.describe("the organizer console", () => {
   test("counts what was submitted, and promotes a participant", async ({ browser }) => {
     const participant = await newParticipant(browser, "Polly Participant");
     await submittedTranscript(participant.page, "What is a virus?", { type: "Benign" });
+    // One more exchange after submitting, never submitted.
+    await say(participant.page, "And what is a bacteriophage?");
     const organizer = await newOrganizer(browser);
     const page = organizer.page;
 
@@ -55,7 +57,15 @@ test.describe("the organizer console", () => {
       (l) => l.record === "transcript" && l.author?.email === participant.email,
     );
     expect(theirs.self_labels.type).toBe("benign");
-    expect(theirs.messages).toHaveLength(2);
+    // All four messages are there, and marked: the labels describe two.
+    expect(theirs.messages).toHaveLength(4);
+    expect(theirs.submitted_message_count).toBe(2);
+    expect(theirs.messages.map((m: { in_submitted_version: boolean }) => m.in_submitted_version)).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
 
     await participant.context.close();
     await organizer.context.close();
@@ -105,6 +115,22 @@ test.describe("the organizer console", () => {
       await context.close();
       await organizer.context.close();
     }
+  });
+
+  test("a closing time that has already passed is refused", async ({ browser }) => {
+    const { page, context } = await newOrganizer(browser, "Yesterday Yara");
+    await page.goto("/admin/nominations");
+    await page.getByLabel(/Closing time/).fill("2020-01-01T15:00");
+    await page.getByRole("button", { name: "Set closing time" }).click();
+
+    await expect(page.getByText("That time has already passed")).toBeVisible();
+    const [row] = await sql`select nominations_close_at from event_settings where id = 1`;
+    expect(row.nominations_close_at).toBeNull();
+
+    // And participants are not shut out.
+    await page.goto("/nominate");
+    await expect(page.getByText("Nominations are closed.")).toHaveCount(0);
+    await context.close();
   });
 
   test("an unreadable allowance is refused, not stored as zero", async ({ browser }) => {

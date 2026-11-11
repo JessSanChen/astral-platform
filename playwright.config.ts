@@ -57,7 +57,11 @@ export default defineConfig({
     {
       command: `node scripts/mock-openrouter.mjs ${MOCK_PORT}`,
       port: MOCK_PORT,
-      reuseExistingServer: !CI,
+      // Never reuse a server that happens to be listening. One left behind
+      // by an interrupted run serves the build it was started with, and the
+      // tests would then pass or fail against code that is no longer in the
+      // tree. If the port is taken, Playwright says so and stops.
+      reuseExistingServer: false,
     },
     {
       // A production build, because that is what participants get, and
@@ -66,7 +70,7 @@ export default defineConfig({
       command: `npm run build && npx next start -p ${PORT}`,
       url: `${baseURL}/sign-in`,
       timeout: 300_000,
-      reuseExistingServer: !CI,
+      reuseExistingServer: false,
       env: {
         ...(process.env as Record<string, string>),
         BETTER_AUTH_URL: baseURL,

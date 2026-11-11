@@ -5,6 +5,8 @@
  * if there is one, otherwise from .env.local. Safe to run again.
  */
 import { spawnSync } from "node:child_process";
+import postgres from "postgres";
+import { assertNotProduction, markPrepared } from "./e2e-guard.mjs";
 import { loadEnvFile } from "./load-env.mjs";
 
 // Where the address came from matters to the person reading the output, so
@@ -25,6 +27,15 @@ const source = fromEnvironment
 const { hostname, pathname } = new URL(process.env.DATABASE_URL);
 console.log(`\n  preparing ${hostname}${pathname} (${source})\n`);
 
+// Preparing a database is what allows the tests to change it, so this is
+// the place to refuse the one database that must never be.
+try {
+  assertNotProduction(process.env.DATABASE_URL);
+} catch (error) {
+  console.error(`\n${error.message}\n`);
+  process.exit(1);
+}
+
 for (const command of [
   ["npx", "drizzle-kit", "migrate"],
   ["npx", "tsx", "scripts/seed.ts"],
@@ -35,3 +46,8 @@ for (const command of [
   });
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
+
+const sql = postgres(process.env.DATABASE_URL, { max: 1, prepare: false, onnotice: () => {} });
+await markPrepared(sql);
+await sql.end();
+console.log("marked as a database the end-to-end tests may use");
