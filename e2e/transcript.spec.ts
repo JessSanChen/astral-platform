@@ -96,6 +96,29 @@ test.describe("a conversation, from first message to submitted transcript", () =
     await context.close();
   });
 
+  test("regenerating replaces the last reply rather than adding one", async ({ browser }) => {
+    const { page, context } = await newParticipant(browser, "Rita Regenerate");
+    await startConversation(page);
+    await say(page, "What is a codon?");
+
+    const reply = page.getByText(/Reply \d+ to: What is a codon\?/);
+    await expect(reply).toHaveCount(1);
+    const first = await reply.innerText();
+
+    await page.getByRole("button", { name: "Regenerate" }).click();
+    // The stand-in numbers its replies, so a new one reads differently.
+    await expect(reply).not.toHaveText(first);
+    await expect(reply).toHaveCount(1);
+
+    // Still one question and one answer after a reload: the first reply is
+    // kept in the database, and kept out of the conversation.
+    await page.reload();
+    await expect(page.getByText(/Reply \d+ to: What is a codon\?/)).toHaveCount(1);
+    await expect(page.getByText("[2]")).toBeVisible();
+    await expect(page.getByText("[3]")).toHaveCount(0);
+    await context.close();
+  });
+
   test("the scanners give a verdict on the conversation", async ({ browser }) => {
     const { page, context } = await newParticipant(browser, "Sam Scanner");
     await startConversation(page);

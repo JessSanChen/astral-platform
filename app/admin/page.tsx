@@ -100,6 +100,14 @@ export default async function AdminOverview() {
         <Panel title="Running the day">
           <div className="space-y-3">
             <PauseChatButton paused={settings.chatPaused} />
+            {/* Not instant, and better said than discovered: each server
+                keeps the settings for a few seconds before reading them
+                again. */}
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {settings.chatPaused
+                ? "Chat is paused. New messages are being turned away; resuming takes up to ten seconds to reach everyone."
+                : "Stops new messages for everyone within about ten seconds. Replies already under way are allowed to finish."}
+            </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               Scanners have run {data.judgeRuns.total} times
               {data.judgeRuns.failed > 0
