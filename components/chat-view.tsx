@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
@@ -37,6 +38,30 @@ const ERROR_TEXT: Record<string, string> = {
   account_paused: "An organizer has paused your account.",
   model_not_allowed: "That model is no longer available. Start a new conversation with another one.",
 };
+
+/** The code our API attached to a refusal, if it was one of ours. */
+function errorCode(error: Error | undefined) {
+  if (!error) return null;
+  try {
+    return (JSON.parse(error.message) as { code?: string }).code ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Refusals made before the message was stored. For these, "your message is
+ * still saved" would be untrue, and "try another model" beside the point.
+ */
+const NOT_SENT = new Set([
+  "terms",
+  "onboarding",
+  "account_paused",
+  "chat_paused",
+  "rate_limited",
+  "budget_exhausted",
+  "locked",
+]);
 
 function errorMessage(error: Error | undefined) {
   if (!error) return null;
@@ -337,10 +362,19 @@ export function ChatView({
           {error && (
             <div className="space-y-1 rounded-[var(--radius)] border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
               <p>{errorMessage(error)}</p>
-              <p className="text-xs opacity-80">
-                Your message is still saved. Try again, or start a new
-                conversation with a different model.
-              </p>
+              {errorCode(error) === "terms" ? (
+                // Not something to retry: there is a page to visit first.
+                <p className="text-xs">
+                  <Link href="/onboarding" className="font-medium underline">
+                    Read and accept the updated terms
+                  </Link>
+                </p>
+              ) : NOT_SENT.has(errorCode(error) ?? "") ? null : (
+                <p className="text-xs opacity-80">
+                  Your message is still saved. Try again, or start a new
+                  conversation with a different model.
+                </p>
+              )}
             </div>
           )}
 

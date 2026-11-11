@@ -9,7 +9,7 @@ import {
   submission,
   transcriptLabels,
 } from "@/db/schema";
-import { getCurrentUser } from "@/lib/gate";
+import { getCurrentUser, whyBlocked } from "@/lib/gate";
 import { getOwnedConversation } from "@/lib/conversations";
 import { draftLabelsSchema, submitLabelsSchema } from "@/lib/labels-schema";
 
@@ -28,10 +28,8 @@ export type LabelsState = {
 async function activeUser() {
   const cu = await getCurrentUser();
   if (!cu) return { error: "Please sign in again." } as const;
-  if (cu.user.banned)
-    return { error: "An organizer has paused your account." } as const;
-  if (cu.needsProfile || cu.needsTerms)
-    return { error: "Finish your profile first." } as const;
+  const blocked = whyBlocked(cu);
+  if (blocked) return { error: blocked.message } as const;
   return { cu } as const;
 }
 

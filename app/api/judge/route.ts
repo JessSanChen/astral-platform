@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { judgeConfig, judgeRun } from "@/db/schema";
-import { getCurrentUser } from "@/lib/gate";
+import { getCurrentUser, whyBlocked } from "@/lib/gate";
 import { getOwnedConversation } from "@/lib/conversations";
 import { ChatError, getEventSettings } from "@/lib/openrouter";
 import { finishUsageEvent, releaseSlot, reserveSlot } from "@/lib/budget";
@@ -31,10 +31,8 @@ export async function GET() {
 export async function POST(req: Request) {
   const cu = await getCurrentUser();
   if (!cu) return Response.json({ message: "Please sign in again." }, { status: 401 });
-  if (cu.user.banned)
-    return Response.json({ message: "An organizer has paused your account." }, { status: 403 });
-  if (cu.needsProfile || cu.needsTerms)
-    return Response.json({ message: "Finish your profile first." }, { status: 403 });
+  const blocked = whyBlocked(cu);
+  if (blocked) return Response.json({ message: blocked.message }, { status: 403 });
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success)

@@ -74,7 +74,13 @@ export function NominationLock({
                   setNote("Enter a full date and time.");
                   return;
                 }
-                await setNominationsCloseAt(instant?.toISOString() ?? null);
+                const result = await setNominationsCloseAt(
+                  instant?.toISOString() ?? null,
+                );
+                if (result.message) {
+                  setNote(result.message);
+                  return;
+                }
                 router.refresh();
               })
             }

@@ -102,13 +102,34 @@ export async function setNominationsLocked(locked: boolean) {
   settingsChanged();
 }
 
+/**
+ * Sets, or with null clears, the time nominations close.
+ *
+ * A time that has already passed is refused. It would close nominations the
+ * moment it was saved, which is never what setting a deadline is for: the
+ * usual cause is yesterday's date left in the picker, or 03:00 typed for
+ * three in the afternoon. Closing now has its own button.
+ */
 export async function setNominationsCloseAt(iso: string | null) {
   await requireAdmin();
+  if (iso !== null) {
+    const when = new Date(iso);
+    if (Number.isNaN(when.getTime())) {
+      return { message: "That is not a date and time. Nothing was changed." };
+    }
+    if (when.getTime() <= Date.now()) {
+      return {
+        message:
+          "That time has already passed, so nominations would close at once. Nothing was changed. To close them now, use the button.",
+      };
+    }
+  }
   await db
     .update(eventSettings)
     .set({ nominationsCloseAt: iso ? new Date(iso) : null, updatedAt: new Date() })
     .where(eq(eventSettings.id, 1));
   settingsChanged();
+  return { message: null };
 }
 
 export async function setReviewBatchSize(size: number) {

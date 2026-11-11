@@ -17,7 +17,8 @@ import {
   getVisibleMessages,
   touchConversation,
 } from "@/lib/conversations";
-import { getCurrentUser } from "@/lib/gate";
+import { getCurrentUser, whyBlocked } from "@/lib/gate";
+import { buildPrompt } from "@/lib/prompt";
 
 // Long generations need more than the default; Vercel Pro allows up to 800s.
 export const maxDuration = 300;
@@ -69,10 +70,8 @@ function safeJsonMessage(raw: string): string | undefined {
 export async function POST(req: Request) {
   const cu = await getCurrentUser();
   if (!cu) return fail("unauthorized", "Please sign in again.", 401);
-  if (cu.user.banned)
-    return fail("account_paused", "An organizer has paused your account.", 403);
-  if (cu.needsProfile || cu.needsTerms)
-    return fail("onboarding", "Finish your profile first.", 403);
+  const blocked = whyBlocked(cu);
+  if (blocked) return fail(blocked.code, blocked.message, 403);
 
   const body = (await req.json().catch(() => ({}))) as {
     conversationId?: string;
@@ -183,23 +182,12 @@ export async function POST(req: Request) {
     }
   }
 
-  // Leave out assistant turns that came back empty.
-  //
-  // A refusal with no text, a provider's own filter and a failed request are
-  // all kept in the transcript as an empty assistant turn, because for this
-  // study they are results. But sent back as part of the next prompt they
-  // are an empty message, which some providers refuse outright, and each
-  // refusal would add another one: the conversation could never continue
-  // past its first refusal. The scanners already skip these for the same
-  // reason. What the model is sent is recorded on each reply as raw_request,
-  // so the omission is visible in the data rather than implied.
-  const promptTurns = promptHistory.filter(
-    (m) => m.role !== "assistant" || m.content.trim().length > 0,
-  );
+  // Empty replies are left out and same-speaker neighbours joined, so the
+  // provider always gets non-empty, alternating turns. See lib/prompt.ts.
   const modelMessages = await convertToModelMessages(
-    promptTurns.map((m) => ({
-      role: m.role,
-      parts: (m.parts as UIMessage["parts"]) ?? [{ type: "text", text: m.content }],
+    buildPrompt(promptHistory).map((turn) => ({
+      role: turn.role,
+      parts: [{ type: "text" as const, text: turn.text }],
     })),
   );
 

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { eventSettings } from "@/db/schema";
 import { DEFAULT_MODELS, type ModelOption } from "@/lib/models";
-import { CACHE_KEYS, cached } from "@/lib/cache";
+import { CACHE_KEYS, SETTINGS_TTL_MS, cached } from "@/lib/cache";
 
 export const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -43,7 +43,7 @@ export type EventSettings = {
  * exceed a budget.
  */
 export async function getEventSettings(): Promise<EventSettings> {
-  return cached(CACHE_KEYS.eventSettings, 10_000, loadEventSettings);
+  return cached(CACHE_KEYS.eventSettings, SETTINGS_TTL_MS, loadEventSettings);
 }
 
 async function loadEventSettings(): Promise<EventSettings> {

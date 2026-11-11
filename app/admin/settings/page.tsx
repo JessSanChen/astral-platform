@@ -48,6 +48,13 @@ export default async function AdminSettings() {
           <code className="rounded bg-muted px-1 text-xs">record</code> field,
           so the file holds more lines than there are transcripts.
         </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          A transcript&apos;s messages can run on past what was submitted, if
+          its author kept chatting afterwards. Each message carries{" "}
+          <code className="rounded bg-muted px-1 text-xs">in_submitted_version</code>,
+          and the labels and the review describe only the ones where it is
+          true.
+        </p>
         <a
           href="/api/admin/export"
           className="mt-3 inline-block text-sm text-accent underline"

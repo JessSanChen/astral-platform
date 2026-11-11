@@ -61,6 +61,20 @@ export async function GET() {
             db.select().from(judgeRun).where(eq(judgeRun.conversationId, convo.id)),
           ]);
 
+        // The messages below are the conversation as it stands, which can
+        // run on past what was submitted: an author may keep chatting after
+        // submitting, up to the moment a review locks the transcript. The
+        // labels and the review describe the submitted version only, so each
+        // message says whether it was part of it.
+        const currentSnapshot = submissions.find(
+          (s) => s.version === convo.currentVersion,
+        )?.snapshot as
+          | { labels?: unknown; messages?: { id?: string }[] }
+          | undefined;
+        const submittedIds = new Set(
+          (currentSnapshot?.messages ?? []).map((m) => m.id),
+        );
+
         const line = {
           // Every line says what it is. Without this, transcript lines were
           // unmarked while nomination lines were not, so counting lines
@@ -85,15 +99,14 @@ export async function GET() {
           // The labels as submitted with the current version. The author's
           // working copy can move on afterwards without a new version, so it
           // is given separately rather than passed off as what was submitted.
-          self_labels:
-            (
-              submissions.find((s) => s.version === convo.currentVersion)
-                ?.snapshot as { labels?: unknown } | undefined
-            )?.labels ?? null,
+          self_labels: currentSnapshot?.labels ?? null,
           draft_labels: labels ?? null,
           independent_review: theirReview ?? null,
+          // How many of the messages below made up the submitted version.
+          submitted_message_count: submittedIds.size,
           messages: messages.map((m) => ({
             seq: m.seq,
+            in_submitted_version: submittedIds.has(m.id),
             role: m.role,
             content: m.content,
             model_id: m.modelId,
