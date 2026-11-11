@@ -7,6 +7,7 @@ import {
   nominationStatus,
 } from "@/lib/nominations";
 import { formatEventDateTime } from "@/lib/time";
+import { KeepFresh } from "@/components/keep-fresh";
 
 const when = formatEventDateTime;
 
@@ -27,31 +28,44 @@ export default async function NominateHome() {
         </h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
           Three prize tracks are decided by nomination. Tell the organizers what
-          you found and why it matters. You can enter more than one track, and
-          change an entry until nominations close.
+          you found and why it matters.{" "}
+          {status.locked
+            ? "Entries were open until nominations closed."
+            : "You can enter more than one track, and change an entry until nominations close."}
         </p>
-        {status.locked ? (
-          <p className="flex items-center gap-2 rounded-[var(--radius)] border border-border bg-muted px-3 py-2 text-sm">
-            <Lock className="h-4 w-4 shrink-0" />
-            Nominations are closed. You can still read what you submitted.
-          </p>
-        ) : status.closeAt ? (
+        {!status.locked && status.closeAt && (
           <p className="text-sm text-muted-foreground">
             Nominations close at {when(status.closeAt)}.
           </p>
-        ) : null}
+        )}
       </div>
+
+      {/* Someone can have this page open when nominations close. */}
+      <KeepFresh at={status.closeAt?.toISOString() ?? null} />
+
+      {status.locked && (
+        <div
+          role="status"
+          className="mt-6 flex items-start gap-3 rounded-[var(--radius)] border border-foreground/20 bg-muted px-4 py-3.5"
+        >
+          <Lock className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-medium">Nominations are closed</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {mine.length > 0
+                ? "Your entries are with the organizers. You can read them below, but they can no longer be changed, and no new ones can be made."
+                : "You did not enter a track, and entries can no longer be made."}
+              {status.closeAt ? ` The closing time was ${when(status.closeAt)}.` : ""}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="mt-8 space-y-3">
         {NOMINATION_TRACKS.map((track) => {
           const entry = byTrack.get(track.value);
-          return (
-            <Link
-              key={track.value}
-              href={`/nominate/${track.value}`}
-              prefetch
-              className="block rounded-[var(--radius)] border border-border bg-card p-4 transition-colors hover:bg-muted"
-            >
+          const body = (
+            <>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="font-medium">{track.label}</h2>
@@ -77,8 +91,33 @@ export default async function NominateHome() {
                   {entry.submissionCount > 1
                     ? ` · updated ${entry.submissionCount - 1} time${entry.submissionCount === 2 ? "" : "s"}`
                     : ""}
+                  {status.locked ? " · read only" : ""}
                 </p>
               )}
+            </>
+          );
+
+          // Closed with nothing entered: there is nothing behind the card,
+          // so it is not a link and does not look like one.
+          if (status.locked && !entry) {
+            return (
+              <div
+                key={track.value}
+                className="rounded-[var(--radius)] border border-border p-4 opacity-70"
+              >
+                {body}
+              </div>
+            );
+          }
+
+          return (
+            <Link
+              key={track.value}
+              href={`/nominate/${track.value}`}
+              prefetch
+              className="block rounded-[var(--radius)] border border-border bg-card p-4 transition-colors hover:bg-muted"
+            >
+              {body}
             </Link>
           );
         })}

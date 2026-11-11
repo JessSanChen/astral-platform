@@ -38,6 +38,8 @@ export type NominationState = {
   errors?: Record<string, string>;
   message?: string;
   savedAt?: number;
+  /** Refused because nominations are closed. */
+  closed?: boolean;
   submissionCount?: number;
 };
 
@@ -50,6 +52,7 @@ export async function submitNomination(
   const status = await nominationStatus();
   if (status.locked) {
     return {
+      closed: true,
       message:
         "Nominations are closed. Your existing entry is still here to read, but it can no longer be changed.",
     };

@@ -65,18 +65,41 @@ test.describe("running the day", () => {
         organizer.page.getByRole("button", { name: "Reopen nominations" }),
       ).toBeVisible();
 
-      // The entry can still be read, and no longer changed.
-      await page.goto("/nominate");
-      await expect(page.getByText("Nominations are closed.")).toBeVisible();
-      await page.goto("/nominate/adversarial");
-      await expect(page.getByLabel("Headline finding")).toHaveValue("Entered before the close");
-      await expect(page.getByLabel("Headline finding")).toBeDisabled();
+      // They still have the form open, with something half-typed. Coming
+      // back to the tab is enough: it closes in front of them, says so,
+      // and shows the entry as the organizers have it, not as a form.
+      await page.getByLabel("Headline finding").fill("Typed but never saved");
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await expect(page.getByRole("status")).toContainText("Nominations are closed");
+      await expect(page.getByRole("status")).toContainText("It can no longer be changed.");
+      await expect(page.getByText("Entered before the close")).toBeVisible();
+      await expect(page.getByRole("textbox")).toHaveCount(0);
       await expect(page.getByRole("button", { name: /Update entry|Submit nomination/ })).toHaveCount(0);
+      // What they had not saved is not lost without a word.
+      await expect(page.getByText("What you were typing was not submitted")).toBeVisible();
+      await expect(page.getByText("Typed but never saved")).toBeVisible();
 
-      // A track not yet entered cannot be entered now.
+      // The list of tracks says it too, at the top.
+      await page.goto("/nominate");
+      await expect(page.getByRole("status")).toContainText("Nominations are closed");
+      await expect(page.getByRole("status")).toContainText("can no longer be changed");
+      await expect(page.getByText("change an entry until nominations close")).toHaveCount(0);
+      // The entry made is there to read. A track never entered goes nowhere.
+      await expect(page.getByRole("link", { name: /Adversarial/ })).toContainText("read only");
+      await expect(page.getByRole("link", { name: /Dual-use/ })).toHaveCount(0);
+
+      // Going to a track directly is no way round it, and neither is
+      // sending the form without the page.
       await page.goto("/nominate/dual_use");
-      await expect(page.getByText("No entry was submitted for this track.")).toBeVisible();
-      await expect(page.getByLabel("Headline finding")).toBeDisabled();
+      await expect(page.getByRole("status")).toContainText(
+        "No entry was submitted for this track, and one can no longer be made.",
+      );
+      await expect(page.getByRole("textbox")).toHaveCount(0);
+      const [{ count: entries }] = await sql`
+        select count(*)::int as count from nomination n
+        join "user" u on u.id = n.user_id where u.email = ${participant.email}
+      `;
+      expect(entries).toBe(1);
 
       await organizer.page.getByRole("button", { name: "Reopen nominations" }).click();
       await expect(
