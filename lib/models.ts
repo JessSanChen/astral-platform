@@ -17,78 +17,97 @@ export interface ModelOption {
   note?: string; // short hint shown in the dropdown
 }
 
+// Chosen from OpenRouter's public list on 2026-11-11, taking the newest
+// general-purpose models in each family. Prices are per million tokens,
+// input / output, as listed that day.
+//
+// The first entry is what a new conversation starts on.
 export const DEFAULT_MODELS: ModelOption[] = [
   // Anthropic (frontier, closed)
   {
-    id: "anthropic/claude-opus-4.1",
-    displayName: "Claude Opus 4.1",
+    id: "anthropic/claude-fable-5.2", // $8 / $40
+    displayName: "Claude Fable 5.2",
     family: "anthropic",
     sort: 10,
     enabled: true,
-    note: "Most capable Claude",
+    note: "Anthropic's most capable",
   },
   {
-    id: "anthropic/claude-sonnet-4.5",
-    displayName: "Claude Sonnet 4.5",
+    id: "anthropic/claude-opus-5.5", // $4 / $20
+    displayName: "Claude Opus 5.5",
     family: "anthropic",
     sort: 11,
     enabled: true,
-    note: "Fast, strong default",
+    note: "Flagship Opus",
+  },
+  {
+    id: "anthropic/claude-sonnet-5.5", // $2 / $10
+    displayName: "Claude Sonnet 5.5",
+    family: "anthropic",
+    sort: 12,
+    enabled: true,
+    note: "Faster, everyday work",
   },
   // OpenAI (frontier, closed)
   {
-    id: "openai/gpt-5",
-    displayName: "GPT-5",
+    id: "openai/gpt-6-astra", // $10 / $50
+    displayName: "GPT-6 Astra",
     family: "openai",
     sort: 20,
     enabled: true,
     note: "OpenAI flagship",
   },
   {
-    id: "openai/gpt-5-mini",
-    displayName: "GPT-5 mini",
+    id: "openai/gpt-6.1-sol", // $2 / $10
+    displayName: "GPT-6.1 Sol",
     family: "openai",
     sort: 21,
     enabled: true,
-    note: "Faster, cheaper",
+    note: "High-end, newest series",
   },
-  // Open weight (refuse less, widen the dataset)
   {
-    id: "meta-llama/llama-4-maverick",
-    displayName: "Llama 4 Maverick",
+    id: "openai/gpt-6.1-terra", // $1 / $5
+    displayName: "GPT-6.1 Terra",
+    family: "openai",
+    sort: 22,
+    enabled: true,
+    note: "Mid-tier, faster",
+  },
+  // Open weight (refuse less, widen the dataset). Only models that
+  // OpenRouter's own listing describes as open-weight are put under this
+  // heading. DeepSeek's current models are not described that way there, so
+  // none is included; add one if you know its weights are published.
+  {
+    id: "meta/muse-spark-open", // $1.25 / $4.25
+    displayName: "Muse Spark Open",
     family: "open",
     sort: 30,
     enabled: true,
-    note: "Meta open weight",
+    note: "Meta",
   },
   {
-    // Replaces qwen/qwen3-235b-a22b, which OpenRouter deprecated on
-    // 2026-10-09 and which names this as the migration target. Verify with
-    // `npm run check-models` before the event, and note that Alibaba's
-    // "Plus" tier is a hosted model rather than an open-weight release, so
-    // swap in an open-weight Qwen if that distinction matters for the study.
-    id: "qwen/qwen3.7-plus",
-    displayName: "Qwen3.7 Plus",
+    id: "qwen/qwen3.8-2.4t-a95b", // $2 / $6
+    displayName: "Qwen3.8 2.4T",
     family: "open",
     sort: 31,
     enabled: true,
-    note: "Alibaba",
+    note: "Alibaba, open variant of Qwen3.8 Max",
   },
   {
-    id: "deepseek/deepseek-chat-v3.1",
-    displayName: "DeepSeek V3.1",
+    id: "moonshotai/kimi-k3.1-pro", // $2 / $10
+    displayName: "Kimi K3.1 Pro",
     family: "open",
     sort: 32,
     enabled: true,
-    note: "DeepSeek open weight",
+    note: "Moonshot AI",
   },
   {
-    id: "openai/gpt-oss-120b",
-    displayName: "gpt-oss 120B",
+    id: "meta/muse-glimmer-30b", // $0.30 / $1.20
+    displayName: "Muse Glimmer 30B",
     family: "open",
     sort: 33,
     enabled: true,
-    note: "OpenAI open weight",
+    note: "Meta, small",
   },
 ];
 

@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { eventSettings, termsVersion, user } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { passwordProblem } from "@/lib/credentials";
+import { DEFAULT_MODELS } from "@/lib/models";
 import { requireAdmin } from "@/lib/gate";
 import { CACHE_KEYS, invalidate } from "@/lib/cache";
 
@@ -256,4 +257,22 @@ export async function publishTerms(body: string) {
         "Another version was published at the same moment. Reload to see it before trying again.",
     };
   }
+}
+
+/**
+ * Replaces the list of models on offer with the one this version of the app
+ * was built with.
+ *
+ * The live list is a row in the database, so a new version of the app with
+ * a newer list in its code changes nothing by itself. This is the way to
+ * take the new list without running a command against the database.
+ */
+export async function adoptBuiltInModelList() {
+  await requireAdmin();
+  await db
+    .update(eventSettings)
+    .set({ enabledModels: DEFAULT_MODELS, updatedAt: new Date() })
+    .where(eq(eventSettings.id, 1));
+  settingsChanged();
+  return { message: null };
 }

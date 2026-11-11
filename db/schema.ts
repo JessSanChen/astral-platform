@@ -208,6 +208,13 @@ export const conversation = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull().default("New conversation"),
     modelId: text("model_id").notNull(),
+    // No longer set. Participants could once write a "scenario" here, which
+    // was sent to the model as its system prompt. The name invited people to
+    // describe their own role-play or intent, not realising the model would
+    // read it, and so shape the conversation they were trying to observe.
+    // Every conversation now starts from the model's default behaviour. The
+    // column stays because conversations that had one were had with it, and
+    // the record of them is not complete without it.
     scenario: text("scenario"),
     status: conversationStatus("status").notNull().default("draft"),
     currentVersion: integer("current_version").notNull().default(0),

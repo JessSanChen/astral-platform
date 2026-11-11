@@ -11,6 +11,7 @@
  * Point OPENROUTER_BASE_URL at the mock server for a free run, or leave it
  * unset to exercise real models, which costs real credits.
  */
+import { DEFAULT_MODELS } from "@/lib/models";
 import { db } from "@/db";
 import { conversation, message, profile, usageEvent, user as userTable } from "@/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -18,7 +19,9 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 const USERS = Number(process.argv[2] ?? 20);
 const TURNS = Number(process.argv[3] ?? 3);
 const BASE = process.argv[4] ?? "http://localhost:3000";
-const MODEL = process.env.LOAD_TEST_MODEL ?? "openai/gpt-5";
+// Whichever model the event currently offers first, so this keeps working
+// when the list changes.
+const MODEL = process.env.LOAD_TEST_MODEL ?? DEFAULT_MODELS[0].id;
 
 type Result = {
   email: string;
@@ -87,7 +90,7 @@ async function runUser(n: number): Promise<Result> {
   const convRes = await fetch(`${BASE}/api/conversations`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ modelId: MODEL, scenario: "Load test scenario." }),
+    body: JSON.stringify({ modelId: MODEL }),
   });
   if (!convRes.ok) {
     res.errors.push(`conversation ${convRes.status}`);

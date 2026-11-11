@@ -81,14 +81,12 @@ export async function appendMessage(
 export async function createConversation(opts: {
   userId: string;
   modelId: string;
-  scenario?: string | null;
 }) {
   const [row] = await db
     .insert(conversation)
     .values({
       userId: opts.userId,
       modelId: opts.modelId,
-      scenario: opts.scenario?.trim() || null,
     })
     .returning();
   // Every conversation gets an (empty) labels row so the form has somewhere

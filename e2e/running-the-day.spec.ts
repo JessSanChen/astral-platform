@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { SETTINGS_TTL_MS } from "@/lib/cache";
+import { DEFAULT_MODELS } from "@/lib/models";
 import { sql } from "./db";
 import { newOrganizer, newParticipant, say, startConversation } from "./helpers";
 
@@ -161,6 +162,57 @@ test.describe("running the day", () => {
       await sql`delete from terms_version where version > ${before}`;
       await participant.page.waitForTimeout(SETTINGS_TTL_MS + 500);
       await participant.context.close();
+      await organizer.context.close();
+    }
+  });
+
+  test("taking the model list that came with a new version of the app", async ({ browser }) => {
+    const organizer = await newOrganizer(browser, "Odette Organizer");
+    const page = organizer.page;
+    const [{ enabled_models: original }] =
+      await sql`select enabled_models from event_settings where id = 1`;
+    // An event set up with an older version: one model that has since been
+    // dropped, and the newest one missing.
+    const retired = {
+      id: "old/retired-model",
+      displayName: "Retired Model 1",
+      family: "open",
+      sort: 99,
+      enabled: true,
+    };
+    const older = [...DEFAULT_MODELS.slice(1), retired];
+
+    try {
+      await sql`update event_settings set enabled_models = ${sql.json(older)} where id = 1`;
+      await page.goto("/admin/settings");
+      // Saving the settings makes the server read them afresh, so the test
+      // does not wait out the few seconds they are remembered for.
+      await page.getByRole("button", { name: "Save settings" }).click();
+      await expect(page.getByText("Saved.")).toBeVisible();
+
+      // It says exactly what would change before anything does.
+      await expect(page.getByText("This version of the app comes with a different list.")).toBeVisible();
+      await expect(page.getByText(`Would add: ${DEFAULT_MODELS[0].displayName}.`)).toBeVisible();
+      await expect(page.getByText("Would remove: Retired Model 1.")).toBeVisible();
+
+      await page.getByRole("button", { name: "Switch to the new list" }).click();
+      // Nothing left to offer once the lists match.
+      await expect(page.getByText("This version of the app comes with a different list.")).toHaveCount(0);
+      await expect(page.getByText("Retired Model 1")).toHaveCount(0);
+
+      const [{ enabled_models: now }] =
+        await sql`select enabled_models from event_settings where id = 1`;
+      expect((now as { id: string }[]).map((m) => m.id)).toEqual(DEFAULT_MODELS.map((m) => m.id));
+
+      // And a participant is offered the new first model straight away.
+      const participant = await newParticipant(browser, "Mona Models");
+      await participant.page.goto("/chat");
+      await expect(
+        participant.page.getByRole("button", { name: new RegExp(DEFAULT_MODELS[0].displayName) }),
+      ).toBeVisible();
+      await participant.context.close();
+    } finally {
+      await sql`update event_settings set enabled_models = ${sql.json(original)} where id = 1`;
       await organizer.context.close();
     }
   });

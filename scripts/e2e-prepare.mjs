@@ -38,7 +38,9 @@ try {
 
 for (const command of [
   ["npx", "drizzle-kit", "migrate"],
-  ["npx", "tsx", "scripts/seed.ts"],
+  // The test database takes the model list this version ships with, so the
+  // suite exercises what participants will be offered.
+  ["npx", "tsx", "scripts/seed.ts", "--models"],
 ]) {
   const result = spawnSync(command[0], command.slice(1), {
     stdio: "inherit",

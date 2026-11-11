@@ -1,12 +1,15 @@
 import { requireAdmin } from "@/lib/gate";
 import { getEventSettings } from "@/lib/openrouter";
 import { Panel } from "@/components/admin-ui";
-import { EventSettingsForm } from "@/components/admin-settings";
+import { EventSettingsForm, ModelListUpdate } from "@/components/admin-settings";
+import { DEFAULT_MODELS } from "@/lib/models";
 import { BUILD_COMMIT } from "@/lib/build";
 
 export default async function AdminSettings() {
   await requireAdmin();
   const settings = await getEventSettings();
+  const liveIds = new Set(settings.enabledModels.map((m) => m.id));
+  const builtInIds = new Set(DEFAULT_MODELS.map((m) => m.id));
 
   return (
     <div className="max-w-2xl space-y-5 px-5 py-5">
@@ -23,7 +26,7 @@ export default async function AdminSettings() {
 
       <Panel
         title="Models participants can choose"
-        description="Edited in the database for now. Check them against the provider before the event with: npm run check-models"
+        description="Check them against the provider before the event with: npm run prod:check-models"
       >
         <ul className="space-y-1 text-sm">
           {settings.enabledModels.map((model) => (
@@ -33,6 +36,12 @@ export default async function AdminSettings() {
             </li>
           ))}
         </ul>
+        <ModelListUpdate
+          adding={DEFAULT_MODELS.filter((m) => !liveIds.has(m.id)).map((m) => m.displayName)}
+          removing={settings.enabledModels
+            .filter((m) => !builtInIds.has(m.id))
+            .map((m) => m.displayName)}
+        />
       </Panel>
 
       <Panel title="Exporting the data">

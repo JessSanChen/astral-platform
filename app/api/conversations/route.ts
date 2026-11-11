@@ -5,7 +5,6 @@ import { assertModelAllowed, getEventSettings, ChatError } from "@/lib/openroute
 
 const createSchema = z.object({
   modelId: z.string().min(1),
-  scenario: z.string().max(8000).optional(),
 });
 
 export async function POST(req: Request) {
@@ -30,7 +29,6 @@ export async function POST(req: Request) {
   const convo = await createConversation({
     userId: cu.user.id,
     modelId: parsed.data.modelId,
-    scenario: parsed.data.scenario,
   });
   return Response.json({ id: convo.id });
 }

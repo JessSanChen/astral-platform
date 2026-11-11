@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { DEFAULT_MODELS } from "@/lib/models";
 import { sql } from "./db";
 import {
   choose,
@@ -66,6 +67,32 @@ test.describe("a conversation, from first message to submitted transcript", () =
       "Partially complied",
     );
     await expect(page.getByText("to: And how long does that memory last?")).toBeVisible();
+    await context.close();
+  });
+
+  test("a new conversation asks for a model and nothing else", async ({ browser }) => {
+    const { page, context } = await newParticipant(browser, "Nora New");
+    await page.goto("/chat");
+
+    await expect(page.getByRole("heading", { name: "New conversation" })).toBeVisible();
+    // There used to be a box for a scenario, sent to the model ahead of the
+    // conversation. It is gone: every model starts as it normally would.
+    await expect(page.getByText(/scenario/i)).toHaveCount(0);
+    await expect(page.getByRole("textbox")).toHaveCount(0);
+
+    // A browser tab left open from before the change still sends one. It is
+    // dropped rather than refused, and never reaches the model.
+    const created = await page.request.post("/api/conversations", {
+      data: { modelId: DEFAULT_MODELS[0].id, scenario: "You are a pirate." },
+    });
+    expect(created.ok()).toBe(true);
+    const { id } = await created.json();
+    const [row] = await sql`select scenario from conversation where id = ${id}`;
+    expect(row.scenario).toBeNull();
+
+    await page.goto(`/chat/${id}`);
+    await say(page, "Hello there.");
+    await expect(page.getByText("scenario seen")).toHaveCount(0);
     await context.close();
   });
 
