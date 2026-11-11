@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/gate";
 import { participantTable } from "@/lib/admin";
 import { getEventSettings } from "@/lib/openrouter";
-import { ParticipantActions } from "@/components/admin-controls";
+import { ParticipantRow } from "@/components/admin-controls";
 import { cn } from "@/lib/utils";
 
 type Sort = "benign" | "reviews" | "submitted" | "name";
@@ -61,7 +61,7 @@ export default async function Participants({
         anything.
       </p>
 
-      <div className="overflow-x-auto rounded-[var(--radius)] border border-border">
+      <div className="@container overflow-x-auto rounded-[var(--radius)] border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted/60 text-left">
             <tr>
@@ -79,7 +79,17 @@ export default async function Participants({
           </thead>
           <tbody>
             {sorted.map((row) => (
-              <tr key={row.id} className="border-t border-border align-top">
+              <ParticipantRow
+                key={row.id}
+                columns={10}
+                userId={row.id}
+                name={row.name}
+                paused={row.banned}
+                isOrganizer={row.is_admin}
+                isSelf={row.id === me.user.id}
+                budget={row.daily_token_budget}
+                defaultBudget={settings.defaultDailyTokenBudget}
+              >
                 <td className="px-3 py-2">
                   <Link
                     href={`/admin/participants/${row.id}`}
@@ -112,18 +122,7 @@ export default async function Participants({
                     <span className="text-xs text-muted-foreground">Active</span>
                   )}
                 </td>
-                <td className="px-3 py-2 text-right">
-                  <ParticipantActions
-                    userId={row.id}
-                    name={row.name}
-                    paused={row.banned}
-                    isOrganizer={row.is_admin}
-                    isSelf={row.id === me.user.id}
-                    budget={row.daily_token_budget}
-                    defaultBudget={settings.defaultDailyTokenBudget}
-                  />
-                </td>
-              </tr>
+              </ParticipantRow>
             ))}
             {sorted.length === 0 && (
               <tr>

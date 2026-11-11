@@ -33,11 +33,24 @@ test.describe("the organizer console", () => {
     // Your own role is not yours to change.
     const mine = page.locator("tr").filter({ hasText: organizer.email });
     await mine.getByRole("button", { name: "Manage" }).click();
-    await expect(mine.getByRole("button", { name: "Remove organizer" })).toBeDisabled();
+    const myControls = page.getByRole("group", { name: `Manage ${organizer.name}` });
+    await expect(myControls.getByRole("button", { name: "Remove organizer" })).toBeDisabled();
+    // Each control's label fits on one line of its button, and none of
+    // them is pushed off the side of the table.
+    const table = (await page.getByRole("table").boundingBox())!;
+    for (const label of ["Set allowance", "Set password", "Pause this account"]) {
+      const box = (await myControls.getByRole("button", { name: label }).boundingBox())!;
+      expect(box.height).toBeLessThan(40);
+      expect(box.x + box.width).toBeLessThanOrEqual(table.x + table.width);
+    }
     await mine.getByRole("button", { name: "Close" }).click();
+    await expect(myControls).toHaveCount(0);
 
     await row.getByRole("button", { name: "Manage" }).click();
-    await row.getByRole("button", { name: "Make organizer" }).click();
+    await page
+      .getByRole("group", { name: `Manage ${participant.name}` })
+      .getByRole("button", { name: "Make organizer" })
+      .click();
     await expect(page.locator("tr").filter({ hasText: participant.email })).toContainText(
       "Organizer",
     );

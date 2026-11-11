@@ -39,11 +39,18 @@ export function PauseChatButton({ paused }: { paused: boolean }) {
 }
 
 /**
- * The three things an organizer actually needs during the day: give someone
- * more allowance, set them a temporary password because there is no email,
- * and stop an account.
+ * One participant's row in the table, with the controls for their account.
+ *
+ * The controls open as a row of their own underneath, across the full width
+ * of the table. They used to open inside the last cell, which is as narrow
+ * as the word "Manage", so the boxes and buttons were squeezed until the
+ * button labels wrapped onto two lines.
+ *
+ * The cells themselves are rendered on the server and passed in.
  */
-export function ParticipantActions({
+export function ParticipantRow({
+  children,
+  columns,
   userId,
   name,
   paused,
@@ -52,6 +59,10 @@ export function ParticipantActions({
   budget,
   defaultBudget,
 }: {
+  /** The cells before the Manage button. */
+  children: React.ReactNode;
+  /** How many columns the table has, so the controls can span them. */
+  columns: number;
   userId: string;
   name: string;
   paused: boolean;
@@ -68,16 +79,48 @@ export function ParticipantActions({
   const [password, setPassword] = useState("");
   const [note, setNote] = useState<string | null>(null);
 
-  if (!open) {
-    return (
-      <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
-        Manage
-      </Button>
-    );
-  }
-
   return (
-    <div className="space-y-2 rounded-[var(--radius)] border border-border bg-card p-3 text-left">
+    <>
+      <tr className="border-t border-border align-top">
+        {children}
+        <td className="px-3 py-2 text-right">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? "Close" : "Manage"}
+          </Button>
+        </td>
+      </tr>
+      {open && (
+        <tr className="bg-muted/40">
+          <td colSpan={columns} className="px-3 pb-3 pt-1">
+            {controls()}
+          </td>
+        </tr>
+      )}
+    </>
+  );
+
+  /**
+   * The three things an organizer actually needs during the day: give
+   * someone more allowance, set them a temporary password because there is
+   * no email, and stop an account.
+   */
+  function controls() {
+    return (
+    <div
+      role="group"
+      aria-label={`Manage ${name}`}
+      // On a narrow window the table scrolls sideways. The controls are
+      // held to the width of what is visible (100cqw is the width of the
+      // scrolling box, which the page marks as a container) and stay put
+      // while the table moves, so they are never half off the screen.
+      className="sticky left-3 w-[calc(100cqw-1.5rem)] space-y-3 rounded-[var(--radius)] border border-border bg-card p-3 text-left"
+    >
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
       <div className="flex items-center gap-2">
         <Input
           value={newBudget}
@@ -137,7 +180,7 @@ export function ParticipantActions({
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2">
         <Button
           size="sm"
           variant={paused ? "outline" : "danger"}
@@ -169,10 +212,7 @@ export function ParticipantActions({
         >
           {isOrganizer ? "Remove organizer" : "Make organizer"}
         </Button>
-
-        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
-          Close
-        </Button>
+      </div>
       </div>
 
       {note && <p className="text-xs text-muted-foreground">{note}</p>}
@@ -181,5 +221,6 @@ export function ParticipantActions({
         half a minute.
       </p>
     </div>
-  );
+    );
+  }
 }
