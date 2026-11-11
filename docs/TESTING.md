@@ -2,7 +2,7 @@
 
 What checks this project has, how to run them, and what happens
 automatically. For the history of how each came about, see
-[BUILDLOG.md](BUILDLOG.md), rounds 11 to 16.
+[BUILDLOG.md](BUILDLOG.md), rounds 11 to 17.
 
 ## What there is
 
@@ -39,8 +39,8 @@ does not fail because a model is having a bad day.
 | `transcript.spec.ts` | Chat, the conversation naming itself, renaming it, a submit refused for a missing answer, version 1, version 2, all of it surviving a reload. Label answers surviving the scanners tab and a visit to another conversation. A new conversation asks for a model and nothing else, and a scenario sent anyway is dropped. Regenerating a reply replaces it rather than adding one. A conversation carries on after a reply that came back empty. A scanner run giving a result. |
 | `review.spec.ts` | Two people in two browsers. The reviewer sees the submitted version and nothing the author wrote about it. An incomplete review is refused without losing answers. The author resubmits while the review is open: the reviewer is told, shown the new version, keeps their answers, and the review is recorded against the right version and locks the transcript. |
 | `nomination.spec.ts` | A collaborative entry with one collaborator picked from the list and one typed in. An empty entry refused. |
-| `organizer.spec.ts` | Participants cannot reach the console or the export. Counts match what was submitted. Promoting a participant. The export carries the labels as submitted. A closing time set from a laptop on Tokyo time is 3pm in Boston for everyone. A closing time already in the past is refused. An unreadable allowance is refused rather than stored as zero. |
-| `running-the-day.spec.ts` | The organizer's controls, each checked from the participant's side. Pausing chat turns messages away and resuming lets them through. Closing nominations by hand freezes entries and reopening frees them. Publishing new terms sends a participant to accept them, once, without asking for their profile again. Switching to the model list that came with a new version of the app, which says what it would add and remove first. |
+| `organizer.spec.ts` | Participants cannot reach the console or the export. Counts match what was submitted. Promoting a participant. The controls beside a participant fit: every label on one line, nothing off the side. The export carries the labels as submitted. A closing time set from a laptop on Tokyo time is 3pm in Boston for everyone. A closing time already in the past is refused. An unreadable allowance is refused rather than stored as zero. |
+| `running-the-day.spec.ts` | The organizer's controls, each checked from the participant's side. Pausing chat turns messages away and resuming lets them through. Closing nominations by hand closes the form in front of a participant who has it open, shows their entry as text, tells them what they had not saved, and reopening frees it again. Publishing new terms sends a participant to accept them, once, without asking for their profile again. Switching to the model list that came with a new version of the app, which says what it would add and remove first. |
 
 Several of these are the scenarios from the code review in round 10, kept so
 that those fixes cannot quietly come undone.

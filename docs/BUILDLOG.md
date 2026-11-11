@@ -1814,6 +1814,69 @@ free-text field for "Other" topics, and campaigns as folders. They are in
 
 ---
 
+## Round 17: three things from using it
+
+### The buttons beside each participant
+
+In **Organize → Participants**, pressing Manage opened the controls inside
+the last cell of the table, which is only as wide as the word "Manage". The
+boxes and buttons were squeezed until "Set allowance" and "Set password"
+wrapped onto two lines and spilled out of their buttons.
+
+The controls now open as a row of their own under the participant, across
+the full width of the table, with everything on one line. The Manage button
+turns into Close while they are open. On a narrow window, where the table
+scrolls sideways, the controls stay within what is visible.
+
+Buttons everywhere also no longer wrap their label, whatever they are
+squeezed by.
+
+### Closed nominations look closed
+
+Closing nominations already stopped entries being saved. What it did not do
+was look like it: the page was the same form with its boxes greyed out, the
+notice was one quiet line, and the introduction still said entries could be
+changed. Worse, someone who already had the page open saw no change at all
+until they navigated.
+
+Now, under **Submit**:
+
+- A clear notice at the top: "Nominations are closed", and what that means
+  for this person.
+- An entry is shown as plain text, the way the organizers have it. There is
+  no form and nothing to type into.
+- A track that was never entered is no longer a link.
+- **A page left open closes by itself.** It checks every fifteen seconds,
+  whenever the tab is returned to, and at the closing time if one was set.
+  Anything half-typed and not saved is shown underneath, marked as not
+  submitted, so nobody loses a paragraph without being told.
+
+This applies however nominations closed: by the button, or by the closing
+time passing.
+
+### How it works comes first
+
+**How it works** is now the first item in the sidebar, above My chats. I
+read "put it at the top" as the sidebar; if you meant something else, such
+as moving a section within that page, say so and it is a one-line change.
+Signing in still lands on My chats.
+
+### Tests
+
+No new tests, but two got longer. The nominations one now has a participant
+with the form open and something half-typed when the organizer closes, and
+checks they see it close, see their entry as text, and are told what was
+not saved. The organizer one checks each control's label is on one line and
+inside the table.
+
+### How to test it
+
+1. **Organize → Participants → Manage** on anyone.
+2. Open **Submit** in one browser as a participant and start typing an
+   entry. In another, close nominations. Click back into the first.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

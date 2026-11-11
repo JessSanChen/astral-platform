@@ -14,11 +14,13 @@ import {
 import { SignOutButton } from "@/components/sign-out-button";
 import { cn } from "@/lib/utils";
 
+// The briefing comes first: it is what someone new should read, and where
+// everyone goes back to for a deadline.
 const SECTIONS = [
+  { href: "/guide", label: "How it works", icon: BookOpen },
   { href: "/chat", label: "My chats", icon: MessagesSquare },
   { href: "/review", label: "Review", icon: ClipboardCheck },
   { href: "/nominate", label: "Submit", icon: Trophy },
-  { href: "/guide", label: "How it works", icon: BookOpen },
 ] as const;
 
 const ADMIN_SECTION = {
