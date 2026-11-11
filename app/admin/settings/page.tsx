@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/gate";
 import { getEventSettings } from "@/lib/openrouter";
 import { Panel } from "@/components/admin-ui";
 import { EventSettingsForm } from "@/components/admin-settings";
+import { BUILD_COMMIT } from "@/lib/build";
 
 export default async function AdminSettings() {
   await requireAdmin();
@@ -53,6 +54,16 @@ export default async function AdminSettings() {
         >
           Download everything as JSONL
         </a>
+      </Panel>
+
+      <Panel title="This deployment">
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Running commit{" "}
+          <code className="rounded bg-muted px-1 text-xs">{BUILD_COMMIT}</code>.
+          Compare it with the latest commit on GitHub to see whether a change
+          has reached the site yet. A change that fails its checks is built
+          but not put live, so this stays on the last one that passed.
+        </p>
       </Panel>
     </div>
   );
