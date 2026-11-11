@@ -1603,6 +1603,45 @@ there, and `main` moved forward only once that run was green.
 
 ---
 
+## Round 14: a deploy gate, tested
+
+The owner switched on Deployment Checks in Vercel, which holds a new
+version back until CI has passed on its commit. This round was about
+finding out whether it does.
+
+### Knowing what is live
+
+There was no reliable way to tell which commit the site was serving; it had
+been done by loading a page and looking for text a change happened to add.
+Every page now carries its commit in a `<meta name="astral-build">` tag, and
+**Organize → Settings** shows it. Three tests for the front page came with
+it, which had none, making 31.
+
+### The test
+
+A commit was pushed to `main` containing one test that always fails and no
+change to the application, so that if the gate did not work the site
+published would behave exactly as before.
+
+- The push before it, which had already passed CI, went live in 41 seconds.
+- The failing commit's CI run failed after three minutes.
+- Seven minutes after the push, the site was still serving the earlier
+  commit.
+
+The failing test was then removed, by the usual route: branch, CI, `main`.
+
+### What this means in practice
+
+A change that breaks a test can no longer reach participants by being
+pushed to `main`. It also means the site can fall behind `main` on purpose,
+and **Organize → Settings** is where to see that it has.
+
+One thing to keep in mind: the check is matched by the name of the CI job.
+Renaming the job without renaming the check in Vercel would leave every
+deployment waiting for a check that never reports.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

@@ -20,7 +20,7 @@ about a running system and are run when there is a reason to.
 
 ## Browser tests
 
-Twenty-eight tests in `e2e/`, written with Playwright. Each one opens a real
+Thirty-one tests in `e2e/`, written with Playwright. Each one opens a real
 browser and uses the app the way a person would: clicking, typing, reading
 what is on the screen. They run against a production build, because that is
 what participants get.
@@ -33,6 +33,7 @@ does not fail because a model is having a bad day.
 
 | File | What it walks through |
 |---|---|
+| `home.spec.ts` | The front page names the five prize tracks with their deadlines and lists the models on offer. Every page says which commit it was built from. The in-app copy of the briefing asks a signed-out visitor to sign in. |
 | `signup-onboarding.spec.ts` | A wrong event code is refused. The account endpoint refuses a sign-up without the code even when the form is skipped. A weak password is refused with the reason on screen, and the server applies the same rules as the form. A mistyped email is questioned but not refused. Sign up, answer the profile questions, land in the chat. A question left unanswered is named and nothing else is lost. A profile can be corrected later. |
 | `select.spec.ts` | The dropdown works from the keyboard alone, announces itself properly to a screen reader, closes on a click elsewhere, posts its value with the form, and opens upwards when there is no room below. |
 | `transcript.spec.ts` | Chat, the conversation naming itself, renaming it, a submit refused for a missing answer, version 1, version 2, all of it surviving a reload. Label answers surviving the scanners tab and a visit to another conversation. Regenerating a reply replaces it rather than adding one. A scanner run giving a result. |
@@ -164,72 +165,60 @@ It needs no secrets. The database exists only for the length of the run.
 **Where to see it:** the **Actions** tab of the repository, or the tick or
 cross next to each commit. A cross links to the step that failed.
 
-### What it does not do by itself
+### What stops a failing change reaching the site
 
-It reports. It does not block.
+By itself, CI only reports. GitHub's own way of making it block is branch
+protection, which on a private repository needs a paid plan. The same
+effect comes from Vercel instead.
 
-Vercel publishes `main` every time `main` changes, whether or not this has
-passed. So a change pushed straight to `main` is live in a minute, and CI
-tells you three minutes later whether it should have been.
+### The lock: Vercel's Deployment Checks
 
-GitHub's own answer to that is branch protection, which on a private
-repository needs a paid plan. There are two ways to get the same effect
-without one.
+Switched on in round 14, and tested. Vercel builds each new version of
+`main` as usual but does not point the live address at it until the GitHub
+check **Lint, types and browser tests** has passed on that commit. A commit
+that fails is built and then left where it is, and the site goes on serving
+the last one that passed.
 
-### How changes reach `main` now
+The setting is in Vercel under **Settings → Deployment Checks**. If the job
+in `.github/workflows/ci.yml` is ever renamed, the check there has to be
+renamed to match, or deployments will wait for a check that never arrives.
 
-A rule I work to, in force from round 13 onwards: nothing goes to `main`
-until CI has passed on that exact commit.
+How it was tested, since "it is switched on" and "it works" are different
+claims:
+
+| Commit | What was pushed to `main` | CI | Live site |
+|---|---|---|---|
+| `7a03eb9` | A change that had already passed CI on the branch | passed | Went live 41 seconds after the push |
+| `fe5f674` | One deliberately failing test, no application code | failed after 3 minutes | Still on `7a03eb9` seven minutes later |
+| the commit after | The failing test removed | passed | Went live |
+
+### How changes reach `main`
+
+Nothing goes to `main` until CI has passed on that exact commit:
 
 1. Work is pushed to the working branch.
 2. CI runs on it.
-3. Only once that run is green is `main` moved forward to the same commit,
-   which is what Vercel deploys.
+3. Once that run is green, `main` is moved forward to the same commit.
 
-This costs nothing and needs no settings. Its weakness is that it is a
-habit, not a lock: it holds for changes I make, and for yours only if you
-look for the tick before merging.
+With the lock in place this is belt and braces, but it is worth keeping. A
+commit that has already passed goes live in under a minute; one that has
+not sits waiting for three, and a failure on `main` leaves `main` itself
+broken until it is fixed, even though the site is protected.
 
-### Making it a lock: Vercel's Deployment Checks
+### Which commit is live
 
-Vercel can be told to hold a production deployment until a named GitHub
-check has passed. It builds the new version as usual but does not point the
-live address at it until the check is green; a red check leaves the previous
-version serving.
-
-1. In Vercel, open the project, then **Settings → Deployment Checks**.
-2. Add a check, choose GitHub, and pick **Lint, types and browser tests**.
-3. Save, then push any small change and watch the deployment wait for the
-   check before going live.
-
-I have not been able to try this: it is a setting in your Vercel account,
-and Vercel's documentation was not reachable from where I work. Vercel's
-announcement says it is available to every project connected to a GitHub
-repository, without naming a plan. If the setting is not there, or a
-deployment sits waiting on a check that has already passed, tell me: there
-is a fallback, described next, and it may be that the workflow needs to
-report its result in a form Vercel prefers.
-
-### The fallback: a branch only CI can move forward
-
-If Deployment Checks are not available to you:
-
-1. A `production` branch is created, and Vercel's production branch is
-   changed from `main` to `production` (**Settings → Environments →
-   Production → Branch Tracking**).
-2. The workflow gains a last step, run only on `main` and only after
-   everything else has passed, that moves `production` forward to the commit
-   it just tested.
-
-Pushing to `main` then deploys nothing by itself. The site changes only when
-CI moves `production`, which it does only when green. I have not set this up,
-because it changes how your site is deployed and half of it is a setting
-only you can change; say so and I will do my half.
+Every page carries the commit it was built from, in a
+`<meta name="astral-build">` tag, and **Organize → Settings** shows it in
+words. Compare it with the latest commit on GitHub. If the site is behind,
+look at that commit's check: a red cross there is why.
 
 ### If CI is red and the site needs fixing now
 
-With Deployment Checks, Vercel's dashboard lets you promote a deployment by
-hand. With the fallback, moving the `production` branch yourself does it.
-With neither, nothing stands in the way. Whichever applies, use it for an
-emergency on the day rather than switching the protection off, so it is
-still there the next morning.
+Vercel's dashboard lets you promote a deployment by hand: open the project,
+find the deployment under **Deployments**, and choose **Promote to
+Production**. That is the way round the lock in an emergency on the day.
+Use it rather than switching the check off, so the lock is still there the
+next morning.
+
+The same list is how to go back: promoting an older deployment puts the
+site back on it within seconds.
