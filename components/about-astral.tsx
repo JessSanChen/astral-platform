@@ -9,16 +9,16 @@ import {
 /**
  * What Astral is, what the day looks like, and how the prizes work.
  *
- * Shown to visitors on the front page and to participants from the sidebar,
- * from one definition, because the two drifting apart is how a participant
- * ends up reading a deadline that moved a week ago.
+ * Shown to participants from the sidebar ("How it works"). The front page
+ * used to carry it too; it was cut down to the introduction and the way in,
+ * so this is now the one place a deadline or a prize rule is written.
  */
 
 const STEPS = [
   {
     icon: MessagesSquare,
     title: "Have a conversation",
-    body: "Pick a model, optionally set the scene, and talk to it. Benign questions, dual-use ones, or a deliberate attempt to get something it should refuse. Breadth counts for more than any single dramatic result.",
+    body: "Pick a model and talk to it. Benign questions, dual-use ones, or a deliberate attempt to get something it should refuse. Breadth counts for more than any single dramatic result.",
   },
   {
     icon: Tag,
@@ -78,7 +78,7 @@ export function AboutAstral() {
   return (
     <div className="space-y-14">
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Why we are doing this</h2>
+        <h2 className="font-serif text-2xl font-medium tracking-tight">Why we are doing this</h2>
         <div className="space-y-3 text-[15px] leading-relaxed text-muted-foreground">
           <p>
             Tools that screen AI conversations for biological misuse have to be
@@ -104,7 +104,7 @@ export function AboutAstral() {
       </section>
 
       <section className="space-y-5">
-        <h2 className="text-xl font-semibold">What you will be doing</h2>
+        <h2 className="font-serif text-2xl font-medium tracking-tight">What you will be doing</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {STEPS.map(({ icon: Icon, title, body }, i) => (
             <div
@@ -127,7 +127,7 @@ export function AboutAstral() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="flex items-center gap-2 text-xl font-semibold">
+        <h2 className="flex items-center gap-2 font-serif text-2xl font-medium tracking-tight">
           <ShieldCheck className="h-5 w-5" />
           The scanners are there to be tested, not trusted
         </h2>
@@ -149,7 +149,7 @@ export function AboutAstral() {
       </section>
 
       <section className="space-y-5">
-        <h2 className="flex items-center gap-2 text-xl font-semibold">
+        <h2 className="flex items-center gap-2 font-serif text-2xl font-medium tracking-tight">
           <Trophy className="h-5 w-5" />
           Prizes
         </h2>
@@ -202,7 +202,7 @@ export function AboutAstral() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">What happens to what you write</h2>
+        <h2 className="font-serif text-2xl font-medium tracking-tight">What happens to what you write</h2>
         <div className="space-y-3 text-[15px] leading-relaxed text-muted-foreground">
           <p>
             Submitted conversations are stored with your labels and the profile

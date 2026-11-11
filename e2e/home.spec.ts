@@ -1,10 +1,31 @@
 import { expect, test } from "@playwright/test";
+import { newParticipant } from "./helpers";
 
 test.describe("the front page", () => {
-  test("says what the day is, what the prizes are, and how to get in", async ({ page }) => {
+  test("introduces the day and shows the way in, and nothing more", async ({ page }) => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: "Astral", level: 1 })).toBeVisible();
+    await expect(page.getByText("You will need the event code from the organizers.")).toBeVisible();
+
+    // The models on offer come from the event's settings, not from the page.
+    await expect(page.getByText("Models available today")).toBeVisible();
+
+    // The briefing lives behind sign-in now: no prize table, no sections.
+    await expect(page.getByRole("table")).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
+
+    await page.getByRole("link", { name: "Create account" }).first().click();
+    await expect(page).toHaveURL(/\/sign-up$/);
+  });
+
+  test("the briefing, with every prize and deadline, is there once signed in", async ({
+    browser,
+  }) => {
+    const { page, context } = await newParticipant(browser, "Gina Guide");
+    await page.goto("/guide");
+
+    await expect(page.getByRole("heading", { name: "How today works", level: 1 })).toBeVisible();
     await expect(page.getByRole("heading", { name: "What you will be doing" })).toBeVisible();
 
     // All five prize tracks, each with its deadline.
@@ -21,12 +42,7 @@ test.describe("the front page", () => {
     await expect(prizes.getByRole("row").filter({ hasText: "Benign transcripts" })).toContainText(
       "16:00",
     );
-
-    // The models on offer come from the event's settings, not from the page.
-    await expect(page.getByText("Models available today")).toBeVisible();
-
-    await page.getByRole("link", { name: "Create account" }).first().click();
-    await expect(page).toHaveURL(/\/sign-up$/);
+    await context.close();
   });
 
   test("every page says which commit it was built from", async ({ page }) => {
