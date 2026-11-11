@@ -76,7 +76,7 @@ connection string in `.env.test.local`. They never read
 
 Phases 1 to 8 are complete: app scaffold, database schema, authentication,
 event-code-gated sign-up, the profile and terms onboarding gate, the chat
-itself with model selection, scenarios, streaming, regenerate and full
+itself with model selection, streaming, regenerate and full
 transcript persistence, the labeling and submit flow with versioned
 snapshots, the safety scanner panel, independent review of other
 participants' transcripts, self-nomination for the prize tracks, and the

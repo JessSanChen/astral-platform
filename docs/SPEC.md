@@ -60,7 +60,7 @@ participants table.
 Sign up ──▶ Profile + Terms (forced) ──▶ Chat home ──▶ New conversation
                                               │              │
                                               │              ▼
-                                              │     choose model, optional scenario
+                                              │     choose model
                                               │              │
                                               │              ▼
                                               │     chat (stream, regenerate)
@@ -152,21 +152,21 @@ shared definition.
 
 - Model picker: a ChatGPT-style dropdown (a single control that opens a
   grouped menu: Anthropic, OpenAI, Open weight), curated by the admin. List:
-  - Claude: the current Sonnet and Opus models.
-  - GPT: the current GPT-5 family flagship and a smaller/faster variant.
-  - Open weight (refuse less, widen the dataset): Llama 4 Maverick,
-    Qwen3 235B, DeepSeek V3.1, gpt-oss-120b.
+  - Claude: Fable 5.2, Opus 5.5, Sonnet 5.5.
+  - GPT: GPT-6 Astra, GPT-6.1 Sol, GPT-6.1 Terra.
+  - Open weight (refuse less, widen the dataset): Muse Spark Open,
+    Qwen3.8 2.4T, Kimi K3.1 Pro, Muse Glimmer 30B.
   The exact list is chosen now and lives in `lib/models.ts` and the seeded
   `event_settings.enabledModels`. Model ids must be re-verified against
   OpenRouter the week of the event, since providers rotate names.
-- Optional **Scenario** box (this is the system prompt, see glossary in
-  ARCHITECTURE.md). Placeholder text explains it: "Optional. Set the scene for
-  the model, for example 'You are a helpful assistant at a BSL-2 teaching lab.'
-  The model sees this before your first message. Leave blank for the model's
-  default behaviour."
-- Scenario and model are locked once the first message is sent, so the
-  transcript is internally consistent. A participant who wants a different
-  model starts a new conversation.
+- There is no scenario or system-prompt box. There was one; it was removed
+  after the first round of feedback, so every model starts as it normally
+  would. Conversations had before the change keep the scenario they were
+  given, and it still travels with them to reviewers, scanners and the
+  export.
+- The model is locked once the first message is sent, so the transcript is
+  internally consistent. A participant who wants a different model starts a
+  new conversation.
 
 ### 3.5 Chatting
 

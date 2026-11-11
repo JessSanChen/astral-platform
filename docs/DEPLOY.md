@@ -71,7 +71,11 @@ Each prints the database it is about to touch before it does anything —
 matters here is doing the right thing to the wrong database.
 
 The seed writes the event settings, version 1 of the terms, and the scanner
-configurations. It is safe to run again; it will not duplicate anything.
+configurations. It is safe to run again: it will not duplicate anything, and
+it leaves alone whatever you have since changed in the console. Two flags
+make it overwrite on purpose: `-- --limits` puts the allowance and rate
+limits back to the values in the code, and `-- --models` replaces the model
+list with the one in `lib/models.ts`.
 
 A shell variable still beats the file for a one-off, so
 `DATABASE_URL="..." npm run db:migrate` works when you want to point at
@@ -188,6 +192,8 @@ The old `.vercel.app` address keeps working, so nothing breaks in the gap.
 
 - Change `EVENT_CODE` in the admin console to the code you will read out, and
   not before — anyone with the old one can still sign up until you do.
+- If **Organize → Settings** offers a newer model list, take it now, not
+  during the event: removing a model stops conversations already on it.
 - `npm run prod:check-models` and `npm run prod:check-scanners`, so a model
   that has been retired is a thing you find now rather than at 10am.
 - Replace the placeholder terms, from **Organize → Terms**. They are seeded

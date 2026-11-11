@@ -131,9 +131,11 @@ Without one, the model uses its provider's default behaviour.
 
 For this event it matters because (a) a lot of real-world misuse and benign
 use happens inside products that set a system prompt, (b) role-play attacks
-often live in the system prompt, and (c) scanners need to see it. In Astral it
-is the optional "Scenario" field, stored on the conversation and sent as the
-`system` message on every request. OpenRouter's own injected text (none by
+often live in the system prompt, and (c) scanners need to see it. Astral used
+to offer one as an optional "Scenario" field; that was removed, so new
+conversations send no system message. The column is kept because earlier
+conversations have one, and for those it is still sent as the `system`
+message on every request. OpenRouter's own injected text (none by
 default) is not involved.
 
 ### Regenerate

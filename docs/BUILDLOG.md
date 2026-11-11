@@ -1642,6 +1642,178 @@ deployment waiting for a check that never reports.
 
 ---
 
+## Round 15: a second review
+
+A second review of the whole diff found ten things. All ten are fixed, each
+with a test where a browser can show it.
+
+### In the running app
+
+- **The wrong reason when terms change.** After new terms were published, a
+  participant who pressed Submit or sent a message was told "Finish your
+  profile first", with no way to the terms. One function, `whyBlocked` in
+  `lib/gate.ts`, now gives the reason and the chat shows a link to the terms.
+- **Pausing chat really is immediate now.** Round 13 recorded that a pause
+  took up to ten seconds and put a note in the console. The real cause was
+  that the production build gives pages and the chat endpoint separate
+  copies of the remembered settings, so clearing one did not clear the
+  other. The store is now shared (`lib/cache.ts`), the note is gone, and
+  two ten-second waits came out of the tests.
+- **A conversation after an empty reply.** Dropping an empty reply from what
+  is sent to the model left two participant messages in a row, which some
+  hosts of open-weight models refuse. Consecutive messages from the same
+  side are now merged (`lib/prompt.ts`).
+- **The export says which messages were submitted.** A transcript's export
+  line carried every message, including ones added after the last submit,
+  next to labels and a review that describe only the submitted ones. Each
+  message now has `in_submitted_version`, and the line has
+  `submitted_message_count`.
+- **A closing time in the past is refused**, instead of quietly closing
+  nominations on the spot.
+
+### In the dropdowns
+
+- Clicking one now gives it the keyboard on Safari and Firefox on a Mac,
+  which do not focus a button when it is clicked. Typing to jump to an
+  option and Escape to close did nothing there before. I cannot run Safari
+  here, so this one is fixed by reasoning and checked in Chrome only.
+- A screen reader is now told when a dropdown is required, when it is the
+  one in error, and what the error says.
+
+### Around the tests and the seed
+
+- **The tests cannot run against production.** They refuse the database in
+  `.env.production.local`, and refuse any database that has not been
+  prepared with `npm run test:e2e:prepare`, which leaves a marker table
+  behind (`scripts/e2e-guard.mjs`). Before this, a production address left
+  in a shell variable would have had nominations reopened and chat unpaused
+  by the first line of a test run.
+- **Running the seed again no longer undoes settings.** It used to put the
+  allowance and rate limits back to the values in the code, and it is the
+  documented way to promote the first organizer. Limits are now left alone
+  unless you pass `--limits`, and the model list unless you pass `--models`.
+- **The tests always build afresh.** Locally they would use whatever was
+  already answering on the port, which after an interrupted run meant
+  yesterday's build.
+
+### How to test it
+
+1. As an organizer, pause chat, and send a message from another account
+   straight away. It should be refused at once.
+2. Set a nominations closing time with yesterday's date. It should be
+   refused, with the reason.
+3. Download the export and look at one transcript's `messages`: each has
+   `in_submitted_version`.
+
+---
+
+## Round 16: Colby's feedback, a shorter front page, a new look
+
+### The scenario box is gone
+
+A new conversation asked for a model and, optionally, a scenario that was
+sent to the model ahead of the conversation. It now asks only for a model,
+and says so: "Each model starts as it normally would, with nothing added on
+our side."
+
+The conversations already had with a scenario keep it. It is still shown
+above those conversations, still sent to the model if they are continued,
+still shown to reviewers and scanners, and still in the export, because it
+is part of what the model was responding to. There is just no longer a way
+to set one. A request that sends one anyway (a tab left open from before)
+has it dropped, not refused.
+
+### Newer models
+
+The list in `lib/models.ts` was a few months stale. It was rebuilt from
+OpenRouter's public list on 11 November 2026, taking the newest
+general-purpose models in each family:
+
+| Family | Models |
+|---|---|
+| Anthropic | Claude Fable 5.2, Claude Opus 5.5, Claude Sonnet 5.5 |
+| OpenAI | GPT-6 Astra, GPT-6.1 Sol, GPT-6.1 Terra |
+| Open weight | Muse Spark Open, Qwen3.8 2.4T, Kimi K3.1 Pro, Muse Glimmer 30B |
+
+Three things I decided that you may want to overrule:
+
+- **DeepSeek is not in it.** OpenRouter's listing does not describe its
+  current models as open-weight, and that heading is a claim the dataset
+  will carry. Add one if you know its weights are published.
+- **The scanner still runs on Claude Sonnet 4.5.** Changing the judge
+  changes its verdicts, and that is a research decision, not housekeeping.
+- **I have not sent these models a message.** The ids come from the public
+  list, which needs no key. Whether your account can reach each one is what
+  `npm run prod:check-models` answers.
+
+**The live site does not pick this up by itself.** The list in use is a row
+in the database; the code only holds the starting list. To take the new
+one, either:
+
+- open **Organize → Settings**, where a box now appears whenever the two
+  differ, saying what would be added and removed, and press **Switch to the
+  new list**; or
+- run `npm run prod:seed -- --models`.
+
+Then run `npm run prod:check-models`. Removing a model means conversations
+already started on it cannot be continued, so do this before the event.
+
+### A shorter front page
+
+The front page was the whole briefing. It is now the name, three sentences,
+the two buttons and the models on offer. Everything from "Why we are doing
+this" down has moved out of it and lives only at **How it works** in the
+sidebar, once someone is signed in.
+
+### A new look
+
+Modelled on LM Arena's site as far as I could: I could not open it from
+here, so this follows what is published about its design, which is a serif
+for headlines over a plain sans for everything else, on a quiet background.
+
+- **Serif headings.** Page titles, section titles and the wordmark are in
+  Newsreader. Body text, forms and the chat stay in the sans they had,
+  because long forms and dense panels are harder to read in a serif.
+- **One accent: sage.** `#4f6b51`, used for the main button on each screen,
+  links, ticks, focus rings and the participant's side of a chat. The blue
+  is gone and so is the black button. Red remains, only for errors and for
+  things that cannot be undone.
+- **A warm paper background** in place of the near-white.
+
+The sage is darker than the pale grey-green the word might suggest. It has
+to be: it is used for text and behind white text, and a lighter one fails
+the usual contrast standard (4.5 to 1). This one measures 5.5 on the page
+and 5.9 under white text. All of it is five lines at the top of
+`app/globals.css` if you want a different shade.
+
+### Tests
+
+Three more, 36 in all: the front page has no briefing and the signed-in
+page has all five prizes; a new conversation offers no scenario and drops
+one that is sent anyway; switching to the new model list from the console.
+
+`npm run test:e2e:prepare` now gives the test database the model list in
+the code, so the tests run against what participants will be offered.
+
+The load test, seventy people sending three messages each against the
+stand-in provider: 210 of 210 replies, no errors, slowest 1.6 seconds.
+
+### Not done, on purpose
+
+The rest of that conversation with Colby is still being decided, so none of
+it is built: the reworded labels (I cannot read the Google doc from here), a
+free-text field for "Other" topics, and campaigns as folders. They are in
+[TODO.md](TODO.md).
+
+### How to test it
+
+1. Open the site signed out. One screen, no prize table.
+2. Sign in and start a new conversation: a model, and nothing else.
+3. **Organize → Settings**: the box offering the new model list. Press it,
+   then run `npm run prod:check-models`.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

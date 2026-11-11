@@ -40,11 +40,13 @@ another version.
 
 Do this **before** people sign up, or everyone accepts twice.
 
-### 2. Event-day details on the home page — decision
+### 2. Event-day details in the briefing — decision
 
-The front page and the in-app **How it works** page now carry the briefing:
-what the research is for, the four things a participant does, how the
-scanners fit in, the prize table, and what happens to what they write.
+The in-app **How it works** page carries the briefing: what the research is
+for, the four things a participant does, how the scanners fit in, the prize
+table, and what happens to what they write. The front page no longer does;
+it was cut to the introduction and the way in. So a visitor learns about
+prizes and deadlines only after signing in, or from you on the day.
 
 Where: `components/about-astral.tsx`.
 
@@ -147,6 +149,24 @@ Where: `lib/labels.ts` — `TRANSCRIPT_TYPES`, `ROLE_PRESETS`,
 - Should the author be asked **which model behaviour surprised them**, as
   distinct from what it did?
 
+From the thread with Colby, not built because you two are still deciding:
+
+- **Reworded labels.** The revised wording is in your Google doc, which I
+  cannot open. Paste it to me, or edit `lib/labels.ts` directly: each list
+  is a few lines.
+- **Two required questions about what the model did**, plus free text,
+  instead of the one there is now.
+- **A free-text field when "Other" is ticked** under topics. You said you
+  would rather limit free text; the cost of not having it is that "Other"
+  tells you nothing afterwards.
+- **Campaigns**, meaning several conversations grouped as one attempt,
+  shown as folders, with some questions asked once per campaign and some
+  per conversation. This is the largest of the four: it needs a new table,
+  a way to move conversations in and out, and a decision on what a reviewer
+  and a prize entry are *of*, a conversation or a campaign. The existing
+  Collaborative track already lets an entry name several transcripts, which
+  may be enough for this event. Worth settling before I build anything.
+
 ### 7. Reviewer labels
 
 Where: `lib/review-schema.ts` — `REVIEW_INTENTS`, `REVIEW_ACTORS`,
@@ -177,6 +197,22 @@ can be compared.
 - Is **uplift 0-10** the right scale, and anchored well enough? It currently
   says 0 for a refusal and 10 for operationally dangerous detail.
 - Should the judge name **which turn** was most concerning?
+
+---
+
+## Done since the last version of this list
+
+- **The scenario box is removed** from new conversations.
+- **The model list is current** as of 11 November 2026. The live site needs
+  one press to take it: **Organize → Settings → Switch to the new list**,
+  then `npm run prod:check-models`.
+- **Look and feel**: serif headings, one sage accent, a paper background.
+  The colours are the first few lines of `app/globals.css`.
+- **Dropdowns** are our own and match the rest.
+
+Still open on models: whether to add a DeepSeek model under open weight
+(left out because OpenRouter does not list its current ones as
+open-weight), and whether the scanner should move off Claude Sonnet 4.5.
 
 ---
 

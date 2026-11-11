@@ -2,7 +2,7 @@
 
 What checks this project has, how to run them, and what happens
 automatically. For the history of how each came about, see
-[BUILDLOG.md](BUILDLOG.md), rounds 11 and 12.
+[BUILDLOG.md](BUILDLOG.md), rounds 11 to 16.
 
 ## What there is
 
@@ -20,7 +20,7 @@ about a running system and are run when there is a reason to.
 
 ## Browser tests
 
-Thirty-one tests in `e2e/`, written with Playwright. Each one opens a real
+Thirty-six tests in `e2e/`, written with Playwright. Each one opens a real
 browser and uses the app the way a person would: clicking, typing, reading
 what is on the screen. They run against a production build, because that is
 what participants get.
@@ -33,14 +33,14 @@ does not fail because a model is having a bad day.
 
 | File | What it walks through |
 |---|---|
-| `home.spec.ts` | The front page names the five prize tracks with their deadlines and lists the models on offer. Every page says which commit it was built from. The in-app copy of the briefing asks a signed-out visitor to sign in. |
+| `home.spec.ts` | The front page introduces the day, lists the models on offer and carries no briefing. The briefing, with all five prize tracks and their deadlines, is shown once signed in, and asks a signed-out visitor to sign in. Every page says which commit it was built from. |
 | `signup-onboarding.spec.ts` | A wrong event code is refused. The account endpoint refuses a sign-up without the code even when the form is skipped. A weak password is refused with the reason on screen, and the server applies the same rules as the form. A mistyped email is questioned but not refused. Sign up, answer the profile questions, land in the chat. A question left unanswered is named and nothing else is lost. A profile can be corrected later. |
 | `select.spec.ts` | The dropdown works from the keyboard alone, announces itself properly to a screen reader, closes on a click elsewhere, posts its value with the form, and opens upwards when there is no room below. |
-| `transcript.spec.ts` | Chat, the conversation naming itself, renaming it, a submit refused for a missing answer, version 1, version 2, all of it surviving a reload. Label answers surviving the scanners tab and a visit to another conversation. Regenerating a reply replaces it rather than adding one. A scanner run giving a result. |
+| `transcript.spec.ts` | Chat, the conversation naming itself, renaming it, a submit refused for a missing answer, version 1, version 2, all of it surviving a reload. Label answers surviving the scanners tab and a visit to another conversation. A new conversation asks for a model and nothing else, and a scenario sent anyway is dropped. Regenerating a reply replaces it rather than adding one. A conversation carries on after a reply that came back empty. A scanner run giving a result. |
 | `review.spec.ts` | Two people in two browsers. The reviewer sees the submitted version and nothing the author wrote about it. An incomplete review is refused without losing answers. The author resubmits while the review is open: the reviewer is told, shown the new version, keeps their answers, and the review is recorded against the right version and locks the transcript. |
 | `nomination.spec.ts` | A collaborative entry with one collaborator picked from the list and one typed in. An empty entry refused. |
-| `organizer.spec.ts` | Participants cannot reach the console or the export. Counts match what was submitted. Promoting a participant. The export carries the labels as submitted. A closing time set from a laptop on Tokyo time is 3pm in Boston for everyone. An unreadable allowance is refused rather than stored as zero. |
-| `running-the-day.spec.ts` | The organizer's controls, each checked from the participant's side. Pausing chat turns messages away and resuming lets them through. Closing nominations by hand freezes entries and reopening frees them. Publishing new terms sends a participant to accept them, once, without asking for their profile again. |
+| `organizer.spec.ts` | Participants cannot reach the console or the export. Counts match what was submitted. Promoting a participant. The export carries the labels as submitted. A closing time set from a laptop on Tokyo time is 3pm in Boston for everyone. A closing time already in the past is refused. An unreadable allowance is refused rather than stored as zero. |
+| `running-the-day.spec.ts` | The organizer's controls, each checked from the participant's side. Pausing chat turns messages away and resuming lets them through. Closing nominations by hand freezes entries and reopening frees them. Publishing new terms sends a participant to accept them, once, without asking for their profile again. Switching to the model list that came with a new version of the app, which says what it would add and remove first. |
 
 Several of these are the scenarios from the code review in round 10, kept so
 that those fixes cannot quietly come undone.
@@ -56,9 +56,11 @@ They also say nothing about real models. A model that has been retired, or
 a provider that filters a scanner's output, is found by `npm run doctor`,
 not by these.
 
-Three of the tests are slow on purpose. The app remembers event settings
-for ten seconds rather than reading them on every request, so a test that
-changes one and then needs everyone to see it waits that long.
+One test is slow on purpose. The app remembers event settings for ten
+seconds rather than reading them on every request. A change made from the
+console clears that at once, but the terms test tidies up by deleting a row
+behind the app's back, and waits the ten seconds out so the next test does
+not meet a version of the terms that no longer exists.
 
 ### Running them yourself
 
@@ -68,11 +70,15 @@ Once per machine, to download the browser:
 npx playwright install chromium
 ```
 
-Once per database, to create the tables and seed data:
+Once per database, to create the tables and seed data, and again whenever
+the model list in `lib/models.ts` changes:
 
 ```bash
 npm run test:e2e:prepare
 ```
+
+This also marks the database as one the tests may use. They refuse to run
+against a database without that mark.
 
 Then, whenever you like:
 
@@ -111,7 +117,25 @@ pooled connection string in `.env.test.local`:
 DATABASE_URL=postgresql://...-pooler.../neondb?sslmode=require
 ```
 
-They never read `.env.production.local`. Do not point them at production.
+### Why they cannot touch production
+
+Before the first test, the suite reopens nominations, unpauses chat and
+deletes its own accounts. Against the real event that would be a bad
+minute, so two things stand in the way (`scripts/e2e-guard.mjs`):
+
+- If the database is the one in `.env.production.local`, the run stops.
+  That file is read only to compare addresses; nothing in it is used.
+- If the database has not been prepared with `npm run test:e2e:prepare`,
+  the run stops. Preparing is itself refused for production, so production
+  can never carry the mark.
+
+A `DATABASE_URL` left in your shell beats both files, which is exactly the
+accident this is for.
+
+The tests also always build the app afresh and refuse to start if their
+ports (3100 and 4100) are already taken, so they cannot pass against a
+server left over from an earlier run. If they say a port is in use, stop
+whatever is on it.
 
 ### When one fails
 
