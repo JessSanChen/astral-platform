@@ -1511,6 +1511,98 @@ repository setting only the owner can change. The steps are in
 
 ---
 
+## Round 13: sign-up checks, terms you can publish yourself, and more tests
+
+Three things from the to-do list that needed nothing from the team, each
+with tests, plus one thing the tests turned up.
+
+### Sign-up checks
+
+There is no email on the day: no confirmation message to bounce and no reset
+link. So an address typed wrong is an account its owner cannot find again,
+and a forgotten password means finding an organizer.
+
+- **Email.** The browser's own check accepts `name@host`. Sign-up now wants
+  a real-looking address, with a dot and letters after the @.
+- **Typos.** `gmial.com`, `gmail.con`, `harvard.ed` and their relatives get
+  a "Did you mean ...?" under the field that fixes the address when clicked.
+  It asks and does not insist, because plenty of real domains look like
+  typos of better-known ones.
+- **Passwords.** Three rules, shown under the field and ticked off as they
+  are met: at least 8 characters; a letter and a number; not your own name,
+  your email, the word "astral", or one of the passwords everyone tries.
+  No demand for symbols or capitals, which mostly produces `Password1!`.
+
+The form checks first to save a round trip, and the server checks again and
+decides (`lib/credentials.ts` is the one definition both use). A temporary
+password set by an organizer is held to the same rules.
+
+Accounts that already exist are not affected. In particular the weak
+organizer password from testing still works until it is changed.
+
+### Publishing terms from the console
+
+**Organize → Terms.** A box that starts from the text in force, a preview
+beside it showing what participants will see, and a publish button that
+asks once before it acts and says how many people it will interrupt.
+
+Replacing the placeholder terms used to mean an `INSERT` in a SQL console.
+That was the first item on the blocking list and the one most likely to be
+done in a hurry.
+
+A published version is never edited. People agreed to that exact text, so a
+correction is a new version, which asks everyone to accept again. Every
+version is listed underneath, with a count of how many accounts have
+accepted the current one.
+
+### Tests
+
+Seven more, 28 in all:
+
+- a weak password refused, with the reason on screen;
+- the server refusing the same things as the form when the form is skipped;
+- a mistyped email questioned and corrected;
+- regenerating a reply replacing it instead of adding one;
+- pausing chat for everyone, seen from a participant's side, and resuming;
+- closing nominations by hand, and reopening;
+- publishing new terms, and a participant being asked to accept them once
+  and not again.
+
+The last three had only ever been checked by hand.
+
+### What the tests turned up
+
+**Pausing chat is not instant.** A participant's message sent a moment
+after the organizer pressed Pause still got an answer. The app remembers the
+event settings for ten seconds instead of reading them on every message,
+which is deliberate and is most of why pages feel quick, but the console
+said nothing about it. It now does: "Stops new messages for everyone within
+about ten seconds."
+
+**The load test's own password broke the new rules.** Its accounts are
+named "Load 0" and used `loadtest12345`, which contains the account's own
+name. All seventy sign-ups were refused. The rule was right and the test
+data was stale; it has a different password now. Worth recording because it
+is the suite doing its job: a change in one place caught by a check in
+another before it reached the site.
+
+### How this round reached the site
+
+The first round under the new rule: pushed to the working branch, CI run
+there, and `main` moved forward only once that run was green.
+
+### How to test it
+
+1. Sign out and start creating an account. Type an address ending
+   `@gmial.com`, and a password of `astral2026`.
+2. As an organizer, open **Organize → Terms**, change a word, and look at
+   the preview. Publish only if you mean it: it cannot be undone and it
+   interrupts everyone.
+3. Pause chat from the overview, wait ten seconds, and try to send a
+   message from another account.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

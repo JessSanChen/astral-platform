@@ -190,8 +190,9 @@ The old `.vercel.app` address keeps working, so nothing breaks in the gap.
   not before — anyone with the old one can still sign up until you do.
 - `npm run prod:check-models` and `npm run prod:check-scanners`, so a model
   that has been retired is a thing you find now rather than at 10am.
-- Replace the placeholder terms. They are seeded as version 1; publishing a
-  version 2 makes everyone accept it again, so do this before people sign up.
+- Replace the placeholder terms, from **Organize → Terms**. They are seeded
+  as version 1; publishing a version 2 makes everyone accept it again, so do
+  this before people sign up.
 - Decide who else should be an organizer and promote them from the
   participants table once they have signed up. Nothing grants the role at
   sign-up any more, so there is no list to get right in advance.

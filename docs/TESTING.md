@@ -20,7 +20,7 @@ about a running system and are run when there is a reason to.
 
 ## Browser tests
 
-Twenty-one tests in `e2e/`, written with Playwright. Each one opens a real
+Twenty-eight tests in `e2e/`, written with Playwright. Each one opens a real
 browser and uses the app the way a person would: clicking, typing, reading
 what is on the screen. They run against a production build, because that is
 what participants get.
@@ -33,26 +33,31 @@ does not fail because a model is having a bad day.
 
 | File | What it walks through |
 |---|---|
-| `signup-onboarding.spec.ts` | A wrong event code is refused. The account endpoint refuses a sign-up without the code even when the form is skipped. Sign up, answer the profile questions, land in the chat. A question left unanswered is named and nothing else is lost. A profile can be corrected later. |
+| `signup-onboarding.spec.ts` | A wrong event code is refused. The account endpoint refuses a sign-up without the code even when the form is skipped. A weak password is refused with the reason on screen, and the server applies the same rules as the form. A mistyped email is questioned but not refused. Sign up, answer the profile questions, land in the chat. A question left unanswered is named and nothing else is lost. A profile can be corrected later. |
 | `select.spec.ts` | The dropdown works from the keyboard alone, announces itself properly to a screen reader, closes on a click elsewhere, posts its value with the form, and opens upwards when there is no room below. |
-| `transcript.spec.ts` | Chat, the conversation naming itself, renaming it, a submit refused for a missing answer, version 1, version 2, all of it surviving a reload. Label answers surviving the scanners tab and a visit to another conversation. A scanner run giving a result. |
+| `transcript.spec.ts` | Chat, the conversation naming itself, renaming it, a submit refused for a missing answer, version 1, version 2, all of it surviving a reload. Label answers surviving the scanners tab and a visit to another conversation. Regenerating a reply replaces it rather than adding one. A scanner run giving a result. |
 | `review.spec.ts` | Two people in two browsers. The reviewer sees the submitted version and nothing the author wrote about it. An incomplete review is refused without losing answers. The author resubmits while the review is open: the reviewer is told, shown the new version, keeps their answers, and the review is recorded against the right version and locks the transcript. |
 | `nomination.spec.ts` | A collaborative entry with one collaborator picked from the list and one typed in. An empty entry refused. |
 | `organizer.spec.ts` | Participants cannot reach the console or the export. Counts match what was submitted. Promoting a participant. The export carries the labels as submitted. A closing time set from a laptop on Tokyo time is 3pm in Boston for everyone. An unreadable allowance is refused rather than stored as zero. |
+| `running-the-day.spec.ts` | The organizer's controls, each checked from the participant's side. Pausing chat turns messages away and resuming lets them through. Closing nominations by hand freezes entries and reopening frees them. Publishing new terms sends a participant to accept them, once, without asking for their profile again. |
 
 Several of these are the scenarios from the code review in round 10, kept so
 that those fixes cannot quietly come undone.
 
 ### What they do not cover
 
-Closing nominations by hand, pausing chat for everyone, accepting newly
-published terms, regenerating a reply, the organizer's page for one
-participant, and anything at phone width. These work as far as I have
-checked by hand; nothing checks them automatically.
+The organizer's page for one participant, pausing a single account, raising
+one person's allowance, setting a temporary password, and anything at phone
+width. These work as far as I have checked by hand; nothing checks them
+automatically.
 
 They also say nothing about real models. A model that has been retired, or
 a provider that filters a scanner's output, is found by `npm run doctor`,
 not by these.
+
+Three of the tests are slow on purpose. The app remembers event settings
+for ten seconds rather than reading them on every request, so a test that
+changes one and then needs everyone to see it waits that long.
 
 ### Running them yourself
 
@@ -159,7 +164,7 @@ It needs no secrets. The database exists only for the length of the run.
 **Where to see it:** the **Actions** tab of the repository, or the tick or
 cross next to each commit. A cross links to the step that failed.
 
-### What it does not do, yet
+### What it does not do by itself
 
 It reports. It does not block.
 
@@ -167,32 +172,64 @@ Vercel publishes `main` every time `main` changes, whether or not this has
 passed. So a change pushed straight to `main` is live in a minute, and CI
 tells you three minutes later whether it should have been.
 
-### Making it a gate
+GitHub's own answer to that is branch protection, which on a private
+repository needs a paid plan. There are two ways to get the same effect
+without one.
 
-For a red run to stop a change reaching the site, changes have to arrive
-through pull requests, and `main` has to refuse a merge until the check has
-passed. That is a setting on the repository, which only you can change:
+### How changes reach `main` now
 
-1. On GitHub: **Settings → Branches → Add branch ruleset** (or *Add
-   classic branch protection rule*).
-2. Target the `main` branch.
-3. Turn on **Require a pull request before merging**. With one person on
-   the project, set required approvals to 0.
-4. Turn on **Require status checks to pass**, and add the check named
-   **Lint, types and browser tests**. It only appears in the search once it
-   has run at least once, which it now has.
-5. Save.
+A rule I work to, in force from round 13 onwards: nothing goes to `main`
+until CI has passed on that exact commit.
 
-From then on the routine is: work happens on a branch, a pull request is
-opened, the check runs, and the merge button stays grey until it is green.
-Merging is what deploys.
+1. Work is pushed to the working branch.
+2. CI runs on it.
+3. Only once that run is green is `main` moved forward to the same commit,
+   which is what Vercel deploys.
 
-Branch protection on a private repository needs a paid GitHub plan. On a
-free plan with a private repository the option is not there; the same
-routine still works as a habit, by looking for the tick before merging.
+This costs nothing and needs no settings. Its weakness is that it is a
+habit, not a lock: it holds for changes I make, and for yours only if you
+look for the tick before merging.
+
+### Making it a lock: Vercel's Deployment Checks
+
+Vercel can be told to hold a production deployment until a named GitHub
+check has passed. It builds the new version as usual but does not point the
+live address at it until the check is green; a red check leaves the previous
+version serving.
+
+1. In Vercel, open the project, then **Settings → Deployment Checks**.
+2. Add a check, choose GitHub, and pick **Lint, types and browser tests**.
+3. Save, then push any small change and watch the deployment wait for the
+   check before going live.
+
+I have not been able to try this: it is a setting in your Vercel account,
+and Vercel's documentation was not reachable from where I work. Vercel's
+announcement says it is available to every project connected to a GitHub
+repository, without naming a plan. If the setting is not there, or a
+deployment sits waiting on a check that has already passed, tell me: there
+is a fallback, described next, and it may be that the workflow needs to
+report its result in a form Vercel prefers.
+
+### The fallback: a branch only CI can move forward
+
+If Deployment Checks are not available to you:
+
+1. A `production` branch is created, and Vercel's production branch is
+   changed from `main` to `production` (**Settings → Environments →
+   Production → Branch Tracking**).
+2. The workflow gains a last step, run only on `main` and only after
+   everything else has passed, that moves `production` forward to the commit
+   it just tested.
+
+Pushing to `main` then deploys nothing by itself. The site changes only when
+CI moves `production`, which it does only when green. I have not set this up,
+because it changes how your site is deployed and half of it is a setting
+only you can change; say so and I will do my half.
 
 ### If CI is red and the site needs fixing now
 
-A ruleset can be bypassed by an administrator, and you are one. Use that
-for an emergency on the day rather than switching protection off, so it is
-still on the next morning.
+With Deployment Checks, Vercel's dashboard lets you promote a deployment by
+hand. With the fallback, moving the `production` branch yourself does it.
+With neither, nothing stands in the way. Whichever applies, use it for an
+emergency on the day rather than switching the protection off, so it is
+still there the next morning.

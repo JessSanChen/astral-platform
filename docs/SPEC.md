@@ -83,6 +83,13 @@ Sign up ──▶ Profile + Terms (forced) ──▶ Chat home ──▶ New con
 - Forgot password: admin resets from the console (sets a temporary password).
   No email provider needed on event day.
 
+**Decided: sign-up checks the address and the password.** With no email on
+the day there is no confirmation to bounce and no reset link, so both are
+worth getting right at the door. The address must look real; common typos
+are questioned but not refused. A password needs 8 characters, a letter and
+a number, and must not be the person's own name or an obvious word. The
+server applies the same rules as the form.
+
 ### 3.2 Onboarding gate: profile and terms
 
 After the first sign-in the participant is redirected to `/onboarding` and

@@ -22,7 +22,8 @@ The first section is the only one that actually blocks the event.
 transcripts, role-play rather than real data, being over 18, and prizes at
 the organizers' discretion. It is not legal text and was never meant to be.
 
-Where: the `terms_version` table, seeded by `scripts/seed.ts`.
+Where: **Organize → Terms** in the app. Paste the text, check it in the
+preview beside it, publish.
 
 Needed:
 
@@ -32,12 +33,10 @@ Needed:
   asked to produce.
 - Whether a separate data-protection notice is required.
 
-Publishing a new version re-prompts everyone automatically, on their next
-page load, without them refilling anything else:
-
-```sql
-INSERT INTO terms_version (version, body) VALUES (2, '...the real text...');
-```
+Publishing a new version asks everyone to accept it on their next page,
+without refilling anything else, and cannot be undone: a published version
+is never edited, because people agreed to that exact text. A correction is
+another version.
 
 Do this **before** people sign up, or everyone accepts twice.
 
@@ -84,7 +83,9 @@ defining first.
 ### 4. Account hygiene — build work, small
 
 - The admin password used for testing is weak and was shared in plain text.
-  Change it before the event.
+  Change it before the event: **Organize → Participants → Manage** on your
+  own row, then **Set password**. Sign-up now refuses passwords like it, but
+  that does not reach back to accounts that already exist.
 - Organizer rights are no longer granted at sign-up. The remaining
   organizers get promoted from the participants table once they have signed
   up themselves. `ADMIN_EMAILS` can be removed from Vercel; only the seed
@@ -183,22 +184,19 @@ can be compared.
 
 Roughly in the order I would do it. None of it blocks the event.
 
-### 9. Admin-editable forms and agreement
+### 9. Admin-editable profile questions
 
-The profile questions live in code and the terms in a seeded row. Moving the
-question set into the database would let you add, remove and reorder fields
-and edit the agreement without a code change. The terms half is mostly UI
-since that table is already versioned; the profile half needs the profile
-table to hold answers as structured data rather than fixed columns.
+The profile questions live in code (`lib/labels.ts`). Moving them into the
+database would let you add, remove and reorder them without a code change.
+It needs the profile table to hold answers as structured data rather than
+fixed columns, which is a change to how every existing profile is stored. I
+would not make it this close to the event: changing a question today is a
+one-line edit and a deploy, and the cost of getting a migration of
+everyone's profile wrong is much higher than that.
 
-### 10. Email format checking and password rules
+The agreement half of this item is done: see **Organize → Terms**.
 
-Sign-up accepts whatever the browser's own email validation allows, which is
-lenient, and the only password rule is a minimum of eight characters. Worth
-tightening both, especially as there is no password reset by email: a typo in
-an address costs someone their account on the day.
-
-### 11. Forgot password by email
+### 10. Forgot password by email
 
 Not hard — Better Auth has `requestPasswordReset` and `resetPassword` built
 in. The work is almost entirely choosing an email provider and verifying the
@@ -206,7 +204,7 @@ domain so the mail is not treated as spam. Half a day, most of it waiting for
 DNS. Useless without working email on the day, which is why the event relies
 on an organizer resetting passwords instead. Worth adding afterwards.
 
-### 12. Email verification
+### 11. Email verification
 
 Better Auth supports it (`requireEmailVerification` plus a send-email hook).
 Same dependency on an email provider. Deliberately off for a one-day
