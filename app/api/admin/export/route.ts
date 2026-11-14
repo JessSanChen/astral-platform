@@ -1,6 +1,7 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  clipboardEvent,
   conversation,
   judgeRun,
   message,
@@ -14,24 +15,39 @@ import {
 import { requireAdmin } from "@/lib/gate";
 
 /**
- * The whole dataset as JSONL: one line per submitted transcript.
+ * The whole dataset as JSONL: one line per conversation.
  *
  * Each line is self-contained, carrying the conversation, every message with
  * the raw request and response from the provider, the author's own labels,
- * the author's profile, any independent review, and any scanner runs. That
- * means a line can be read on its own without joining anything back together
- * later, which is what makes it useful for training and evaluation.
+ * the author's profile, every independent review, any scanner runs, and what
+ * was copied and pasted while it was being had. That means a line can be
+ * read on its own without joining anything back together later, which is
+ * what makes it useful for training and evaluation.
+ *
+ * Conversations that were never submitted are included, marked
+ * `"status": "draft"`: the messages exist whether or not their author got as
+ * far as labelling them, and a refusal someone gave up on is still data.
+ * `?only=submitted` leaves them out. A conversation nobody typed into is
+ * never included.
  *
  * Streamed rather than assembled in memory, so the size of the day does not
  * decide whether this works.
  */
-export async function GET() {
+export async function GET(req: Request) {
   await requireAdmin();
+  const submittedOnly = new URL(req.url).searchParams.get("only") === "submitted";
 
+  const hasMessages = sql`exists (
+    select 1 from ${message} m where m.conversation_id = ${conversation.id}
+  )`;
   const conversations = await db
     .select()
     .from(conversation)
-    .where(eq(conversation.status, "submitted"))
+    .where(
+      submittedOnly
+        ? sql`${conversation.status} = 'submitted' and ${hasMessages}`
+        : hasMessages,
+    )
     .orderBy(asc(conversation.createdAt));
 
   const encoder = new TextEncoder();
@@ -39,7 +55,7 @@ export async function GET() {
   const stream = new ReadableStream({
     async start(controller) {
       for (const convo of conversations) {
-        const [messages, [labels], [author], [authorProfile], submissions, [theirReview], judgeRuns] =
+        const [messages, [labels], [author], [authorProfile], submissions, reviews, judgeRuns, clipboard] =
           await Promise.all([
             db
               .select()
@@ -57,8 +73,17 @@ export async function GET() {
               .from(submission)
               .where(eq(submission.conversationId, convo.id))
               .orderBy(asc(submission.version)),
-            db.select().from(review).where(eq(review.conversationId, convo.id)),
+            db
+              .select()
+              .from(review)
+              .where(eq(review.conversationId, convo.id))
+              .orderBy(asc(review.submittedAt)),
             db.select().from(judgeRun).where(eq(judgeRun.conversationId, convo.id)),
+            db
+              .select()
+              .from(clipboardEvent)
+              .where(eq(clipboardEvent.conversationId, convo.id))
+              .orderBy(asc(clipboardEvent.createdAt)),
           ]);
 
         // The messages below are the conversation as it stands, which can
@@ -69,17 +94,43 @@ export async function GET() {
         const currentSnapshot = submissions.find(
           (s) => s.version === convo.currentVersion,
         )?.snapshot as
-          | { labels?: unknown; messages?: { id?: string }[] }
+          | {
+              labels?: unknown;
+              messages?: { id?: string; evidence?: boolean }[];
+            }
           | undefined;
         const submittedIds = new Set(
           (currentSnapshot?.messages ?? []).map((m) => m.id),
         );
+
+        // Turn numbers are the ones the author saw beside each message:
+        // replies that were regenerated away are not counted.
+        const turnOf = new Map<string, number>();
+        for (const m of messages) {
+          if (m.supersededBy == null) turnOf.set(m.id, turnOf.size + 1);
+        }
+        // Which messages the author pointed to as evidence for their
+        // labels. For a submitted transcript that is what was submitted;
+        // for a draft it is where their working copy stands.
+        const evidenceIds = new Set<string>();
+        if (currentSnapshot) {
+          for (const m of currentSnapshot.messages ?? []) {
+            if (m.evidence && m.id) evidenceIds.add(m.id);
+          }
+        } else {
+          const marked = new Set(labels?.evidenceTurns ?? []);
+          for (const [id, turn] of turnOf) if (marked.has(turn)) evidenceIds.add(id);
+        }
 
         const line = {
           // Every line says what it is. Without this, transcript lines were
           // unmarked while nomination lines were not, so counting lines
           // overstated the number of transcripts.
           record: "transcript" as const,
+          // "submitted" or "draft". A draft was never submitted: it has no
+          // self_labels, no version and no reviews, only whatever its
+          // author had filled in so far under draft_labels.
+          status: convo.status,
           conversation_id: convo.id,
           model_id: convo.modelId,
           scenario: convo.scenario,
@@ -101,12 +152,18 @@ export async function GET() {
           // is given separately rather than passed off as what was submitted.
           self_labels: currentSnapshot?.labels ?? null,
           draft_labels: labels ?? null,
-          independent_review: theirReview ?? null,
+          // Every review of this transcript, earliest first. Up to the
+          // event's limit, each by a different person.
+          independent_reviews: reviews,
           // How many of the messages below made up the submitted version.
           submitted_message_count: submittedIds.size,
           messages: messages.map((m) => ({
             seq: m.seq,
+            // The number shown beside the message; null for a reply that
+            // was regenerated away.
+            turn: turnOf.get(m.id) ?? null,
             in_submitted_version: submittedIds.has(m.id),
+            marked_as_evidence: evidenceIds.has(m.id),
             role: m.role,
             content: m.content,
             model_id: m.modelId,
@@ -137,6 +194,16 @@ export async function GET() {
             raw_output: j.rawOutput,
             status: j.status,
             created_at: j.createdAt,
+          })),
+          // Copying and pasting while this conversation was open, in order.
+          clipboard_events: clipboard.map((c) => ({
+            kind: c.kind,
+            surface: c.surface,
+            turn: c.turn,
+            role: c.role,
+            char_count: c.charCount,
+            content: c.content,
+            created_at: c.createdAt,
           })),
         };
 

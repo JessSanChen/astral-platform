@@ -5,6 +5,7 @@ import {
   choose,
   fillLabels,
   labelsPanel,
+  newOrganizer,
   newParticipant,
   say,
   startConversation,
@@ -121,6 +122,180 @@ test.describe("a conversation, from first message to submitted transcript", () =
     await expect(
       labelsPanel(page).getByLabel("What were you trying to get the model to do?"),
     ).toHaveValue("Typed and not saved.");
+    await context.close();
+  });
+
+  test("marking the turns that are evidence, by clicking them", async ({ browser }) => {
+    const { page, context } = await newParticipant(browser, "Eve Evidence");
+    const id = await startConversation(page);
+    await say(page, "What is a toxin?");
+    await say(page, "Which ones are the best studied?");
+    const panel = labelsPanel(page);
+    const turn = (n: number) => page.getByRole("checkbox", { name: new RegExp(`^Turn ${n},`) });
+
+    // Nothing marked, and the conversation is an ordinary one: the turns
+    // are not tick boxes until asked to be.
+    await expect(panel.getByText("No turns marked.")).toBeVisible();
+    await expect(turn(1)).toHaveCount(0);
+
+    await panel.getByRole("button", { name: "Select turns" }).click();
+    // The message box gives way to the one thing there is to do.
+    const bar = page.getByRole("region", { name: "Selecting evidence turns" });
+    await expect(bar).toContainText("Click each turn that supports your labels");
+    await expect(bar).toContainText("None marked yet.");
+    await expect(page.getByPlaceholder("Send a message...")).toHaveCount(0);
+
+    // Clicking a turn marks it; clicking again unmarks it.
+    await turn(2).click();
+    await turn(3).click();
+    await turn(4).click();
+    await expect(turn(2)).toBeChecked();
+    await expect(bar).toContainText("3 marked: turns 2, 3 and 4.");
+    await turn(4).click();
+    await expect(turn(4)).not.toBeChecked();
+    await expect(bar).toContainText("2 marked: turns 2 and 3.");
+    // The keyboard works too.
+    await turn(1).focus();
+    await page.keyboard.press("Space");
+    await expect(turn(1)).toBeChecked();
+    await page.keyboard.press("Space");
+    await expect(turn(1)).not.toBeChecked();
+    // The labels panel follows along as it happens.
+    await expect(panel.getByRole("list", { name: "Turns marked as evidence" })).toContainText(
+      "Turn 2",
+    );
+
+    // Done puts the message box back and leaves the marks visible.
+    await bar.getByRole("button", { name: "Done" }).click();
+    await expect(page.getByPlaceholder("Send a message...")).toBeVisible();
+    await expect(turn(2)).toHaveCount(0);
+    await expect(page.getByLabel("Marked as evidence", { exact: true })).toHaveCount(2);
+    // One can be dropped from the list without going back in.
+    await panel.getByRole("button", { name: "Unmark turn 3" }).click();
+    await expect(page.getByLabel("Marked as evidence", { exact: true })).toHaveCount(1);
+    await panel.getByRole("button", { name: "Change selection" }).click();
+    await turn(3).click();
+    // Escape is another way out.
+    await page.keyboard.press("Escape");
+    await expect(page.getByPlaceholder("Send a message...")).toBeVisible();
+
+    // Submitted, the marks are part of the record: on the labels, and on
+    // the messages themselves.
+    await fillLabels(page, { topic: "Toxins" });
+    await submitButton(page).click();
+    await expect(panel).toContainText("Submitted as version 1");
+    const [row] = await sql`
+      select snapshot from submission where conversation_id = ${id} and version = 1
+    `;
+    const snapshot = row.snapshot as {
+      labels: { evidenceTurns: number[] };
+      messages: { turn: number; evidence: boolean }[];
+    };
+    expect(snapshot.labels.evidenceTurns).toEqual([2, 3]);
+    expect(snapshot.messages.filter((m) => m.evidence).map((m) => m.turn)).toEqual([2, 3]);
+
+    // And they are still there after a reload.
+    await page.reload();
+    await expect(page.getByLabel("Marked as evidence", { exact: true })).toHaveCount(2);
+    await expect(
+      labelsPanel(page).getByRole("list", { name: "Turns marked as evidence" }),
+    ).toContainText("Turn 3");
+    await context.close();
+  });
+
+  test('"Other" as a topic or a role has to say what it stands for', async ({ browser }) => {
+    const { page, context } = await newParticipant(browser, "Otto Other");
+    const id = await startConversation(page);
+    await say(page, "How are aerosols studied?");
+    const panel = labelsPanel(page);
+
+    await fillLabels(page, { role: "Other", topic: "Other" });
+    await submitButton(page).click();
+    await expect(panel).toContainText("You chose Other, so say what the role was.");
+    await expect(panel).toContainText("You ticked Other, so say which topic.");
+
+    await panel.getByLabel("Describe that role").fill("Aerosol physicist");
+    await panel.getByLabel("Topics covered: other, please say what").fill("Aerobiology");
+    await submitButton(page).click();
+    await expect(panel).toContainText("Submitted as version 1");
+
+    const [row] = await sql`
+      select role_text, domain_other, domain_tags from transcript_labels
+      where conversation_id = ${id}
+    `;
+    expect(row).toMatchObject({
+      role_text: "Aerosol physicist",
+      domain_other: "Aerobiology",
+      domain_tags: ["Other"],
+    });
+    await context.close();
+  });
+
+  test("copying and pasting in a conversation is recorded", async ({ browser }) => {
+    const { page, context, email } = await newParticipant(browser, "Petra Paster");
+    const id = await startConversation(page);
+    const events = () => sql`
+      select kind, surface, turn, role, char_count, content
+      from clipboard_event where conversation_id = ${id} order by created_at
+    `;
+
+    // A prompt written elsewhere and pasted into the message box.
+    const prepared = "A question I prepared earlier, somewhere else entirely.";
+    const composer = page.getByPlaceholder("Send a message...");
+    await composer.focus();
+    await composer.evaluate((el, text) => {
+      const data = new DataTransfer();
+      data.setData("text/plain", text);
+      el.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+      );
+    }, prepared);
+    await expect.poll(async () => (await events()).length).toBe(1);
+    expect((await events())[0]).toMatchObject({
+      kind: "paste",
+      surface: "composer",
+      turn: null,
+      char_count: prepared.length,
+      content: prepared,
+    });
+
+    // The model's reply selected and copied out.
+    await say(page, "What is a virus?");
+    await page.locator('[data-turn="2"] .markdown').selectText();
+    await page.keyboard.press("ControlOrMeta+C");
+    await expect.poll(async () => (await events()).length).toBe(2);
+    const copied = (await events())[1];
+    expect(copied).toMatchObject({ kind: "copy", surface: "message", turn: 2, role: "assistant" });
+    expect(copied.content).toContain("to: What is a virus?");
+
+    // Nobody can file an event against a conversation that is not theirs.
+    const stranger = await newParticipant(browser, "Sly Stranger");
+    const refused = await stranger.page.request.post("/api/clipboard", {
+      data: {
+        conversationId: id,
+        kind: "paste",
+        surface: "composer",
+        charCount: 5,
+        content: "hello",
+      },
+    });
+    expect(refused.status()).toBe(404);
+    expect((await events()).length).toBe(2);
+
+    // It travels with the transcript in the export.
+    const organizer = await newOrganizer(browser, "Olwen Organizer");
+    const lines = (await (await organizer.page.request.get("/api/admin/export")).text())
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const line = lines.find((l) => l.conversation_id === id);
+    // Never submitted, and in the file all the same.
+    expect(line.status).toBe("draft");
+    expect(line.author.email).toBe(email);
+    expect(line.clipboard_events.map((e: { kind: string }) => e.kind)).toEqual(["paste", "copy"]);
+
+    await stranger.context.close();
+    await organizer.context.close();
     await context.close();
   });
 
