@@ -2033,6 +2033,108 @@ Load test: 210 of 210 replies, no errors.
 
 ---
 
+## Round 19: after a guessed password
+
+A tester guessed an organizer's password, signed in, and set new passwords
+for everyone else. This round is about that, in the order it would have
+stopped it.
+
+**This round changes the database.** Run `npm run prod:migrate` before it
+goes live. The migration only adds things, so it is safe to run while the
+current version is still serving.
+
+### What went wrong
+
+- The password was `astral123`. Sign-up has refused passwords like that
+  since round 13, but the account was older than the rule, and nothing
+  looked at existing passwords.
+- Nothing slowed down or noticed repeated wrong guesses.
+- Once in, an organizer account could do anything, and nothing recorded
+  what it did.
+- Setting someone's password left them signed in, so there was no way to
+  put an intruder out.
+- There was no way to change your own password at all.
+
+### What changed
+
+**A weak password is caught at the next sign-in.** Signing in is the one
+moment the password is in hand, so that is where it is checked against the
+current rules. If it fails, the account goes to a page that asks for a new
+one, and nothing else works until it is given: no pages, no messages, no
+console.
+
+**Organizers need twelve characters.** Participants still need eight. An
+organizer account can set passwords, promote people and download every
+transcript, so its password is worth more to guess. Making someone an
+organizer signs them out, so the rule is applied when they sign back in.
+
+**Wrong guesses lock the account.** Eight wrong passwords in a row lock an
+account for five minutes, during which even the right password is refused.
+It is counted per account, because everyone at the event shares one network
+address and a limit by address cannot tell a guesser from the room. An
+organizer setting a password lifts the lock.
+
+**You can change your own password**, from your profile. It asks for the
+current one, and signs the account out everywhere else.
+
+**A password set by an organizer is temporary.** It signs the account out
+wherever it is signed in, and works once: the person is asked to choose
+their own on signing in. Organizers cannot set their own this way.
+
+**Sign everyone out.** One button under **Organize → Activity**, for when
+it is not clear who is still signed in with what.
+
+**Everything an organizer does is recorded.** **Organize → Activity** lists
+it, newest first: passwords set, people promoted or paused, settings
+changed, terms published, every download of the export, and who did each.
+It also shows accounts locked for wrong guesses and accounts caught with a
+password that had to be replaced.
+
+**The console checks every time.** Organizer pages and actions no longer
+trust the copy of the session a browser carries for half a minute. Being
+demoted, paused or signed out shuts the console at once.
+
+### What the tests turned up
+
+Ending a session on the server did not end it in a browser that was already
+signed in: for up to half a minute the browser's copy still said it was
+signed in while the server said it was not. Going to the sign-in page in
+that window sent the person to the app, which sent them back, round and
+round. That was there before this round and would have hit anyone whose
+password an organizer had just set. The sign-in and sign-up pages now ask
+the server.
+
+### What it does not do
+
+- **Signing out reaches participants within half a minute, not instantly.**
+  The console is exact; ordinary pages keep the short-lived copy, because
+  it is what makes them quick.
+- **It cannot contain an organizer account that has been got into.** Any
+  organizer can still demote another. What it can do is make getting in
+  hard, make it visible afterwards, and give you the means to end it.
+- **No second factor.** A code from a phone app for organizer accounts is
+  the next step up, and the only thing that protects against a password
+  that is strong but known. Not built; see [TODO.md](TODO.md).
+- **A locked account can be locked again.** Someone who knows an
+  organizer's address can keep it locked by guessing. An organizer who is
+  already signed in is not affected, and another organizer can lift it.
+
+### Tests
+
+Five more, 47 in all: a weak password having to be replaced; an
+organizer's needing to be longer, and rights removed taking effect at once;
+wrong guesses locking an account and an organizer letting its owner back
+in; changing a password signing out another browser; signing everyone out.
+
+### How to test it
+
+1. Sign in. If your password is the old one, you will be asked for a new
+   one before anything else.
+2. **Organize → Activity**.
+3. In a private window, try eight wrong passwords for a test account.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

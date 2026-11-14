@@ -2,7 +2,7 @@
 
 What checks this project has, how to run them, and what happens
 automatically. For the history of how each came about, see
-[BUILDLOG.md](BUILDLOG.md), rounds 11 to 18.
+[BUILDLOG.md](BUILDLOG.md), rounds 11 to 19.
 
 ## What there is
 
@@ -20,7 +20,7 @@ about a running system and are run when there is a reason to.
 
 ## Browser tests
 
-Forty-two tests in `e2e/`, written with Playwright. Each one opens a real
+Forty-seven tests in `e2e/`, written with Playwright. Each one opens a real
 browser and uses the app the way a person would: clicking, typing, reading
 what is on the screen. They run against a production build, because that is
 what participants get.
@@ -39,6 +39,7 @@ does not fail because a model is having a bad day.
 | `transcript.spec.ts` | Chat, the conversation naming itself, renaming it, a submit refused for a missing answer, version 1, version 2, all of it surviving a reload. Label answers surviving the scanners tab and a visit to another conversation. A new conversation asks for a model and nothing else, and a scenario sent anyway is dropped. Regenerating a reply replaces it rather than adding one. A conversation carries on after a reply that came back empty. A scanner run giving a result. Marking the turns that are evidence by clicking them or from the keyboard, the marks surviving a submit and a reload, and being written onto the submitted messages. "Other" as a topic or role having to say what it stands for. A paste into the message box and a copy out of a reply being recorded, refused for someone else's conversation, and carried in the export. |
 | `review.spec.ts` | Two people in two browsers. The reviewer sees the submitted version and nothing the author wrote about it. An incomplete review is refused without losing answers. The author resubmits while the review is open: the reviewer is told, shown the new version, keeps their answers, and the review is recorded against the right version and locks the transcript. Two people reviewing the same transcript and a third not being offered it; nobody getting back one they have reviewed; three people asking at the same instant never exceeding the limit; the limit changed from the console. |
 | `nomination.spec.ts` | Two tracks, and no trace of the third. An entry with a link to slides, a link that is not one refused without losing what was typed. An empty entry refused. |
+| `security.spec.ts` | An account whose password would not be accepted today is made to replace it before anything else works. An organizer needs a longer password than a participant, and loses the console the moment the role is removed. Eight wrong passwords lock an account, even against the right one; an organizer sets a temporary password, which signs the owner out and has to be replaced. Changing a password signs out another browser on the same account. An organizer signs everyone out. Each of these appears in the activity record. |
 | `organizer.spec.ts` | Participants cannot reach the console or the export. Counts match what was submitted. Promoting a participant. The controls beside a participant fit: every label on one line, nothing off the side. The export carries the labels as submitted. A closing time set from a laptop on Tokyo time is 3pm in Boston for everyone. A closing time already in the past is refused. An unreadable allowance is refused rather than stored as zero. A participant's page showing every conversation in full beside its labels, submitted or not, filtered either way; the export carrying unsubmitted conversations marked as drafts, and leaving them out when asked. |
 | `running-the-day.spec.ts` | The organizer's controls, each checked from the participant's side. Pausing chat turns messages away and resuming lets them through. Closing nominations by hand closes the form in front of a participant who has it open, shows their entry as text, tells them what they had not saved, and reopening frees it again. Publishing new terms sends a participant to accept them, once, without asking for their profile again. Switching to the model list that came with a new version of the app, which says what it would add and remove first. |
 

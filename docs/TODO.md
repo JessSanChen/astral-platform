@@ -87,10 +87,16 @@ defining first.
 
 ### 4. Account hygiene — build work, small
 
-- The admin password used for testing is weak and was shared in plain text.
-  Change it before the event: **Organize → Participants → Manage** on your
-  own row, then **Set password**. Sign-up now refuses passwords like it, but
-  that does not reach back to accounts that already exist.
+- The admin password used for testing was weak, was shared in plain text,
+  and was guessed by a tester. It can no longer be used: signing in with it
+  takes you to a page that asks for a new one, of at least twelve
+  characters for an organizer. See round 19 of the build log.
+- **Worth considering: a second factor for organizers.** A code from a
+  phone app at sign-in, for organizer accounts only. It is the one thing
+  that protects an account whose password is strong but has leaked. About
+  half a day of work, and each organizer would need to set it up before
+  the event. Not built.
+- **Look at Organize → Activity now and then**, and after anything odd.
 - Organizer rights are no longer granted at sign-up. The remaining
   organizers get promoted from the participants table once they have signed
   up themselves. `ADMIN_EMAILS` can be removed from Vercel; only the seed

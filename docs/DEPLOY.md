@@ -190,6 +190,23 @@ The old `.vercel.app` address keeps working, so nothing breaks in the gap.
 
 ---
 
+## If an account may have been got into
+
+1. **Organize → Activity → Sign everyone out.** Everyone signs in again,
+   and any password that is too short or too easy is replaced on the way.
+2. Change your own password, from your profile.
+3. Read **Organize → Activity** for what was done, and by which account.
+4. In **Organize → Participants**, check who is marked Organizer, and
+   remove anyone who should not be.
+5. Anyone whose password was changed for them: set a temporary one from
+   **Manage** and read it out. They will be asked to replace it.
+6. If the export was downloaded by someone who should not have it, that is
+   in the activity record too, and is a conversation to have, not a button.
+
+If no organizer can sign in at all, run `npm run prod:seed`: it makes
+organizers of the addresses in `ADMIN_EMAILS`, and needs the database
+credentials, which only you hold.
+
 ## The day before the event
 
 - Change `EVENT_CODE` in the admin console to the code you will read out, and
