@@ -3,6 +3,7 @@ import { FileText, ListChecks, Trophy, UserRound } from "lucide-react";
 import { requireOnboarded } from "@/lib/gate";
 import { getMyProfile } from "@/lib/profile";
 import { trackLabel } from "@/lib/nominations";
+import { ChangePasswordForm } from "@/components/change-password-form";
 import { ProfileForm } from "@/components/profile-form";
 import { formatEventDateTime } from "@/lib/time";
 
@@ -119,6 +120,22 @@ export default async function ProfilePage() {
           }
         }
       />
+
+      <section className="space-y-4 border-t border-border pt-8">
+        <div className="space-y-1">
+          <h2 className="font-serif text-xl font-medium">Password</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Changing it signs this account out everywhere else it is signed
+            in, within half a minute. Do that if you think someone else knows
+            it.
+          </p>
+        </div>
+        <ChangePasswordForm
+          name={account?.name ?? ""}
+          email={account?.email ?? ""}
+          organizer={account?.role === "admin"}
+        />
+      </section>
     </div>
   );
 }
@@ -128,6 +145,7 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex items-baseline justify-between gap-4">
       <span className="text-muted-foreground">{label}</span>
       <span className="text-right">{value}</span>
+
     </div>
   );
 }

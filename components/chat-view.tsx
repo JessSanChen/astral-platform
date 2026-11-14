@@ -70,6 +70,7 @@ function errorCode(error: Error | undefined) {
  */
 const NOT_SENT = new Set([
   "terms",
+  "password",
   "onboarding",
   "account_paused",
   "chat_paused",
@@ -411,6 +412,12 @@ export function ChatView({
                 <p className="text-xs">
                   <Link href="/onboarding" className="font-medium underline">
                     Read and accept the updated terms
+                  </Link>
+                </p>
+              ) : errorCode(error) === "password" ? (
+                <p className="text-xs">
+                  <Link href="/change-password" className="font-medium underline">
+                    Choose a new password
                   </Link>
                 </p>
               ) : NOT_SENT.has(errorCode(error) ?? "") ? null : (
