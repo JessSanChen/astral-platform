@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check } from "lucide-react";
-import { signUp, useSession } from "@/lib/auth-client";
+import { signUp, useLeaveIfSignedIn } from "@/lib/auth-client";
 import {
   emailProblem,
   emailSuggestion,
@@ -25,16 +25,10 @@ export default function SignUpPage() {
   const [eventCode, setEventCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { data: session, isPending } = useSession();
   const suggestion = emailSuggestion(email);
   const rules = passwordRules(password, { name, email });
 
-  // Someone already signed in has no business on this page, and seeing the
-  // form invites the belief that a browser can hold two accounts at once. It
-  // cannot: every tab shares one session.
-  useEffect(() => {
-    if (!isPending && session) router.replace("/chat");
-  }, [isPending, session, router]);
+  useLeaveIfSignedIn();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

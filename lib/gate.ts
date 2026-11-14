@@ -1,8 +1,12 @@
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { desc } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { termsVersion } from "@/db/schema";
+import {
+  session as sessionTable,
+  termsVersion,
+  user as userTable,
+} from "@/db/schema";
 import { getFreshSession, getSession } from "@/lib/session";
 import { CACHE_KEYS, SETTINGS_TTL_MS, cached } from "@/lib/cache";
 
@@ -29,6 +33,7 @@ type AppUserFields = {
   termsVersion?: number | null;
   termsAcceptedAt?: Date | string | null;
   profileCompletedAt?: Date | string | null;
+  mustChangePassword?: boolean | null;
 };
 
 /**
@@ -62,6 +67,9 @@ export const getCurrentUser = cache(async () => {
     session,
     user: u,
     latestTermsVersion,
+    // An organizer set a temporary password, or the one just used to sign
+    // in would no longer be accepted. Nothing else until it is replaced.
+    needsPassword: u.mustChangePassword === true,
     needsProfile: !u.profileCompletedAt,
     // Re-gate whenever a newer terms version has been published.
     needsTerms: !u.termsAcceptedAt || (u.termsVersion ?? 0) < latestTermsVersion,
@@ -84,9 +92,18 @@ type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
  */
 export function whyBlocked(
   cu: CurrentUser,
-): { code: "account_paused" | "onboarding" | "terms"; message: string } | null {
+): {
+  code: "account_paused" | "password" | "onboarding" | "terms";
+  message: string;
+} | null {
   if (cu.user.banned) {
     return { code: "account_paused", message: "An organizer has paused your account." };
+  }
+  if (cu.needsPassword) {
+    return {
+      code: "password",
+      message: "Your password has to be replaced before you carry on. Reload this page to do it.",
+    };
   }
   if (cu.needsProfile) {
     return {
@@ -109,16 +126,45 @@ export async function requireOnboarded() {
   const cu = await getCurrentUser();
   if (!cu) redirect("/sign-in");
   if (cu.user.banned) redirect("/paused");
+  if (cu.needsPassword) redirect("/change-password");
   if (cu.needsProfile || cu.needsTerms) redirect("/onboarding");
   return cu;
 }
 
-/** For admin pages. */
-export async function requireAdmin() {
+/**
+ * For organizer pages and every organizer action.
+ *
+ * Unlike the rest of the app, this does not trust the session's copy of the
+ * account, which can be half a minute old. It reads the account again. An
+ * organizer's rights are the ones worth being exact about: someone demoted
+ * or paused a moment ago, or told a moment ago that their password must be
+ * replaced, should find the console shut now and not in thirty seconds.
+ * Organizers are few and their pages are not the busy ones, so the extra
+ * read costs nothing that matters.
+ */
+export const requireAdmin = cache(async () => {
   const cu = await getCurrentUser();
   if (!cu) redirect("/sign-in");
+  const [account] = await db
+    .select({
+      role: userTable.role,
+      banned: userTable.banned,
+      mustChangePassword: userTable.mustChangePassword,
+      // The session itself, too: one ended a moment ago (a password
+      // changed, everyone signed out) must not go on opening the console
+      // for as long as the browser's copy of it lasts.
+      sessionLive: sql<boolean>`exists (
+        select 1 from ${sessionTable}
+        where ${sessionTable.id} = ${cu.session.session.id}
+          and ${sessionTable.expiresAt} > now()
+      )`,
+    })
+    .from(userTable)
+    .where(eq(userTable.id, cu.user.id));
+  if (!account || !account.sessionLive) redirect("/sign-in");
   // Pausing an account stops it, whatever its role.
-  if (cu.user.banned) redirect("/paused");
-  if (!cu.isAdmin) redirect("/chat");
-  return cu;
-}
+  if (account.banned) redirect("/paused");
+  if (account.mustChangePassword) redirect("/change-password");
+  if (account.role !== "admin") redirect("/chat");
+  return { ...cu, isAdmin: true };
+});

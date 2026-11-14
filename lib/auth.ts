@@ -3,7 +3,10 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
+import { setSessionCookie } from "better-auth/cookies";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { recordAudit } from "@/lib/audit";
 import * as schema from "@/db/schema";
 import { emailProblem, passwordProblem } from "@/lib/credentials";
 import {
@@ -59,6 +62,7 @@ export const auth = betterAuth({
       termsVersion: { type: "number", required: false, input: false },
       termsAcceptedAt: { type: "date", required: false, input: false },
       profileCompletedAt: { type: "date", required: false, input: false },
+      mustChangePassword: { type: "boolean", required: false, input: false },
     },
   },
   emailAndPassword: {
@@ -124,6 +128,7 @@ export const auth = betterAuth({
      * changing the code to close registration closed nothing.
      */
     before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path === "/sign-in/email") return refuseIfLocked(ctx.body);
       if (ctx.path !== "/sign-up/email") return;
       const code = ctx.headers?.get(EVENT_CODE_HEADER);
       if (!(await eventCodeMatches(code))) {
@@ -146,6 +151,58 @@ export const auth = betterAuth({
         emailProblem(email) ?? passwordProblem(password, { name, email });
       if (problem) throw new APIError("BAD_REQUEST", { message: problem });
     }),
+
+    /**
+     * What a sign-in attempt leaves behind.
+     *
+     * A wrong password is counted against the account, and enough of them
+     * in a row lock it for a few minutes. A right one clears the count, and
+     * is then looked at: this is the one moment the password itself is in
+     * hand, so it is the only place an old or weak one can be caught.
+     */
+    after: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-in/email") return;
+      const body = (ctx.body ?? {}) as { email?: unknown; password?: unknown };
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      const password = typeof body.password === "string" ? body.password : "";
+      if (!email) return;
+
+      const signedIn = ctx.context.newSession;
+      if (!signedIn) {
+        await countFailedSignIn(email);
+        return;
+      }
+
+      const account = signedIn.user as typeof signedIn.user & {
+        role?: string | null;
+        mustChangePassword?: boolean | null;
+      };
+      const weak = passwordProblem(password, {
+        name: account.name,
+        email: account.email,
+        organizer: account.role === "admin",
+      });
+      await db
+        .update(schema.user)
+        .set({
+          failedSignIns: 0,
+          lockedUntil: null,
+          ...(weak ? { mustChangePassword: true } : {}),
+        })
+        .where(eq(schema.user.id, account.id));
+
+      if (weak && !account.mustChangePassword) {
+        await recordAudit({ action: "weak_password_flagged", target: account, detail: weak });
+        // The session was written a moment ago with the old value, and its
+        // copy in the cookie would be believed for the next half minute.
+        // Write it again with the new one, so the very first page after
+        // signing in is the one that asks for a new password.
+        await setSessionCookie(ctx, {
+          session: signedIn.session,
+          user: { ...signedIn.user, mustChangePassword: true } as typeof signedIn.user,
+        });
+      }
+    }),
   },
   // Nothing here grants the organizer role. It used to be given at sign-up
   // to any address listed in ADMIN_EMAILS, but addresses are not verified,
@@ -156,3 +213,59 @@ export const auth = betterAuth({
 });
 
 export type Session = typeof auth.$Infer.Session;
+
+/** Wrong passwords in a row before sign-in is refused for a while. */
+export const MAX_FAILED_SIGN_INS = 8;
+/** How long it is then refused for. */
+export const SIGN_IN_LOCK_MINUTES = 5;
+
+/**
+ * Refuses a sign-in for an account that is locked.
+ *
+ * Checked before the password is, so that a guesser learns nothing from the
+ * attempts made while locked: right or wrong, the answer is the same.
+ */
+async function refuseIfLocked(body: unknown) {
+  const raw = (body as { email?: unknown } | null)?.email;
+  const email = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!email) return;
+  const [account] = await db
+    .select({ lockedUntil: schema.user.lockedUntil })
+    .from(schema.user)
+    .where(eq(schema.user.email, email));
+  const until = account?.lockedUntil?.getTime() ?? 0;
+  if (until <= Date.now()) return;
+  const minutes = Math.max(1, Math.ceil((until - Date.now()) / 60_000));
+  throw new APIError("TOO_MANY_REQUESTS", {
+    message: `Too many wrong passwords for this account. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}, or ask an organizer to set a new password.`,
+  });
+}
+
+/** Counts a wrong password, and locks the account when there are enough. */
+async function countFailedSignIn(email: string) {
+  // One statement, so two wrong guesses at the same moment are both counted.
+  const [account] = await db
+    .update(schema.user)
+    .set({ failedSignIns: sql`${schema.user.failedSignIns} + 1` })
+    .where(eq(schema.user.email, email))
+    .returning({
+      id: schema.user.id,
+      name: schema.user.name,
+      email: schema.user.email,
+      failedSignIns: schema.user.failedSignIns,
+    });
+  if (!account || account.failedSignIns < MAX_FAILED_SIGN_INS) return;
+
+  await db
+    .update(schema.user)
+    .set({
+      failedSignIns: 0,
+      lockedUntil: new Date(Date.now() + SIGN_IN_LOCK_MINUTES * 60_000),
+    })
+    .where(eq(schema.user.id, account.id));
+  await recordAudit({
+    action: "sign_in_locked",
+    target: account,
+    detail: `${MAX_FAILED_SIGN_INS} wrong passwords in a row; locked for ${SIGN_IN_LOCK_MINUTES} minutes.`,
+  });
+}

@@ -43,6 +43,13 @@
       "when": 1794688333995,
       "tag": "0005_several_reviewers_evidence_clipboard",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794694929539,
+      "tag": "0006_sign_in_hardening",
+      "breakpoints": true
     }
   ]
 }

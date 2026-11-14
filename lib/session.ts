@@ -23,9 +23,13 @@ export const getSession = cache(async () => {
     banned?: boolean | null;
     profileCompletedAt?: Date | string | null;
     termsAcceptedAt?: Date | string | null;
+    mustChangePassword?: boolean | null;
   };
   const looksBlocked =
-    user.banned === true || !user.profileCompletedAt || !user.termsAcceptedAt;
+    user.banned === true ||
+    user.mustChangePassword === true ||
+    !user.profileCompletedAt ||
+    !user.termsAcceptedAt;
   if (!looksBlocked) return session;
 
   return getFreshSession();

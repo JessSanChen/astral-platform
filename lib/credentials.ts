@@ -131,6 +131,21 @@ const COMMON_PASSWORDS = new Set([
 
 export type PasswordRule = { id: string; label: string; met: boolean };
 
+/** Whose password it is, which decides what it is held to. */
+export type PasswordOwner = {
+  name?: string;
+  email?: string;
+  /**
+   * An organizer account can set anyone's password, promote people and
+   * download every transcript, so guessing its password is worth far more
+   * than guessing a participant's. It is asked for a longer one.
+   */
+  organizer?: boolean;
+};
+
+export const PASSWORD_LENGTH = 8;
+export const ORGANIZER_PASSWORD_LENGTH = 12;
+
 /**
  * The rules a password is held to, each marked met or not, so a form can
  * show them as a checklist while someone types.
@@ -140,8 +155,9 @@ export type PasswordRule = { id: string; label: string; met: boolean };
  */
 export function passwordRules(
   password: string,
-  who: { name?: string; email?: string } = {},
+  who: PasswordOwner = {},
 ): PasswordRule[] {
+  const minimum = who.organizer ? ORGANIZER_PASSWORD_LENGTH : PASSWORD_LENGTH;
   const lower = password.toLowerCase();
 
   // Words an outsider could guess without knowing anything else: the
@@ -158,7 +174,11 @@ export function passwordRules(
     /^(.)\1+$/.test(password);
 
   return [
-    { id: "length", label: "At least 8 characters", met: password.length >= 8 },
+    {
+      id: "length",
+      label: `At least ${minimum} characters`,
+      met: password.length >= minimum,
+    },
     {
       id: "mix",
       label: "A letter and a number",
@@ -175,13 +195,15 @@ export function passwordRules(
 /** Returns what is wrong with a password, or null if it will do. */
 export function passwordProblem(
   password: string,
-  who: { name?: string; email?: string } = {},
+  who: PasswordOwner = {},
 ): string | null {
   const unmet = passwordRules(password, who).find((rule) => !rule.met);
   if (!unmet) return null;
   switch (unmet.id) {
     case "length":
-      return "Use a password of at least 8 characters.";
+      return who.organizer
+        ? `Organizer accounts need a password of at least ${ORGANIZER_PASSWORD_LENGTH} characters.`
+        : `Use a password of at least ${PASSWORD_LENGTH} characters.`;
     case "mix":
       return "Use a password with at least one letter and one number.";
     default:

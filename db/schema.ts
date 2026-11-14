@@ -43,6 +43,18 @@ export const user = pgTable("user", {
   termsVersion: integer("terms_version"),
   termsAcceptedAt: timestamp("terms_accepted_at"),
   profileCompletedAt: timestamp("profile_completed_at"),
+
+  // Set when the password has to be replaced before anything else can be
+  // done: an organizer set a temporary one, or the one just used to sign in
+  // would no longer be accepted (too short for the account's role, or too
+  // easy to guess).
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
+  // Wrong passwords in a row, and until when sign-in is refused because of
+  // them. Counted per account because everyone at the event shares one
+  // network address, so a limit by address cannot tell a guesser from the
+  // room.
+  failedSignIns: integer("failed_sign_ins").notNull().default(0),
+  lockedUntil: timestamp("locked_until"),
 });
 
 export const session = pgTable("session", {
@@ -530,4 +542,30 @@ export const clipboardEvent = pgTable(
     index("clipboard_event_conversation_idx").on(t.conversationId, t.createdAt),
     index("clipboard_event_user_idx").on(t.userId, t.createdAt),
   ],
+);
+
+/**
+ * What organizers did, and a few things the system did on its own account,
+ * such as locking a sign-in after repeated wrong passwords.
+ *
+ * Organizer accounts can set passwords, promote people and download
+ * everything. If one is misused, this is how anyone finds out what was done
+ * with it. The names are copied in at the time, so the record still reads
+ * properly after an account is deleted.
+ */
+export const auditEvent = pgTable(
+  "audit_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
+    actorLabel: text("actor_label"),
+    action: text("action").notNull(),
+    targetUserId: text("target_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    targetLabel: text("target_label"),
+    detail: text("detail"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("audit_event_created_idx").on(t.createdAt)],
 );
