@@ -167,7 +167,9 @@ npm run prod:migrate
 ```
 
 Then push. Migrating before the code ships means the new column exists by the
-time anything asks for it. Adding columns is safe to do while people are
+time anything asks for it. The other order does not work: the new code asks
+for columns that are not there yet and every page fails until the migration
+is run. `npm run prod:doctor` says whether the database is up to date. Adding columns is safe to do while people are
 using the app; renaming or dropping one is not, so if that comes up before
 the event, do it between sessions.
 

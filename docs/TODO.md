@@ -32,6 +32,9 @@ Needed:
 - Whether anything must be said about the nature of the content they will be
   asked to produce.
 - Whether a separate data-protection notice is required.
+- **That copying and pasting is recorded**, and that conversations are kept
+  even when they are never submitted. Both are now true of the platform and
+  the briefing page says so, but the terms are what people agree to.
 
 Publishing a new version asks everyone to accept it on their next page,
 without refilling anything else, and cannot be undone: a published version
@@ -52,7 +55,7 @@ Where: `components/about-astral.tsx`.
 
 What I filled in from our conversations, which you should check:
 
-- Five tracks at $1,000 each.
+- Four tracks at $1,000 each (the collaborative one was removed).
 - Nominations close 15:00; the two counted tracks close 16:00.
 - The claim that volume alone will not win the counted tracks.
 
@@ -156,16 +159,12 @@ From the thread with Colby, not built because you two are still deciding:
   is a few lines.
 - **Two required questions about what the model did**, plus free text,
   instead of the one there is now.
-- **A free-text field when "Other" is ticked** under topics. You said you
-  would rather limit free text; the cost of not having it is that "Other"
-  tells you nothing afterwards.
 - **Campaigns**, meaning several conversations grouped as one attempt,
   shown as folders, with some questions asked once per campaign and some
-  per conversation. This is the largest of the four: it needs a new table,
+  per conversation. This is the largest of the three: it needs a new table,
   a way to move conversations in and out, and a decision on what a reviewer
-  and a prize entry are *of*, a conversation or a campaign. The existing
-  Collaborative track already lets an entry name several transcripts, which
-  may be enough for this event. Worth settling before I build anything.
+  and a prize entry are *of*, a conversation or a campaign. Worth settling
+  before I build anything.
 
 ### 7. Reviewer labels
 
@@ -209,6 +208,22 @@ can be compared.
 - **Look and feel**: serif headings, one sage accent, a paper background.
   The colours are the first few lines of `app/globals.css`.
 - **Dropdowns** are our own and match the rest.
+- **Unsubmitted conversations** are in the export, marked as drafts.
+- **Copy and paste** is recorded and exported.
+- **"Other" asks what was meant**, on the intake form and the labels.
+- **Evidence turns** are chosen by clicking them in a select mode.
+- **Up to two reviewers per transcript**, the number set in the console.
+- **The collaborative prize is gone.**
+- **A participant's full history**, with labels, in the console.
+
+Open after that round:
+
+- With two reviewers and a random draw, some transcripts will get two
+  reviews while others have none. Say if you would rather spread them: one
+  review each before any second.
+- Nothing yet shows where two reviewers of the same transcript disagree.
+  The data is there; it needs a view, or an analysis after the event.
+- The free-text answers behind "Other" will need reading and sorting.
 
 Still open on models: whether to add a DeepSeek model under open weight
 (left out because OpenRouter does not list its current ones as

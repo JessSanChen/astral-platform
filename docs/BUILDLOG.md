@@ -1877,6 +1877,162 @@ inside the table.
 
 ---
 
+## Round 18: seven things for the data
+
+**This round changes the database.** Before it goes live, run
+`npm run prod:migrate`. The site does not work on the new code without it.
+
+### Transcripts that are never submitted
+
+They were already being kept. Every message is saved the moment it is sent,
+in the same tables as everything else, whether or not its author ever
+presses Submit. What was missing is that the export left them out.
+
+They are now in the export, one line each like any other transcript, marked
+`"status": "draft"`, with whatever labels the author had filled in under
+`draft_labels` and nothing under `self_labels`. **Organize → Settings** has
+a second download, "Submitted transcripts only", for when you do not want
+them. A conversation that was opened and never typed into is not exported.
+
+On a separate database: I would not. The thing that makes a transcript
+"incomplete" is one column, and it changes the moment the author submits. A
+second database would mean moving rows between two places at that moment,
+and two places to back up and export from, to gain nothing that the column
+does not already say.
+
+### Copy and paste
+
+Copying, cutting and pasting inside a conversation is recorded: which of the
+three, where on the page (the message box, a particular message, the labels
+form, the review form), how many characters, and the text itself up to
+4,000 characters. The same on the review page.
+
+- It is in the export, on each transcript's line, as `clipboard_events`.
+- An organizer sees a summary beside each conversation: "Pasted into the
+  message box 2 times, 1,240 characters in all".
+- It never blocks or changes anything. The clipboard behaves as it always
+  does; the page reports what happened afterwards and does not wait for an
+  answer.
+
+Two things you should know:
+
+- **I added a sentence saying so** to the briefing under "What happens to
+  what you write". Recording this without telling people is the kind of
+  thing a review board minds. **The terms should say it too**, and that is
+  your text to write.
+- It records pastes into the page and copies out of it. It cannot know
+  where a paste came from or where a copy went.
+
+### Free text behind "Other"
+
+Choosing "Other" now opens a box asking what was meant, and the answer is
+required: "Other" on its own is the one answer nobody can use afterwards.
+
+- **Intake form**: role, highest degree, primary background, and
+  life-science subdomains.
+- **Labels**: the "Other" topic gets its own box. For the role, the existing
+  "Describe that role" box becomes required when the role is "Other".
+
+On whether it is a good way to collect data: yes, for exactly the purpose
+you gave. The fixed list stays countable, and the free text catches what the
+list missed. The cost is that someone has to read those answers afterwards
+and sort them, and the most useful thing to do with them is add the common
+ones to the list for next time. The box only appears for people who choose
+"Other", so everyone else's form is no longer.
+
+### Choosing the turns that are evidence
+
+The labels panel has a new question, "Which turns show it?", with a
+**Select turns** button. Pressing it puts the conversation into a mode of
+its own:
+
+- every message gets a tick box beside its number, and the whole message is
+  the thing you click;
+- the message box is replaced by a bar saying what to do and what is marked
+  so far ("2 marked: turns 2 and 3"), with **Clear** and **Done**;
+- clicking a turn again unmarks it; Escape or Done leaves.
+
+Afterwards the marked turns keep a small bookmark beside their number, and
+the labels panel lists them as chips that can be removed one at a time.
+
+This replaces the old "Where did the conversation turn?" dropdown, which
+allowed one message and was hidden under Optional extras. Answers given to
+the old question are kept in the database.
+
+Submitting records the marks twice: as turn numbers on the labels, and as
+`evidence: true` on the messages themselves in the snapshot, so nobody has
+to match numbers to messages later. The export has `marked_as_evidence` on
+each message.
+
+### Up to two reviewers per transcript
+
+A transcript can now be reviewed by more than one person. The limit is
+**Reviews per transcript** in **Organize → Settings**, and starts at 2.
+
+- A batch is drawn at random from transcripts that are under the limit and
+  that this reviewer has neither reviewed nor is holding. Nobody reviews
+  the same transcript twice, and nobody is shown anyone else's review.
+- The limit counts people holding a transcript as well as people who have
+  finished, so it cannot be exceeded by two batches crossing.
+- Lowering the limit keeps the reviews already made.
+- The first review still locks the transcript for its author, as before.
+- The export has `independent_reviews`, a list, where it had
+  `independent_review`.
+
+One thing I did as you asked but would think about: the draw is purely
+random, so with a limit of 2 some transcripts will collect two reviews
+while others have none. If you would rather every transcript got one review
+before any gets a second, that is a one-line change to the ordering.
+
+### No collaborative prize
+
+Gone from the nominations page, the briefing (now four tracks, two decided
+by nomination), the organizer's console and the form that asked who you
+worked with. `/nominate/collaborative` is a 404.
+
+Entries made in that track while it existed are not deleted. They are no
+longer shown anywhere in the app, and they are still in the export.
+
+### A participant's whole history in the console
+
+**Organize → Participants → a name** used to list each conversation as one
+line. It now shows every conversation in full, newest first, with:
+
+- every message as plain text, exactly as written (long ones are cut short
+  with a "Show all" link, so the page can still be scrolled);
+- beside it, the labels: as submitted for a submitted conversation, "so
+  far" for one never submitted;
+- the turns marked as evidence, outlined;
+- messages added after submitting, greyed and marked as not part of it;
+- what each reviewer said about it;
+- the copy-and-paste summary.
+
+**All / Submitted / Not submitted** at the top filters it, with counts.
+**Open all / Close all** folds the conversations to their headings.
+
+### Tests
+
+Six more, 42 in all: "Other" on the intake form; marking evidence turns by
+mouse and keyboard; "Other" as a topic or role; copy and paste being
+recorded (and refused for someone else's conversation); two reviewers on
+one transcript, including three people asking at once; and the history page
+with its filters and both exports. The nomination test was rewritten for
+the two tracks that remain.
+
+Load test: 210 of 210 replies, no errors.
+
+### How to test it
+
+1. Start a conversation, exchange a few messages, press **Select turns** in
+   the labels panel and click some.
+2. Paste something into the message box, then open that participant in the
+   console.
+3. In the profile, change your role to "Other".
+4. **Organize → Settings**: "Reviews per transcript", and the two
+   downloads.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

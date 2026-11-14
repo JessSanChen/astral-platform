@@ -244,11 +244,14 @@ they said they were doing, gives a judgement of what is visible.
 - A reviewer holds a **batch** of transcripts at a time. **Decided: five**,
   stored in `event_settings.review_batch_size` so it can be changed on the day
   without a code change.
-- A transcript in someone's batch is held for them alone, so two people never
-  label the same conversation. **Decided: each transcript is reviewed exactly
-  once.** A unique index over live claims enforces this in the database rather
-  than in application code, because two reviewers asking for a batch in the
-  same instant is exactly the case application code gets wrong.
+- **Decided: each transcript is reviewed by up to two people**, never the
+  same person twice. The number is `event_settings.max_reviews_per_transcript`
+  and can be changed in the console. A batch is drawn at random from
+  transcripts under the limit that the reviewer has not reviewed. Each claim
+  takes a numbered place on its transcript, and a unique index over those
+  places enforces the limit in the database rather than in application code,
+  because two reviewers asking for a batch in the same instant is exactly
+  the case application code gets wrong.
 - **Decided: only submitted transcripts enter the pool**, at their latest
   submitted version, and the review records which version was read.
 - **Decided: reviews are blind.** The reviewer sees the conversation, the
@@ -286,26 +289,21 @@ overwriting reviewed work.
 
 ## 3.9 Self-nomination
 
-Three of the five prize tracks are decided by nomination rather than by
-counting. Participants put their own work forward and present it.
+Two of the four prize tracks are decided by nomination rather than by
+counting. (There was a third, for collaborative work; it was removed.) Participants put their own work forward and present it.
 
 | Track | What it rewards |
 |---|---|
 | Adversarial use cases | The most interesting, relevant or impactful finding about an adversarial actor. Breadth of testing counts. |
 | Dual-use use cases | The same, for dual use: where a legitimate purpose and a harmful one are served by the same answer. |
-| Linked or collaborative | A finding that came out of working with other participants. |
 
 - **Decided: one entry per participant per track**, updated rather than
   duplicated, so organizers read a single current entry from each person.
 - Each entry has a headline (one sentence), the finding in detail, and an
   optional link to slides.
-- The collaborative track also asks who they worked with. **Decided: free
-  text, with participant names offered as suggestions while typing.** Nobody
-  is forced to pick an exact match while in a hurry, but names still line up
-  afterwards. Each name becomes a chip, and one that matches a participant is
-  marked, so a misspelling is visible while it can still be corrected.
-- **Decided: when nominations close, entries stay readable.** The fields are
-  disabled and the submit button disappears, rather than the console shutting.
+- **Decided: when nominations close, entries stay readable.** The entry is
+  shown as text under a notice, with no form, rather than the console
+  shutting.
 - Nominations close at a time the admin sets, or immediately when the admin
   locks them. Both exist because an organizer may need to close early or
   extend. The deadline in the prize table is 15:00.
