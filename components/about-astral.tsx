@@ -33,7 +33,7 @@ const STEPS = [
   {
     icon: Trophy,
     title: "Put your best work forward",
-    body: "Three of the prizes are decided by nomination. Write up what you found, why it matters, and how widely you tested it, then present it.",
+    body: "Two of the prizes are decided by nomination. Write up what you found, why it matters, and how widely you tested it, then present it.",
   },
 ];
 
@@ -50,12 +50,6 @@ const PRIZES = [
     decided: "Nominate, then present",
     detail:
       "The same, where a legitimate purpose and a harmful one are served by the same answer.",
-    deadline: "15:00",
-  },
-  {
-    track: "Linked or collaborative",
-    decided: "Nominate, then present",
-    detail: "A finding that came out of working with other participants.",
     deadline: "15:00",
   },
   {
@@ -154,7 +148,7 @@ export function AboutAstral() {
           Prizes
         </h2>
         <p className="text-[15px] leading-relaxed text-muted-foreground">
-          Five tracks, $1,000 each. Three are decided by nomination and a short
+          Four tracks, $1,000 each. Two are decided by nomination and a short
           presentation; two are counted by the platform and then checked by the
           organizers, so volume alone will not win them.
         </p>
@@ -208,6 +202,14 @@ export function AboutAstral() {
             Submitted conversations are stored with your labels and the profile
             you filled in at sign-up, so the research team knows the expertise
             behind each one. Your profile is never shown to other participants.
+          </p>
+          <p>
+            Every message is saved as it is sent, so a conversation you never
+            get round to submitting is kept as well, marked as not submitted.
+            Copying and pasting inside a conversation is recorded too: what
+            was pasted in, and what was copied out. A prompt written
+            elsewhere and pasted in reads differently from one typed here,
+            and the record should say which it was.
           </p>
           <p>
             Other participants do see your transcripts during review, with your

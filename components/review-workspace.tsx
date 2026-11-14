@@ -3,6 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ReviewPanel, type ReviewValues } from "@/components/review-panel";
+import { useClipboardLog } from "@/components/clipboard-log";
 import type { ReviewableTranscript } from "@/lib/reviews";
 import { cn } from "@/lib/utils";
 
@@ -24,8 +25,12 @@ export function ReviewWorkspace({
   alreadyReviewed: boolean;
   submissionCount: number;
 }) {
+  // A reviewer copying a transcript out, or pasting an assessment in, is
+  // recorded the same way as in the author's own view.
+  const clipboard = useClipboardLog(transcript.conversationId);
+
   return (
-    <div className="flex h-full">
+    <div className="flex h-full" {...clipboard}>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
           <span className="text-sm font-medium">Transcript for review</span>
@@ -55,7 +60,10 @@ export function ReviewWorkspace({
         </div>
       </div>
 
-      <aside className="flex w-96 shrink-0 flex-col border-l border-border bg-muted/20">
+      <aside
+        data-clip="review"
+        className="flex w-96 shrink-0 flex-col border-l border-border bg-muted/20"
+      >
         <ReviewPanel
           key={transcript.conversationId}
           conversationId={transcript.conversationId}
@@ -81,6 +89,9 @@ function Turn({
 
   return (
     <div
+      data-turn={index}
+      data-role={turn.role}
+      data-clip="message"
       className={cn(
         "flex items-start gap-2",
         isUser ? "justify-end" : "justify-start",
