@@ -27,6 +27,7 @@ export type EventSettings = {
   defaultJudgeRunsPerHour: number;
   chatRequestsPerMinute: number;
   reviewBatchSize: number;
+  maxReviewsPerTranscript: number;
   nominationsCloseAt: Date | null;
   nominationsLocked: boolean;
   chatPaused: boolean;
@@ -58,6 +59,7 @@ async function loadEventSettings(): Promise<EventSettings> {
     defaultJudgeRunsPerHour: row?.defaultJudgeRunsPerHour ?? 40,
     chatRequestsPerMinute: row?.chatRequestsPerMinute ?? 20,
     reviewBatchSize: row?.reviewBatchSize ?? 5,
+    maxReviewsPerTranscript: row?.maxReviewsPerTranscript ?? 2,
     nominationsCloseAt: row?.nominationsCloseAt ?? null,
     nominationsLocked: row?.nominationsLocked ?? false,
     chatPaused: row?.chatPaused ?? false,

@@ -20,10 +20,10 @@ const BEHAVIOUR_LABELS: Record<string, string> = {
 
 export default async function AdminOverview() {
   await requireAdmin();
-  const [data, coverage, settings] = await Promise.all([
+  const settings = await getEventSettings();
+  const [data, coverage] = await Promise.all([
     overview(),
-    reviewCoverage(),
-    getEventSettings(),
+    reviewCoverage(settings.maxReviewsPerTranscript),
   ]);
 
   const unlabelled =
@@ -42,7 +42,11 @@ export default async function AdminOverview() {
         <Stat
           label="Independent reviews"
           value={data.reviews}
-          hint={`${coverage.reviewed} of ${coverage.submitted} transcripts reviewed`}
+          hint={
+            settings.maxReviewsPerTranscript > 1
+              ? `${coverage.reviewed} of ${coverage.submitted} transcripts reviewed at least once, ${coverage.full} by ${settings.maxReviewsPerTranscript}`
+              : `${coverage.reviewed} of ${coverage.submitted} transcripts reviewed`
+          }
         />
         <Stat
           label="Spend today"

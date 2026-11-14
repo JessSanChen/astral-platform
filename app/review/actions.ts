@@ -102,7 +102,9 @@ export async function submitReview(
         updatedAt: now,
       })
       .onConflictDoUpdate({
-        target: review.conversationId,
+        // One review per reviewer per transcript; several people may
+        // review the same one.
+        target: [review.conversationId, review.reviewerId],
         set: {
           intent: v.intent as Intent,
           misusePresent: v.misusePresent,

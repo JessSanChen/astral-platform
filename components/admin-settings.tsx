@@ -9,6 +9,7 @@ import {
   setDefaultBudget,
   setEventCode,
   setReviewBatchSize,
+  setMaxReviewsPerTranscript,
   adoptBuiltInModelList,
 } from "@/app/admin/actions";
 import { parseWholeNumber } from "@/lib/numbers";
@@ -17,16 +18,19 @@ export function EventSettingsForm({
   eventCode,
   defaultBudget,
   reviewBatchSize,
+  maxReviewsPerTranscript,
 }: {
   eventCode: string;
   defaultBudget: number;
   reviewBatchSize: number;
+  maxReviewsPerTranscript: number;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [code, setCode] = useState(eventCode);
   const [budget, setBudget] = useState(String(defaultBudget));
   const [batch, setBatch] = useState(String(reviewBatchSize));
+  const [perTranscript, setPerTranscript] = useState(String(maxReviewsPerTranscript));
   const [note, setNote] = useState<string | null>(null);
 
   function save() {
@@ -36,6 +40,7 @@ export function EventSettingsForm({
     // only thing being changed.
     const tokens = parseWholeNumber(budget);
     const size = parseWholeNumber(batch);
+    const reviewers = parseWholeNumber(perTranscript);
     if (!code.trim()) return setNote("The event code cannot be empty.");
     if (tokens === null || tokens < 1)
       return setNote(
@@ -46,11 +51,17 @@ export function EventSettingsForm({
         "The review batch must be a whole number from 1 to 50. Nothing was saved.",
       );
 
+    if (reviewers === null || reviewers < 1 || reviewers > 10)
+      return setNote(
+        "Reviews per transcript must be a whole number from 1 to 10. Nothing was saved.",
+      );
+
     start(async () => {
       const results = await Promise.all([
         setEventCode(code),
         setDefaultBudget(tokens),
         setReviewBatchSize(size),
+        setMaxReviewsPerTranscript(reviewers),
       ]);
       const refused = results.find((r) => r && r.message)?.message;
       setNote(refused ?? "Saved.");
@@ -79,9 +90,21 @@ export function EventSettingsForm({
       <Field
         label="Transcripts per review batch"
         htmlFor="batch"
-        hint="How many a reviewer holds at once. Held for them alone, so nobody labels the same conversation twice."
+        hint="How many a reviewer holds at once."
       >
         <Input id="batch" value={batch} onChange={(e) => setBatch(e.target.value)} />
+      </Field>
+
+      <Field
+        label="Reviews per transcript"
+        htmlFor="perTranscript"
+        hint="How many different people may review the same transcript. Nobody reviews one twice. Lowering this keeps reviews already made."
+      >
+        <Input
+          id="perTranscript"
+          value={perTranscript}
+          onChange={(e) => setPerTranscript(e.target.value)}
+        />
       </Field>
 
       <div className="flex items-center gap-3">

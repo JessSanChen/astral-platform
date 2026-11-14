@@ -105,6 +105,9 @@ async function checkSchema() {
     ["judge_run", "turn_count"],
     ["message", "raw_request"],
     ["conversation", "scenario"],
+    ["review_claim", "slot"],
+    ["transcript_labels", "evidence_turns"],
+    ["clipboard_event", "kind"],
   ] as const) {
     const rows = await db.execute(
       sql`select 1 from information_schema.columns where table_name = ${table} and column_name = ${column}`,

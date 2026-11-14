@@ -22,22 +22,27 @@ export type ReviewableTranscript = {
  * Hands a reviewer a fresh batch.
  *
  * A transcript is eligible when its author has submitted it, it is not the
- * reviewer's own, nobody has reviewed it, and nobody else is holding it. The
- * claim rows are what stop two people labelling the same conversation: the
- * database has a unique index over live claims, so when two reviewers ask at
- * the same instant one of the inserts simply fails and that transcript is
- * skipped rather than handed out twice.
+ * reviewer's own, the reviewer has not already reviewed it and is not
+ * already holding it, and fewer people than the limit are holding or have
+ * reviewed it. The limit is event_settings.maxReviewsPerTranscript.
+ *
+ * Each claim takes a numbered place on its transcript, the lowest one free,
+ * and the database allows each place to be held once. That is what stops
+ * the limit being exceeded when two reviewers ask at the same instant: both
+ * see the same place free, both ask for it, one insert is refused, and that
+ * transcript is skipped for that reviewer rather than handed out too often.
  */
 export async function claimBatch(reviewerId: string, size?: number) {
   const settings = await getEventSettings();
   const batchSize = size ?? settings.reviewBatchSize;
+  const limit = settings.maxReviewsPerTranscript;
 
   // One statement, for two reasons.
   //
   // Correctness: selecting candidates and then inserting them one by one
-  // leaves a gap in which another reviewer can take the same transcript.
-  // Doing both together, with the unique index over live claims rejecting
-  // anything already taken, closes it.
+  // leaves a gap in which another reviewer can take the same place. Doing
+  // both together, with the unique indexes rejecting anything already
+  // taken, closes it.
   //
   // Speed: claiming five transcripts in five round trips was the slowest
   // thing in the interface, and on a database a network hop away it was most
@@ -49,22 +54,48 @@ export async function claimBatch(reviewerId: string, size?: number) {
   // Previously released ones are still offered once the untouched pool runs
   // dry, since a small event can exhaust it.
   const rows = await db.execute<{ conversation_id: string }>(sql`
-    insert into ${reviewClaim} (conversation_id, reviewer_id)
-    select c.id, ${reviewerId}
-    from ${conversation} c
-    where c.status = 'submitted'
-      and c.user_id <> ${reviewerId}
-      and not exists (select 1 from ${review} r where r.conversation_id = c.id)
-      and not exists (
-        select 1 from ${reviewClaim} rc
-        where rc.conversation_id = c.id and rc.state <> 'released'
-      )
-    order by
-      exists (
-        select 1 from ${reviewClaim} rc
-        where rc.conversation_id = c.id and rc.reviewer_id = ${reviewerId}
-      ) asc,
-      random()
+    insert into ${reviewClaim} (conversation_id, reviewer_id, slot)
+    select candidate.id, ${reviewerId}, candidate.free_slot
+    from (
+      select
+        c.id,
+        (
+          select min(place)
+          from generate_series(1, ${limit}::int) as place
+          where not exists (
+            select 1 from ${reviewClaim} taken
+            where taken.conversation_id = c.id
+              and taken.state <> 'released'
+              and taken.slot = place
+          )
+        ) as free_slot,
+        exists (
+          select 1 from ${reviewClaim} passed
+          where passed.conversation_id = c.id and passed.reviewer_id = ${reviewerId}
+        ) as passed_over
+      from ${conversation} c
+      where c.status = 'submitted'
+        and c.user_id <> ${reviewerId}
+        -- Not one this reviewer has reviewed or is holding.
+        and not exists (
+          select 1 from ${review} r
+          where r.conversation_id = c.id and r.reviewer_id = ${reviewerId}
+        )
+        and not exists (
+          select 1 from ${reviewClaim} mine
+          where mine.conversation_id = c.id
+            and mine.reviewer_id = ${reviewerId}
+            and mine.state <> 'released'
+        )
+        -- Counted separately from the free place: lowering the limit can
+        -- leave a low place free on a transcript that is already full.
+        and (
+          select count(*) from ${reviewClaim} live
+          where live.conversation_id = c.id and live.state <> 'released'
+        ) < ${limit}::int
+    ) candidate
+    where candidate.free_slot is not null
+    order by candidate.passed_over asc, random()
     limit ${batchSize}
     on conflict do nothing
     returning conversation_id

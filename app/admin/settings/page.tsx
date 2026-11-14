@@ -21,6 +21,7 @@ export default async function AdminSettings() {
           eventCode={settings.eventCode}
           defaultBudget={settings.defaultDailyTokenBudget}
           reviewBatchSize={settings.reviewBatchSize}
+          maxReviewsPerTranscript={settings.maxReviewsPerTranscript}
         />
       </Panel>
 
@@ -64,12 +65,26 @@ export default async function AdminSettings() {
           and the labels and the review describe only the ones where it is
           true.
         </p>
-        <a
-          href="/api/admin/export"
-          className="mt-3 inline-block text-sm text-accent underline"
-        >
-          Download everything as JSONL
-        </a>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          Conversations that were never submitted are in the file too, marked{" "}
+          <code className="rounded bg-muted px-1 text-xs">
+            &quot;status&quot;: &quot;draft&quot;
+          </code>
+          , with whatever labels their author had filled in so far. They are
+          saved message by message as they happen, so nothing is lost when
+          someone does not get as far as submitting.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
+          <a href="/api/admin/export" className="text-sm text-accent underline">
+            Download everything as JSONL
+          </a>
+          <a
+            href="/api/admin/export?only=submitted"
+            className="text-sm text-accent underline"
+          >
+            Submitted transcripts only
+          </a>
+        </div>
       </Panel>
 
       <Panel title="This deployment">

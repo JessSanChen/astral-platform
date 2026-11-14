@@ -160,6 +160,13 @@ export const profile = pgTable("profile", {
   subdomains: text("subdomains").array().notNull().default([]),
   aiFamiliarity: text("ai_familiarity").notNull(),
   expertiseNote: text("expertise_note"),
+  // What someone meant when they chose "Other". Kept beside the answer
+  // rather than in place of it, so the closed list stays countable and the
+  // free text is there to be read, and to extend the list next time.
+  roleOther: text("role_other"),
+  highestDegreeOther: text("highest_degree_other"),
+  primaryBackgroundOther: text("primary_background_other"),
+  subdomainsOther: text("subdomains_other"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -188,6 +195,12 @@ export const eventSettings = pgTable("event_settings", {
   // How many transcripts a reviewer gets at once. Five to start; changed
   // here rather than in code so it can be tuned on the day.
   reviewBatchSize: integer("review_batch_size").notNull().default(5),
+  // How many different people may review the same transcript. More than
+  // one lets the reviews be compared with each other, at the cost of fewer
+  // transcripts being reviewed at all.
+  maxReviewsPerTranscript: integer("max_reviews_per_transcript")
+    .notNull()
+    .default(2),
   // Nominations close at this time, or at once when the flag is set. Both
   // exist because an organizer may need to close early, or extend.
   nominationsCloseAt: timestamp("nominations_close_at"),
@@ -281,6 +294,15 @@ export const transcriptLabels = pgTable("transcript_labels", {
   goalText: text("goal_text"),
   modelBehaviour: modelBehaviour("model_behaviour"),
   domainTags: text("domain_tags").array().notNull().default([]),
+  // What the author meant by the "Other" topic.
+  domainOther: text("domain_other"),
+  // The turns the author points to as showing what their labels say, as the
+  // numbers shown beside each message: 1 is the first message. A submission
+  // also marks the messages themselves, so the numbers never have to be
+  // matched up again afterwards.
+  evidenceTurns: integer("evidence_turns").array().notNull().default([]),
+  // No longer set. A single "where did it turn" message, replaced by
+  // evidenceTurns. Kept for the labels that were made with it.
   keyTurnMessageId: uuid("key_turn_message_id"),
   // Participant disagreement flag, e.g. "refusal was wrong" / "compliance was dangerous".
   challengeFlag: text("challenge_flag"),
@@ -367,10 +389,11 @@ export const usageEvent = pgTable(
 /**
  * A transcript handed to one reviewer.
  *
- * Reviewers work through a small batch at a time, and a transcript in
- * someone's batch is off limits to everyone else, so two people never label
- * the same conversation. Abandoned claims are released back to the pool when
- * the reviewer asks for a fresh batch.
+ * Reviewers work through a small batch at a time. A transcript can be held
+ * or reviewed by a limited number of people (event_settings
+ * .maxReviewsPerTranscript), and never twice by the same person. Abandoned
+ * claims are released back to the pool when the reviewer asks for a fresh
+ * batch.
  */
 export const reviewClaim = pgTable(
   "review_claim",
@@ -383,16 +406,25 @@ export const reviewClaim = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     state: reviewClaimState("state").notNull().default("claimed"),
+    // Which of the transcript's review places this claim occupies, from 1
+    // up to the limit.
+    slot: integer("slot").notNull().default(1),
     claimedAt: timestamp("claimed_at").notNull().defaultNow(),
     releasedAt: timestamp("released_at"),
   },
   (t) => [
     index("review_claim_reviewer_idx").on(t.reviewerId, t.state),
-    // At most one live claim per conversation. Enforced by the database
+    // Each place on a transcript can be held once. Enforced by the database
     // rather than by careful code, because two reviewers asking for a batch
-    // at the same moment is exactly the case that careful code gets wrong.
-    uniqueIndex("review_claim_active_uq")
-      .on(t.conversationId)
+    // at the same moment is exactly the case that careful code gets wrong:
+    // both would count one reviewer so far and both would take the second
+    // place. Here they both ask for place 2 and one of them is refused.
+    uniqueIndex("review_claim_slot_uq")
+      .on(t.conversationId, t.slot)
+      .where(sql`state <> 'released'`),
+    // And nobody holds the same transcript twice.
+    uniqueIndex("review_claim_reviewer_uq")
+      .on(t.conversationId, t.reviewerId)
       .where(sql`state <> 'released'`),
   ],
 );
@@ -422,7 +454,13 @@ export const review = pgTable(
     submissionCount: integer("submission_count").notNull().default(1),
   },
   (t) => [
-    uniqueIndex("review_conversation_uq").on(t.conversationId),
+    // One review per reviewer per transcript. A transcript can have several
+    // reviews, from different people.
+    uniqueIndex("review_conversation_reviewer_uq").on(
+      t.conversationId,
+      t.reviewerId,
+    ),
+    index("review_conversation_idx").on(t.conversationId),
     index("review_reviewer_idx").on(t.reviewerId, t.updatedAt),
   ],
 );
@@ -455,5 +493,41 @@ export const nomination = pgTable(
   (t) => [
     uniqueIndex("nomination_user_track_uq").on(t.userId, t.track),
     index("nomination_track_idx").on(t.track, t.updatedAt),
+  ],
+);
+
+/**
+ * A copy, cut or paste made while working on a conversation.
+ *
+ * Kept because it changes how a transcript should be read: a prompt pasted
+ * in whole was written somewhere else, possibly by another model, and a
+ * reply copied out went somewhere. Neither is visible in the messages.
+ *
+ * The text is kept up to a limit; `charCount` is the full length.
+ */
+export const clipboardEvent = pgTable(
+  "clipboard_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id").references(() => conversation.id, {
+      onDelete: "cascade",
+    }),
+    // "copy", "cut" or "paste".
+    kind: text("kind").notNull(),
+    // Where on the page: "composer", "message", "labels", "review", "other".
+    surface: text("surface").notNull(),
+    // For a message: its number as shown beside it, and whose it was.
+    turn: integer("turn"),
+    role: text("role"),
+    charCount: integer("char_count").notNull(),
+    content: text("content"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("clipboard_event_conversation_idx").on(t.conversationId, t.createdAt),
+    index("clipboard_event_user_idx").on(t.userId, t.createdAt),
   ],
 );

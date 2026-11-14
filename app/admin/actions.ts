@@ -145,6 +145,25 @@ export async function setReviewBatchSize(size: number) {
 }
 
 /**
+ * How many different people may review one transcript.
+ *
+ * Lowering it never removes a review already made. A transcript that has
+ * more than the new limit keeps them and is simply offered to nobody else.
+ */
+export async function setMaxReviewsPerTranscript(limit: number) {
+  await requireAdmin();
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 10) {
+    return { message: "Reviews per transcript must be a whole number from 1 to 10." };
+  }
+  await db
+    .update(eventSettings)
+    .set({ maxReviewsPerTranscript: limit, updatedAt: new Date() })
+    .where(eq(eventSettings.id, 1));
+  settingsChanged();
+  return { message: null };
+}
+
+/**
  * The allowance everyone gets unless given their own.
  *
  * Zero or an unreadable number is refused rather than stored: it would turn

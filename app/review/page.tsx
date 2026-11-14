@@ -25,9 +25,12 @@ export default async function ReviewHome() {
           independent judgement is often more reliable than the author&apos;s own.
         </p>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          You get {settings.reviewBatchSize} at a time, held for you alone so
-          nobody else labels the same conversation. Reviewing one moves it to
-          the Reviewed list, where you can still change your answers.
+          You get {settings.reviewBatchSize} at a time.{" "}
+          {settings.maxReviewsPerTranscript > 1
+            ? `Each transcript is reviewed by up to ${settings.maxReviewsPerTranscript} people, and you are never shown what anyone else said about it.`
+            : "Each is held for you alone, so nobody else labels the same conversation."}{" "}
+          Reviewing one moves it to the Reviewed list, where you can still
+          change your answers.
         </p>
       </div>
 
