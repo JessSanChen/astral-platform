@@ -13,6 +13,7 @@ import {
   user,
 } from "@/db/schema";
 import { requireAdmin } from "@/lib/gate";
+import { recordAudit } from "@/lib/audit";
 
 /**
  * The whole dataset as JSONL: one line per conversation.
@@ -34,8 +35,15 @@ import { requireAdmin } from "@/lib/gate";
  * decide whether this works.
  */
 export async function GET(req: Request) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
   const submittedOnly = new URL(req.url).searchParams.get("only") === "submitted";
+  // Everything anyone wrote leaves the platform here, so who took it and
+  // when is worth being able to answer afterwards.
+  await recordAudit({
+    action: "export_downloaded",
+    actor: me,
+    detail: submittedOnly ? "Submitted transcripts only." : "Everything.",
+  });
 
   const hasMessages = sql`exists (
     select 1 from ${message} m where m.conversation_id = ${conversation.id}

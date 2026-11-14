@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { eventSettings, termsVersion, user } from "@/db/schema";
+import { eventSettings, session, termsVersion, user } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { recordAudit } from "@/lib/audit";
+import { getEventSettings } from "@/lib/openrouter";
 import { passwordProblem } from "@/lib/credentials";
 import { DEFAULT_MODELS } from "@/lib/models";
 import { requireAdmin } from "@/lib/gate";
@@ -25,7 +27,7 @@ function settingsChanged() {
  * arriving at it by a mistyped number should not be possible.
  */
 export async function setBudget(userId: string, tokens: number | null) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
   if (tokens !== null && (!Number.isSafeInteger(tokens) || tokens < 1)) {
     return { message: "Enter a whole number of tokens above zero." };
   }
@@ -33,16 +35,27 @@ export async function setBudget(userId: string, tokens: number | null) {
     .update(user)
     .set({ dailyTokenBudget: tokens, updatedAt: new Date() })
     .where(eq(user.id, userId));
+  await recordAudit({
+    action: "allowance_set",
+    actor: me,
+    target: userId,
+    detail: tokens === null ? "Back to the default." : `${tokens.toLocaleString("en-US")} tokens a day.`,
+  });
   revalidatePath("/admin");
   return { message: null };
 }
 
 export async function setPaused(userId: string, paused: boolean) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
   await db
     .update(user)
     .set({ banned: paused, updatedAt: new Date() })
     .where(eq(user.id, userId));
+  await recordAudit({
+    action: paused ? "account_paused" : "account_resumed",
+    actor: me,
+    target: userId,
+  });
   revalidatePath("/admin");
 }
 
@@ -77,29 +90,43 @@ export async function setOrganizer(userId: string, organizer: boolean) {
     .update(user)
     .set({ role: organizer ? "admin" : "user", updatedAt: new Date() })
     .where(eq(user.id, userId));
+  // A new organizer is signed out, so that they sign in again as one. That
+  // is the moment their password is checked against what an organizer's
+  // has to be, and replaced if it falls short.
+  if (organizer) await db.delete(session).where(eq(session.userId, userId));
+  await recordAudit({
+    action: organizer ? "organizer_granted" : "organizer_removed",
+    actor: current.user,
+    target: userId,
+  });
   revalidatePath("/admin");
   return {
     message: organizer
-      ? "Made an organizer. It takes effect for them within about half a minute."
-      : "Organizer rights removed. Takes effect within about half a minute.",
+      ? "Made an organizer. They are being signed out and will have the console when they sign back in. If their password is shorter than an organizer's has to be, they will be asked for a new one."
+      : "Organizer rights removed, as of now.",
   };
 }
 
 export async function setChatPaused(paused: boolean) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
   await db
     .update(eventSettings)
     .set({ chatPaused: paused, updatedAt: new Date() })
     .where(eq(eventSettings.id, 1));
+  await recordAudit({ action: paused ? "chat_paused" : "chat_resumed", actor: me });
   settingsChanged();
 }
 
 export async function setNominationsLocked(locked: boolean) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
   await db
     .update(eventSettings)
     .set({ nominationsLocked: locked, updatedAt: new Date() })
     .where(eq(eventSettings.id, 1));
+  await recordAudit({
+    action: locked ? "nominations_closed" : "nominations_reopened",
+    actor: me,
+  });
   settingsChanged();
 }
 
@@ -112,7 +139,7 @@ export async function setNominationsLocked(locked: boolean) {
  * three in the afternoon. Closing now has its own button.
  */
 export async function setNominationsCloseAt(iso: string | null) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
   if (iso !== null) {
     const when = new Date(iso);
     if (Number.isNaN(when.getTime())) {
@@ -129,14 +156,20 @@ export async function setNominationsCloseAt(iso: string | null) {
     .update(eventSettings)
     .set({ nominationsCloseAt: iso ? new Date(iso) : null, updatedAt: new Date() })
     .where(eq(eventSettings.id, 1));
+  await recordAudit({
+    action: "nominations_deadline",
+    actor: me,
+    detail: iso ? `Now ${new Date(iso).toISOString()}.` : "No closing time.",
+  });
   settingsChanged();
   return { message: null };
 }
 
 export async function setReviewBatchSize(size: number) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
   if (!Number.isFinite(size)) return;
   const clamped = Math.max(1, Math.min(50, Math.round(size)));
+  await noteSettingChange(me, "Transcripts per review batch", (s) => s.reviewBatchSize, clamped);
   await db
     .update(eventSettings)
     .set({ reviewBatchSize: clamped, updatedAt: new Date() })
@@ -151,10 +184,11 @@ export async function setReviewBatchSize(size: number) {
  * more than the new limit keeps them and is simply offered to nobody else.
  */
 export async function setMaxReviewsPerTranscript(limit: number) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 10) {
     return { message: "Reviews per transcript must be a whole number from 1 to 10." };
   }
+  await noteSettingChange(me, "Reviews per transcript", (s) => s.maxReviewsPerTranscript, limit);
   await db
     .update(eventSettings)
     .set({ maxReviewsPerTranscript: limit, updatedAt: new Date() })
@@ -171,10 +205,11 @@ export async function setMaxReviewsPerTranscript(limit: number) {
  * seconds. Stopping chat for the room is a separate, labelled control.
  */
 export async function setDefaultBudget(tokens: number) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
   if (!Number.isSafeInteger(tokens) || tokens < 1) {
     return { message: "Enter a whole number of tokens above zero." };
   }
+  await noteSettingChange(me, "Daily token allowance", (s) => s.defaultDailyTokenBudget, tokens);
   await db
     .update(eventSettings)
     .set({ defaultDailyTokenBudget: tokens, updatedAt: new Date() })
@@ -184,9 +219,13 @@ export async function setDefaultBudget(tokens: number) {
 }
 
 export async function setEventCode(code: string) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
   const trimmed = code.trim();
   if (!trimmed) return;
+  // That it changed, and by whom. Not what to: the code is a secret.
+  if ((await getEventSettings()).eventCode !== trimmed) {
+    await recordAudit({ action: "event_code_changed", actor: me });
+  }
   await db
     .update(eventSettings)
     .set({ eventCode: trimmed, updatedAt: new Date() })
@@ -202,11 +241,26 @@ export async function setEventCode(code: string) {
  * participant signs in with it.
  */
 export async function resetPassword(userId: string, newPassword: string) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
+  if (userId === me.id) {
+    return {
+      message: "Change your own password from your profile, where it asks for the current one.",
+    };
+  }
+  const [target] = await db
+    .select({ id: user.id, name: user.name, email: user.email, role: user.role })
+    .from(user)
+    .where(eq(user.id, userId));
+  if (!target) return { message: "That account no longer exists." };
+
   // A temporary password is held to the same rules as one chosen at
   // sign-up. It is read out across a room, so it should not also be one of
   // the first things anyone would try.
-  const problem = passwordProblem(newPassword);
+  const problem = passwordProblem(newPassword, {
+    name: target.name,
+    email: target.email,
+    organizer: target.role === "admin",
+  });
   if (problem) return { message: problem };
   try {
     // The caller's own headers, so the login system sees the organizer's
@@ -215,10 +269,54 @@ export async function resetPassword(userId: string, newPassword: string) {
       body: { newPassword, userId },
       headers: await headers(),
     });
-    return { message: null };
   } catch (e) {
     return { message: (e as Error).message ?? "Could not set the password." };
   }
+
+  // Three things follow from "this password was chosen by someone else":
+  // the account is signed out wherever it was signed in, so whoever knew
+  // the old one is out; any lock from wrong guesses is lifted, since this
+  // is how a locked-out person gets back in; and the new password works
+  // once, to choose their own.
+  await db.delete(session).where(eq(session.userId, userId));
+  await db
+    .update(user)
+    .set({ mustChangePassword: true, failedSignIns: 0, lockedUntil: null, updatedAt: new Date() })
+    .where(eq(user.id, userId));
+  await recordAudit({ action: "password_set", actor: me, target });
+  return { message: null };
+}
+
+/**
+ * Ends every session of every account, the caller's included.
+ *
+ * For when a password may have been guessed and it is not clear whose, or
+ * who is still signed in with it. Everyone signs in again, which is when a
+ * password that would no longer be accepted gets caught and replaced.
+ * Nothing anyone has written is touched.
+ */
+export async function signEveryoneOut() {
+  const { user: me } = await requireAdmin();
+  // Recorded first: the session this is running under is about to go.
+  await recordAudit({ action: "everyone_signed_out", actor: me });
+  await db.delete(session);
+  return { message: null };
+}
+
+/** Records a change to one of the numbers in the settings, if it changed. */
+async function noteSettingChange(
+  actor: { id: string; name?: string | null; email?: string | null },
+  name: string,
+  read: (settings: Awaited<ReturnType<typeof getEventSettings>>) => number,
+  next: number,
+) {
+  const before = read(await getEventSettings());
+  if (before === next) return;
+  await recordAudit({
+    action: "settings_changed",
+    actor,
+    detail: `${name}: ${before.toLocaleString("en-US")} to ${next.toLocaleString("en-US")}.`,
+  });
 }
 
 /**
@@ -233,7 +331,7 @@ export async function resetPassword(userId: string, newPassword: string) {
  * SQL console.
  */
 export async function publishTerms(body: string) {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
   const text = body.replace(/\r\n/g, "\n").trim();
   if (text.length < 20) {
     return { message: "That is too short to be the terms. Nothing was published." };
@@ -268,6 +366,11 @@ export async function publishTerms(body: string) {
       .returning({ version: termsVersion.version });
 
     invalidate(CACHE_KEYS.latestTermsVersion);
+    await recordAudit({
+      action: "terms_published",
+      actor: me,
+      detail: `Version ${published.version}.`,
+    });
     revalidatePath("/admin");
     return { version: published.version, message: null };
   } catch {
@@ -287,7 +390,8 @@ export async function publishTerms(body: string) {
  * take the new list without running a command against the database.
  */
 export async function adoptBuiltInModelList() {
-  await requireAdmin();
+  const { user: me } = await requireAdmin();
+  await recordAudit({ action: "model_list_changed", actor: me });
   await db
     .update(eventSettings)
     .set({ enabledModels: DEFAULT_MODELS, updatedAt: new Date() })

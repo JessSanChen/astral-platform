@@ -171,7 +171,10 @@ export function ParticipantRow({
           onClick={() =>
             start(async () => {
               const result = await resetPassword(userId, password);
-              setNote(result.message ?? "Password set. Read it out to them.");
+              setNote(
+                result.message ??
+                  "Password set, and they are being signed out. Read it out to them; they will be asked to replace it.",
+              );
               setPassword("");
             })
           }
@@ -216,9 +219,10 @@ export function ParticipantRow({
       </div>
 
       {note && <p className="text-xs text-muted-foreground">{note}</p>}
-      <p className="text-xs text-muted-foreground">
-        Changes to {name.split(" ")[0]}&apos;s account take effect within about
-        half a minute.
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Setting a password signs {name.split(" ")[0]} out everywhere, and it
+        works one time: they are asked to choose their own on signing in.
+        Signing out and pausing can each take half a minute to reach them.
       </p>
     </div>
     );
