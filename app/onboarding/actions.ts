@@ -5,7 +5,11 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profile, user as userTable } from "@/db/schema";
 import { getCurrentUser } from "@/lib/gate";
-import { profileSchema } from "@/lib/onboarding-schema";
+import {
+  profileColumns,
+  profileFromForm,
+  profileSchema,
+} from "@/lib/onboarding-schema";
 
 export type OnboardingState = {
   errors?: Record<string, string>;
@@ -24,17 +28,7 @@ export async function completeOnboarding(
 
   // --- Profile (only validated if still required or the user is editing) ---
   if (cu.needsProfile) {
-    const parsed = profileSchema.safeParse({
-      name: formData.get("name"),
-      affiliation: formData.get("affiliation"),
-      role: formData.get("role"),
-      highestDegree: formData.get("highestDegree"),
-      yearsExperience: formData.get("yearsExperience"),
-      primaryBackground: formData.get("primaryBackground"),
-      subdomains: formData.getAll("subdomains"),
-      aiFamiliarity: formData.get("aiFamiliarity"),
-      expertiseNote: formData.get("expertiseNote") ?? undefined,
-    });
+    const parsed = profileSchema.safeParse(profileFromForm(formData));
 
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
@@ -46,31 +40,10 @@ export async function completeOnboarding(
       await db.transaction(async (tx) => {
         await tx
           .insert(profile)
-          .values({
-            userId: cu.user.id,
-            affiliation: p.affiliation,
-            role: p.role,
-            highestDegree: p.highestDegree,
-            yearsExperience: p.yearsExperience,
-            primaryBackground: p.primaryBackground,
-            subdomains: p.subdomains,
-            aiFamiliarity: p.aiFamiliarity,
-            expertiseNote: p.expertiseNote || null,
-            updatedAt: now,
-          })
+          .values({ userId: cu.user.id, ...profileColumns(p), updatedAt: now })
           .onConflictDoUpdate({
             target: profile.userId,
-            set: {
-              affiliation: p.affiliation,
-              role: p.role,
-              highestDegree: p.highestDegree,
-              yearsExperience: p.yearsExperience,
-              primaryBackground: p.primaryBackground,
-              subdomains: p.subdomains,
-              aiFamiliarity: p.aiFamiliarity,
-              expertiseNote: p.expertiseNote || null,
-              updatedAt: now,
-            },
+            set: { ...profileColumns(p), updatedAt: now },
           });
         await tx
           .update(userTable)

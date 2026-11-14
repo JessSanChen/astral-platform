@@ -112,6 +112,10 @@ export default async function ProfilePage() {
             subdomains: details.subdomains ?? [],
             aiFamiliarity: details.aiFamiliarity,
             expertiseNote: details.expertiseNote ?? "",
+            roleOther: details.roleOther ?? "",
+            highestDegreeOther: details.highestDegreeOther ?? "",
+            primaryBackgroundOther: details.primaryBackgroundOther ?? "",
+            subdomainsOther: details.subdomainsOther ?? "",
           }
         }
       />

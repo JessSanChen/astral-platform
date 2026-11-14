@@ -24,6 +24,11 @@ export type ProfileFieldValues = {
   subdomains: string[];
   aiFamiliarity: string;
   expertiseNote: string;
+  // What was meant by "Other", for each question that offers it.
+  roleOther: string;
+  highestDegreeOther: string;
+  primaryBackgroundOther: string;
+  subdomainsOther: string;
 };
 
 export const EMPTY_PROFILE: ProfileFieldValues = {
@@ -36,6 +41,10 @@ export const EMPTY_PROFILE: ProfileFieldValues = {
   subdomains: [],
   aiFamiliarity: "",
   expertiseNote: "",
+  roleOther: "",
+  highestDegreeOther: "",
+  primaryBackgroundOther: "",
+  subdomainsOther: "",
 };
 
 /** These lists are plain words, each its own label. */
@@ -66,6 +75,18 @@ export function ProfileFields({
   ) => void;
 }) {
   const chosen = new Set(values.subdomains);
+  const other = (
+    field: "roleOther" | "highestDegreeOther" | "primaryBackgroundOther" | "subdomainsOther",
+    question: string,
+  ) => (
+    <OtherText
+      name={field}
+      question={question}
+      value={values[field]}
+      error={errors[field]}
+      onChange={(v) => onChange(field, v)}
+    />
+  );
   const text =
     (field: "name" | "affiliation" | "expertiseNote") =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -108,6 +129,7 @@ export function ProfileFields({
             invalid={Boolean(errors.role)}
             options={asOptions(PROFILE_ROLES)}
           />
+          {values.role === "Other" && other("roleOther", "Role")}
         </Field>
         <Field
           label="Highest degree"
@@ -123,6 +145,7 @@ export function ProfileFields({
             invalid={Boolean(errors.highestDegree)}
             options={asOptions(DEGREES)}
           />
+          {values.highestDegree === "Other" && other("highestDegreeOther", "Highest degree")}
         </Field>
         <Field
           label="Years of experience"
@@ -153,6 +176,8 @@ export function ProfileFields({
             invalid={Boolean(errors.primaryBackground)}
             options={asOptions(BACKGROUNDS)}
           />
+          {values.primaryBackground === "Other" &&
+            other("primaryBackgroundOther", "Primary background")}
         </Field>
       </div>
 
@@ -183,6 +208,7 @@ export function ProfileFields({
             </label>
           ))}
         </div>
+        {chosen.has("Other") && other("subdomainsOther", "Life-science subdomains")}
       </Field>
 
       <Field
@@ -216,5 +242,49 @@ export function ProfileFields({
         />
       </Field>
     </>
+  );
+}
+
+/**
+ * The box that appears when an answer is "Other".
+ *
+ * Shown only then, so the form is no longer for the people the list already
+ * covers, and required once shown: "Other" with nothing beside it is the one
+ * answer that cannot be used afterwards.
+ */
+export function OtherText({
+  name,
+  question,
+  value,
+  error,
+  onChange,
+  placeholder = "Please say what",
+}: {
+  name: string;
+  /** The question this belongs to, for a screen reader. */
+  question: string;
+  value: string;
+  error?: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <Input
+        name={name}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        maxLength={200}
+        aria-label={`${question}: other, please say what`}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${name}-error` : undefined}
+      />
+      {error && (
+        <p id={`${name}-error`} className="text-xs text-danger">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

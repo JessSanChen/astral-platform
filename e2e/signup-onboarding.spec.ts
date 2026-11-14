@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { eventCode } from "./db";
+import { eventCode, sql } from "./db";
 import {
   PASSWORD,
   choose,
@@ -144,6 +144,67 @@ test.describe("getting in", () => {
     await expect(page.getByLabel("Affiliation")).toHaveValue("Somewhere");
     await expect(page.getByLabel("Role", { exact: true })).toContainText("Postdoc");
     await expect(page.getByLabel("Primary background")).toContainText("Both");
+  });
+
+  test('choosing "Other" asks what was meant, and keeps the answer', async ({ page }) => {
+    const email = uniqueEmail("other");
+    await signUp(page, "Olive Other", email);
+    await page.getByLabel("Affiliation").fill("Independent");
+
+    // The box is not there until Other is chosen.
+    const roleOther = page.getByLabel("Role: other, please say what");
+    await expect(roleOther).toHaveCount(0);
+    await choose(page, "Role", "Other");
+    await expect(roleOther).toBeVisible();
+    await choose(page, "Highest degree", "PhD");
+    await choose(page, "Years of experience", "2-4");
+    await choose(page, "Primary background", "Life sciences");
+    await page.getByRole("checkbox", { name: "Other", exact: true }).check();
+    await choose(page, "How familiar are you with AI chatbots?", "Casual user");
+    await page.getByRole("checkbox", { name: /I have read and agree/ }).check();
+
+    // "Other" with nothing beside it is refused, for each question.
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("Please say what your role is.")).toBeVisible();
+    await expect(page.getByText("Please say which other area.")).toBeVisible();
+    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(roleOther).toHaveAttribute("aria-invalid", "true");
+
+    await roleOther.fill("Biosafety officer");
+    await page
+      .getByLabel("Life-science subdomains: other, please say what")
+      .fill("Aerobiology");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.waitForURL("**/chat");
+
+    const stored = async () => {
+      const [row] = await sql`
+        select p.role, p.role_other, p.subdomains_other
+        from profile p join "user" u on u.id = p.user_id where u.email = ${email}
+      `;
+      return row;
+    };
+    expect(await stored()).toMatchObject({
+      role: "Other",
+      role_other: "Biosafety officer",
+      subdomains_other: "Aerobiology",
+    });
+
+    // It is there to correct later, and an answer changed to one on the
+    // list does not keep the old explanation attached.
+    await page.goto("/profile");
+    await expect(page.getByLabel("Role: other, please say what")).toHaveValue(
+      "Biosafety officer",
+    );
+    await choose(page, "Role", "Faculty");
+    await expect(page.getByLabel("Role: other, please say what")).toHaveCount(0);
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByText("Saved.")).toBeVisible();
+    expect(await stored()).toMatchObject({
+      role: "Faculty",
+      role_other: null,
+      subdomains_other: "Aerobiology",
+    });
   });
 
   test("a profile can be corrected afterwards", async ({ page }) => {

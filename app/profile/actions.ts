@@ -7,7 +7,11 @@ import { db } from "@/db";
 import { profile, user as userTable } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { requireOnboarded } from "@/lib/gate";
-import { profileSchema } from "@/lib/onboarding-schema";
+import {
+  profileColumns,
+  profileFromForm,
+  profileSchema,
+} from "@/lib/onboarding-schema";
 
 export type ProfileState = {
   errors?: Record<string, string>;
@@ -28,17 +32,7 @@ export async function updateProfile(
 ): Promise<ProfileState> {
   const { user } = await requireOnboarded();
 
-  const parsed = profileSchema.safeParse({
-    name: formData.get("name"),
-    affiliation: formData.get("affiliation"),
-    role: formData.get("role"),
-    highestDegree: formData.get("highestDegree"),
-    yearsExperience: formData.get("yearsExperience"),
-    primaryBackground: formData.get("primaryBackground"),
-    subdomains: formData.getAll("subdomains"),
-    aiFamiliarity: formData.get("aiFamiliarity"),
-    expertiseNote: formData.get("expertiseNote") ?? undefined,
-  });
+  const parsed = profileSchema.safeParse(profileFromForm(formData));
 
   if (!parsed.success) {
     const errors: Record<string, string> = {};
@@ -54,17 +48,7 @@ export async function updateProfile(
   await db.transaction(async (tx) => {
     await tx
       .update(profile)
-      .set({
-        affiliation: p.affiliation,
-        role: p.role,
-        highestDegree: p.highestDegree,
-        yearsExperience: p.yearsExperience,
-        primaryBackground: p.primaryBackground,
-        subdomains: p.subdomains,
-        aiFamiliarity: p.aiFamiliarity,
-        expertiseNote: p.expertiseNote || null,
-        updatedAt: now,
-      })
+      .set({ ...profileColumns(p), updatedAt: now })
       .where(eq(profile.userId, user.id));
     await tx
       .update(userTable)
