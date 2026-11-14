@@ -74,6 +74,21 @@ type Store = {
    */
   getLabelDraft: (id: string) => LabelValues | undefined;
   setLabelDraft: (id: string, values: LabelValues) => void;
+  /**
+   * The turns a participant has marked as evidence for their labels, per
+   * conversation, as the numbers shown beside the messages.
+   *
+   * Held here, not in the labels form, because two parts of the screen
+   * share it: the conversation, where the turns are clicked, and the labels
+   * panel, which lists them and sends them. Undefined until something has
+   * been marked or unmarked in this session, so the caller can fall back to
+   * what the server had.
+   */
+  evidence: Record<string, number[]>;
+  setEvidence: (id: string, turns: number[]) => void;
+  /** The conversation whose turns are being picked right now, if any. */
+  selectingEvidenceFor: string | null;
+  setSelectingEvidenceFor: (id: string | null) => void;
   // The right-hand panel's state lives here so the chosen tab and the
   // scanner results survive moving between conversations.
   rightTab: RightTab;
@@ -117,6 +132,13 @@ export function ConversationStoreProvider({
   const [rightTab, setRightTab] = useState<RightTab>("labels");
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [judgeRuns, setJudgeRuns] = useState<JudgeRun[]>([]);
+  const [evidence, setEvidenceState] = useState<Record<string, number[]>>({});
+  const [selectingEvidenceFor, setSelectingEvidenceFor] = useState<string | null>(null);
+
+  const setEvidence = useCallback((id: string, turns: number[]) => {
+    const sorted = [...new Set(turns)].sort((a, b) => a - b);
+    setEvidenceState((all) => ({ ...all, [id]: sorted }));
+  }, []);
 
   const addConversation = useCallback((c: StoredConversation) => {
     setConversations((list) =>
@@ -195,6 +217,10 @@ export function ConversationStoreProvider({
       setGenerating,
       getLabelDraft,
       setLabelDraft,
+      evidence,
+      setEvidence,
+      selectingEvidenceFor,
+      setSelectingEvidenceFor,
       rightTab,
       setRightTab,
       rightPanelOpen,
@@ -203,6 +229,9 @@ export function ConversationStoreProvider({
       setJudgeRuns,
     }),
     [
+      evidence,
+      setEvidence,
+      selectingEvidenceFor,
       rightTab,
       rightPanelOpen,
       judgeRuns,

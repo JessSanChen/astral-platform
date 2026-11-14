@@ -5,8 +5,10 @@ import type { UIMessage } from "ai";
 import { PanelRightClose, ShieldCheck, Tag } from "lucide-react";
 import { ChatView } from "@/components/chat-view";
 import { JudgeTab } from "@/components/judge-tab";
-import { LabelsPanel, type LabelValues, type TurnOption } from "@/components/labels-panel";
+import { useEffect } from "react";
+import { LabelsPanel, type LabelValues } from "@/components/labels-panel";
 import { useConversationStore } from "@/components/conversation-store";
+import { useClipboardLog } from "@/components/clipboard-log";
 import { Button } from "@/components/ui/button";
 import type { ModelOption } from "@/lib/models";
 import { cn } from "@/lib/utils";
@@ -31,7 +33,6 @@ export function ConversationWorkspace(props: {
   changedSinceSubmit: boolean;
   hasMessages: boolean;
   labels: LabelValues;
-  turns: TurnOption[];
 }) {
   const store = useConversationStore();
   const { rightTab, setRightTab, rightPanelOpen, setRightPanelOpen } = store;
@@ -49,8 +50,29 @@ export function ConversationWorkspace(props: {
   const status = entry?.status ?? props.status;
   const currentVersion = entry?.currentVersion ?? props.currentVersion;
 
+  // The turns marked as evidence. What the server had, until something is
+  // marked or unmarked here.
+  const { conversationId } = props;
+  const evidenceTurns = store.evidence[conversationId] ?? props.labels.evidenceTurns;
+  const selecting = store.selectingEvidenceFor === conversationId;
+  const { setEvidence, setSelectingEvidenceFor, setRightPanelOpen: openPanel } = store;
+  const setSelecting = (on: boolean) => {
+    setSelectingEvidenceFor(on ? conversationId : null);
+    // Finishing brings the labels back into view, since that is where the
+    // selection is listed and where it gets sent from.
+    if (!on) openPanel(true);
+  };
+  // Leaving the conversation ends the mode, so coming back to it later does
+  // not find the composer still replaced.
+  useEffect(
+    () => () => setSelectingEvidenceFor(null),
+    [conversationId, setSelectingEvidenceFor],
+  );
+
+  const clipboard = useClipboardLog(conversationId);
+
   return (
-    <div className="flex h-full">
+    <div className="flex h-full" {...clipboard}>
       <div className="min-w-0 flex-1">
         <ChatView
           conversationId={props.conversationId}
@@ -64,11 +86,18 @@ export function ConversationWorkspace(props: {
           currentVersion={currentVersion}
           labelsOpen={rightPanelOpen}
           onToggleLabels={() => setRightPanelOpen(true)}
+          evidenceTurns={evidenceTurns}
+          selecting={selecting}
+          onEvidenceChange={(turns) => setEvidence(conversationId, turns)}
+          onDoneSelecting={() => setSelecting(false)}
         />
       </div>
 
       {rightPanelOpen && (
-        <aside className="flex w-96 shrink-0 flex-col border-l border-border bg-muted/20">
+        <aside
+          data-clip={rightTab === "labels" ? "labels" : "other"}
+          className="flex w-96 shrink-0 flex-col border-l border-border bg-muted/20"
+        >
           <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
             <TabButton
               active={rightTab === "labels"}
@@ -98,7 +127,10 @@ export function ConversationWorkspace(props: {
               <LabelsPanel
                 conversationId={props.conversationId}
                 labels={props.labels}
-                turns={props.turns}
+                evidenceTurns={evidenceTurns}
+                selecting={selecting}
+                onSelecting={setSelecting}
+                onEvidenceChange={(turns) => setEvidence(conversationId, turns)}
                 status={status}
                 currentVersion={currentVersion}
                 hasMessages={hasMessages}

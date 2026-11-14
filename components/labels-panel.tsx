@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, MousePointerClick, X } from "lucide-react";
 import {
   saveLabels,
   submitTranscript,
@@ -11,6 +11,7 @@ import { useFormAction } from "@/components/action-form";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { OtherText } from "@/components/profile-fields";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useConversationStore } from "@/components/conversation-store";
@@ -29,22 +30,20 @@ export type LabelValues = {
   goalText: string | null;
   modelBehaviour: string | null;
   domainTags: string[];
-  keyTurnMessageId: string | null;
+  domainOther: string | null;
+  /** As the server had them. The live copy is in the conversation store. */
+  evidenceTurns: number[];
   challengeFlag: string | null;
   notes: string | null;
-};
-
-export type TurnOption = {
-  id: string;
-  seq: number;
-  role: string;
-  preview: string;
 };
 
 export function LabelsPanel({
   conversationId,
   labels,
-  turns,
+  evidenceTurns,
+  selecting,
+  onSelecting,
+  onEvidenceChange,
   status,
   currentVersion,
   hasMessages,
@@ -52,7 +51,12 @@ export function LabelsPanel({
 }: {
   conversationId: string;
   labels: LabelValues;
-  turns: TurnOption[];
+  /** The turns marked as evidence, as the numbers beside the messages. */
+  evidenceTurns: number[];
+  /** Whether the conversation is in its "click the turns" mode. */
+  selecting: boolean;
+  onSelecting: (on: boolean) => void;
+  onEvidenceChange: (turns: number[]) => void;
   status: "draft" | "submitted";
   currentVersion: number;
   hasMessages: boolean;
@@ -156,16 +160,23 @@ export function LabelsPanel({
         </Field>
 
         <Field
-          label="Describe that role (optional)"
+          label={
+            values.rolePreset === "Other"
+              ? "Describe that role"
+              : "Describe that role (optional)"
+          }
           htmlFor="roleText"
           hint="For example: 'postdoc trying to skip institutional review'."
+          error={e.roleText}
         >
           <Input
             id="roleText"
             name="roleText"
             value={values.roleText ?? ""}
             onChange={(ev) => set("roleText", ev.target.value)}
-            placeholder="Optional detail"
+            placeholder={values.rolePreset === "Other" ? "What was the role?" : "Optional detail"}
+            aria-invalid={e.roleText ? true : undefined}
+            aria-describedby={e.roleText ? "roleText-error" : undefined}
           />
         </Field>
 
@@ -214,6 +225,74 @@ export function LabelsPanel({
                 {tag}
               </label>
             ))}
+            {values.domainTags.includes("Other") && (
+              <OtherText
+                name="domainOther"
+                question="Topics covered"
+                placeholder="Which other topic?"
+                value={values.domainOther ?? ""}
+                error={e.domainOther}
+                onChange={(v) => set("domainOther", v)}
+              />
+            )}
+          </div>
+        </Field>
+
+        <Field
+          label="Which turns show it? (optional)"
+          hint={
+            selecting
+              ? undefined
+              : "Point to the messages that best support your answers above."
+          }
+        >
+          {evidenceTurns.map((turn) => (
+            <input key={turn} type="hidden" name="evidenceTurns" value={turn} />
+          ))}
+          <div className="space-y-2.5 rounded-[var(--radius)] border border-border bg-card p-3">
+            {evidenceTurns.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No turns marked.</p>
+            ) : (
+              <ul className="flex flex-wrap gap-1.5" aria-label="Turns marked as evidence">
+                {evidenceTurns.map((turn) => (
+                  <li
+                    key={turn}
+                    className="flex items-center gap-1 rounded-full bg-accent/10 py-0.5 pl-2.5 pr-1 text-xs font-medium text-accent"
+                  >
+                    Turn {turn}
+                    <button
+                      type="button"
+                      aria-label={`Unmark turn ${turn}`}
+                      onClick={() =>
+                        onEvidenceChange(evidenceTurns.filter((t) => t !== turn))
+                      }
+                      className="rounded-full p-0.5 hover:bg-accent/20"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {selecting ? (
+              <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+                <MousePointerClick className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+                Click the turns in the conversation. Click one again to unmark it.
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              variant={selecting ? "default" : "outline"}
+              size="sm"
+              disabled={!hasMessages}
+              onClick={() => onSelecting(!selecting)}
+            >
+              {selecting
+                ? "Done"
+                : evidenceTurns.length > 0
+                  ? "Change selection"
+                  : "Select turns"}
+            </Button>
           </div>
         </Field>
 
@@ -236,26 +315,6 @@ export function LabelsPanel({
           silently erase answers the participant had already given.
         */}
         <div className="space-y-4" hidden={!openNotes}>
-          <Field
-            label="Where did the conversation turn?"
-            htmlFor="keyTurnMessageId"
-            hint="Pick the message where things pivoted, if there was one."
-          >
-            <Select
-              id="keyTurnMessageId"
-              name="keyTurnMessageId"
-              value={values.keyTurnMessageId ?? ""}
-              onChange={(v) => set("keyTurnMessageId", v || null)}
-              options={[
-                { value: "", label: "No particular turn" },
-                ...turns.map((t) => ({
-                  value: t.id,
-                  label: `[${t.seq}] ${t.role === "user" ? "You" : "Model"}: ${t.preview}`,
-                })),
-              ]}
-            />
-          </Field>
-
           <Field
             label="Do you disagree with how the model behaved?"
             htmlFor="challengeFlag"

@@ -46,7 +46,11 @@ function readForm(formData: FormData) {
     goalText: str("goalText"),
     modelBehaviour: str("modelBehaviour"),
     domainTags: formData.getAll("domainTags").map(String),
-    keyTurnMessageId: str("keyTurnMessageId"),
+    domainOther: str("domainOther"),
+    evidenceTurns: formData
+      .getAll("evidenceTurns")
+      .map((v) => Number(v))
+      .filter((n) => Number.isInteger(n)),
     challengeFlag: str("challengeFlag"),
     notes: str("notes"),
   };
@@ -120,7 +124,7 @@ export async function submitTranscript(
     return { errors, message: "Please complete the highlighted fields." };
   }
 
-  const labels = parsed.data;
+  let labels = parsed.data;
   const [participantProfile] = await db
     .select()
     .from(profile)
@@ -162,6 +166,16 @@ export async function submitTranscript(
 
     const version = fresh.currentVersion + 1;
 
+    // A turn number only means something if there is a message there. The
+    // form can be behind the conversation (a reply regenerated away, a tab
+    // left open), so anything past the end is dropped here, under the lock,
+    // against the messages actually being submitted.
+    labels = {
+      ...labels,
+      evidenceTurns: labels.evidenceTurns.filter((turn) => turn <= messages.length),
+    };
+    const evidence = new Set(labels.evidenceTurns);
+
     await tx
       .insert(transcriptLabels)
       .values({ conversationId, ...labelValues(labels), updatedAt: now })
@@ -189,9 +203,13 @@ export async function submitTranscript(
           email: cu.user.email,
           profile: participantProfile ?? null,
         },
-        messages: messages.map((m) => ({
+        messages: messages.map((m, i) => ({
           id: m.id,
           seq: m.seq,
+          // The number the author saw beside it, and whether they pointed
+          // to it as showing what their labels say.
+          turn: i + 1,
+          evidence: evidence.has(i + 1),
           role: m.role,
           content: m.content,
           modelId: m.modelId,
@@ -250,7 +268,9 @@ function labelValues(l: ReturnType<typeof draftLabelsSchema.parse>) {
       | "deflected"
       | null,
     domainTags: l.domainTags ?? [],
-    keyTurnMessageId: l.keyTurnMessageId ?? null,
+    // Kept only while "Other" is still ticked.
+    domainOther: (l.domainTags ?? []).includes("Other") ? (l.domainOther ?? null) : null,
+    evidenceTurns: l.evidenceTurns ?? [],
     challengeFlag: l.challengeFlag ?? null,
     notes: l.notes ?? null,
   };

@@ -88,18 +88,11 @@ export default async function ConversationPage({
         goalText: labels?.goalText ?? null,
         modelBehaviour: labels?.modelBehaviour ?? null,
         domainTags: labels?.domainTags ?? [],
-        keyTurnMessageId: labels?.keyTurnMessageId ?? null,
+        domainOther: labels?.domainOther ?? null,
+        evidenceTurns: labels?.evidenceTurns ?? [],
         challengeFlag: labels?.challengeFlag ?? null,
         notes: labels?.notes ?? null,
       }}
-      turns={rows.map((m) => ({
-        id: m.id,
-        seq: m.seq,
-        role: m.role,
-        preview:
-          m.content.replace(/\s+/g, " ").slice(0, 50) +
-          (m.content.length > 50 ? "..." : ""),
-      }))}
     />
   );
 }

@@ -7,7 +7,16 @@ import type { UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useConversationStore } from "@/components/conversation-store";
-import { ArrowUp, PanelRightOpen, RefreshCw, Square } from "lucide-react";
+import {
+  ArrowUp,
+  Bookmark,
+  CheckCircle2,
+  Circle,
+  MousePointerClick,
+  PanelRightOpen,
+  RefreshCw,
+  Square,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ModelPicker } from "@/components/model-picker";
 import { EditableTitle } from "@/components/rename-conversation";
@@ -26,6 +35,12 @@ type Props = {
   currentVersion: number;
   labelsOpen: boolean;
   onToggleLabels: () => void;
+  /** Turns marked as evidence for the labels, by the number beside them. */
+  evidenceTurns: number[];
+  /** True while the participant is picking those turns. */
+  selecting: boolean;
+  onEvidenceChange: (turns: number[]) => void;
+  onDoneSelecting: () => void;
 };
 
 // Friendly text for the error codes our API returns.
@@ -92,6 +107,10 @@ export function ChatView({
   currentVersion,
   labelsOpen,
   onToggleLabels,
+  evidenceTurns,
+  selecting,
+  onEvidenceChange,
+  onDoneSelecting,
 }: Props) {
   const store = useConversationStore();
   const [input, setInput] = useState("");
@@ -214,6 +233,24 @@ export function ChatView({
     }
     sendMessage({ text });
   }
+
+  const marked = new Set(evidenceTurns);
+  const toggleTurn = (turn: number) =>
+    onEvidenceChange(
+      marked.has(turn)
+        ? evidenceTurns.filter((t) => t !== turn)
+        : [...evidenceTurns, turn],
+    );
+
+  // Escape leaves the mode, as it leaves most temporary states.
+  useEffect(() => {
+    if (!selecting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onDoneSelecting();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selecting, onDoneSelecting]);
 
   // Jump to the newest message when the conversation first opens.
   useLayoutEffect(() => {
@@ -354,7 +391,14 @@ export function ChatView({
             </p>
           )}
           {visibleMessages.map((m, i) => (
-            <MessageBubble key={m.id} message={m} index={i + 1} />
+            <MessageBubble
+              key={m.id}
+              message={m}
+              index={i + 1}
+              marked={marked.has(i + 1)}
+              selecting={selecting}
+              onToggle={() => toggleTurn(i + 1)}
+            />
           ))}
 
           {waiting && <ThinkingIndicator />}
@@ -378,7 +422,7 @@ export function ChatView({
             </div>
           )}
 
-          {lastIsAssistant && !busy && (
+          {lastIsAssistant && !busy && !selecting && (
             <div>
               <Button
                 variant="ghost"
@@ -394,34 +438,73 @@ export function ChatView({
         </div>
       </div>
 
-      <form onSubmit={submit} className="border-t border-border px-4 py-3">
-        <div className="mx-auto flex max-w-3xl items-end gap-2">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) submit(e);
-            }}
-            rows={1}
-            placeholder="Send a message..."
-            className="max-h-48 min-h-[44px] flex-1 resize-y rounded-[var(--radius)] border border-border bg-card px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-          />
-          {busy ? (
-            <Button type="button" variant="outline" onClick={stop} className="h-11">
-              <Square className="h-3.5 w-3.5" />
-              Stop
+      {selecting ? (
+        // While turns are being picked the composer is replaced, not
+        // disabled: there is one thing to do here, and this says what.
+        <div
+          role="region"
+          aria-label="Selecting evidence turns"
+          className="border-t border-accent/30 bg-accent/5 px-4 py-3"
+        >
+          <div className="mx-auto flex max-w-3xl items-center gap-3">
+            <MousePointerClick className="h-5 w-5 shrink-0 text-accent" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">
+                Click each turn that supports your labels
+              </p>
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {evidenceTurns.length === 0
+                  ? "None marked yet."
+                  : `${evidenceTurns.length} marked: ${listTurns(evidenceTurns)}.`}{" "}
+                Click a turn again to unmark it.
+              </p>
+            </div>
+            {evidenceTurns.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onEvidenceChange([])}
+              >
+                Clear
+              </Button>
+            )}
+            <Button type="button" size="sm" onClick={onDoneSelecting}>
+              Done
             </Button>
-          ) : (
-            <Button type="submit" disabled={!input.trim()} className="h-11 w-11 p-0">
-              <ArrowUp className="h-4 w-4" />
-              <span className="sr-only">Send</span>
-            </Button>
-          )}
+          </div>
         </div>
-        <p className="mx-auto mt-1.5 max-w-3xl text-xs text-muted-foreground">
-          Enter sends, Shift+Enter adds a line.
-        </p>
-      </form>
+      ) : (
+        <form onSubmit={submit} className="border-t border-border px-4 py-3">
+          <div className="mx-auto flex max-w-3xl items-end gap-2">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) submit(e);
+              }}
+              rows={1}
+              data-clip="composer"
+              placeholder="Send a message..."
+              className="max-h-48 min-h-[44px] flex-1 resize-y rounded-[var(--radius)] border border-border bg-card px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            />
+            {busy ? (
+              <Button type="button" variant="outline" onClick={stop} className="h-11">
+                <Square className="h-3.5 w-3.5" />
+                Stop
+              </Button>
+            ) : (
+              <Button type="submit" disabled={!input.trim()} className="h-11 w-11 p-0">
+                <ArrowUp className="h-4 w-4" />
+                <span className="sr-only">Send</span>
+              </Button>
+            )}
+          </div>
+          <p className="mx-auto mt-1.5 max-w-3xl text-xs text-muted-foreground">
+            Enter sends, Shift+Enter adds a line.
+          </p>
+        </form>
+      )}
     </div>
   );
 }
@@ -454,12 +537,26 @@ function Dot({ delay }: { delay: string }) {
   );
 }
 
+/** "turn 2", "turns 2 and 5", "turns 2, 5 and 6". */
+function listTurns(turns: number[]) {
+  if (turns.length === 1) return `turn ${turns[0]}`;
+  return `turns ${turns.slice(0, -1).join(", ")} and ${turns[turns.length - 1]}`;
+}
+
 function MessageBubble({
   message,
   index,
+  marked,
+  selecting,
+  onToggle,
 }: {
   message: UIMessage;
   index: number;
+  /** Marked by the participant as evidence for their labels. */
+  marked: boolean;
+  /** The conversation is in its "click the turns" mode. */
+  selecting: boolean;
+  onToggle: () => void;
 }) {
   const text = message.parts
     .filter((p): p is { type: "text"; text: string } => p.type === "text")
@@ -474,28 +571,78 @@ function MessageBubble({
   // the provider's filter stopping the request before the model answered.
   const emptyReply = !isUser && text.trim().length === 0;
 
-  return (
-    <div
+  // Turn numbers, as transcripts conventionally carry, so a particular
+  // exchange can be referred to precisely. The same column says whether the
+  // turn is marked: a tick box while turns are being picked, a small
+  // bookmark afterwards.
+  const number = (
+    <span
       className={cn(
-        "flex items-start gap-2",
-        isUser ? "justify-end" : "justify-start",
+        "mt-2.5 flex w-7 shrink-0 flex-col gap-1 font-mono text-xs",
+        isUser ? "items-start" : "items-end",
+        marked ? "font-semibold text-accent" : "text-muted-foreground",
       )}
     >
-      {/* Turn numbers, as transcripts conventionally carry, so a particular
-          exchange can be referred to precisely. */}
-      {!isUser && (
-        <span className="mt-2.5 w-7 shrink-0 text-right font-mono text-xs text-muted-foreground">
-          [{index}]
+      [{index}]
+      {selecting ? (
+        marked ? (
+          <CheckCircle2 className="h-4 w-4" aria-hidden />
+        ) : (
+          <Circle className="h-4 w-4" aria-hidden />
+        )
+      ) : marked ? (
+        <span title="You marked this turn as evidence for your labels">
+          <Bookmark className="h-3.5 w-3.5 fill-current" aria-label="Marked as evidence" />
         </span>
+      ) : null}
+    </span>
+  );
+
+  return (
+    <div
+      data-turn={index}
+      data-role={isUser ? "user" : "assistant"}
+      data-clip="message"
+      // While picking, the whole row is one big tick box: easier to hit
+      // than a small control, and reachable from the keyboard.
+      {...(selecting
+        ? {
+            role: "checkbox",
+            "aria-checked": marked,
+            "aria-label": `Turn ${index}, ${isUser ? "your message" : "the model's reply"}`,
+            tabIndex: 0,
+            onClick: onToggle,
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === " " || e.key === "Enter") {
+                e.preventDefault();
+                onToggle();
+              }
+            },
+          }
+        : {})}
+      className={cn(
+        "group flex items-start gap-2 rounded-2xl",
+        isUser ? "justify-end" : "justify-start",
+        selecting &&
+          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
       )}
+    >
+      {!isUser && number}
       <div
         className={cn(
-          "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm",
+          "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm transition-shadow",
           isUser
             ? "bg-primary text-primary-foreground"
             : emptyReply
               ? "border border-dashed border-border bg-muted/40"
               : "border border-border bg-card",
+          // Links and text selection inside the message are switched off
+          // while picking, so a click always means "this turn".
+          selecting && "pointer-events-none select-none",
+          selecting &&
+            (marked
+              ? "ring-2 ring-accent ring-offset-2 ring-offset-background"
+              : "group-hover:ring-2 group-hover:ring-accent/40 group-hover:ring-offset-2 group-hover:ring-offset-background"),
         )}
       >
         {isUser ? (
@@ -514,11 +661,7 @@ function MessageBubble({
           </div>
         )}
       </div>
-      {isUser && (
-        <span className="mt-2.5 w-7 shrink-0 font-mono text-xs text-muted-foreground">
-          [{index}]
-        </span>
-      )}
+      {isUser && number}
     </div>
   );
 }
