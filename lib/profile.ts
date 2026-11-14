@@ -1,4 +1,5 @@
-import { count, eq, sql } from "drizzle-orm";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
+import { TRACK_VALUES } from "@/lib/nominations";
 import { db } from "@/db";
 import {
   conversation,
@@ -46,7 +47,9 @@ export async function getMyProfile(userId: string) {
       db
         .select({ track: nomination.track })
         .from(nomination)
-        .where(eq(nomination.userId, userId)),
+        .where(
+          and(eq(nomination.userId, userId), inArray(nomination.track, TRACK_VALUES)),
+        ),
     ]);
 
   return {

@@ -27,7 +27,7 @@ export default async function NominateHome() {
           Put your work forward
         </h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Three prize tracks are decided by nomination. Tell the organizers what
+          Two prize tracks are decided by nomination. Tell the organizers what
           you found and why it matters.{" "}
           {status.locked
             ? "Entries were open until nominations closed."

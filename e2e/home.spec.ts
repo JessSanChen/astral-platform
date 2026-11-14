@@ -28,17 +28,18 @@ test.describe("the front page", () => {
     await expect(page.getByRole("heading", { name: "How today works", level: 1 })).toBeVisible();
     await expect(page.getByRole("heading", { name: "What you will be doing" })).toBeVisible();
 
-    // All five prize tracks, each with its deadline.
+    // All four prize tracks, each with its deadline.
     const prizes = page.getByRole("table");
     for (const track of [
       "Adversarial use cases",
       "Dual-use use cases",
-      "Linked or collaborative",
       "Benign transcripts",
       "Independent reviewer",
     ]) {
       await expect(prizes.getByRole("row").filter({ hasText: track })).toBeVisible();
     }
+    await expect(page.getByText("Four tracks, $1,000 each.")).toBeVisible();
+    await expect(page.getByRole("main").getByText(/collaborat/i)).toHaveCount(0);
     await expect(prizes.getByRole("row").filter({ hasText: "Benign transcripts" })).toContainText(
       "16:00",
     );

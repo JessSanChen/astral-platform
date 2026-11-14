@@ -2,28 +2,33 @@ import { expect, test } from "@playwright/test";
 import { newParticipant } from "./helpers";
 
 test.describe("putting work forward", () => {
-  test("a collaborative entry, with collaborators picked and typed", async ({ browser }) => {
-    const partner = await newParticipant(browser, "Petra Partner", "partner");
+  test("an entry, with a link to slides, saved and listed", async ({ browser }) => {
     const { page, context } = await newParticipant(browser, "Nico Nominator", "nominator");
 
-    await page.goto("/nominate/collaborative");
+    // Two tracks are decided by nomination. There used to be a third.
+    await page.goto("/nominate");
+    await expect(page.getByRole("link", { name: /Adversarial use cases/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Dual-use use cases/ })).toBeVisible();
+    await expect(page.getByText(/collaborat/i)).toHaveCount(0);
+    const gone = await page.request.get("/nominate/collaborative");
+    expect(gone.status()).toBe(404);
+
+    await page.goto("/nominate/dual_use");
     await page.getByLabel("Headline finding").fill("Two scanners disagree in a useful way");
     await page
       .getByLabel("The finding in detail")
-      .fill("We compared both scanners across our transcripts and the disagreements were the signal.");
+      .fill("Compared both scanners across my transcripts; the disagreements were the signal.");
+    // No question about collaborators any more.
+    await expect(page.getByText(/work with/i)).toHaveCount(0);
 
-    // Typing finds the participant; Enter adds them as a chip.
-    const who = page.getByLabel("Who did you work with?");
-    await who.fill("Petra");
-    await expect(page.getByRole("option", { name: "Petra Partner" })).toBeVisible();
-    await page.keyboard.press("Enter");
-    // Someone who is not on the list can still be named.
-    await who.fill("Someone Offsite");
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("button", { name: "Remove Petra Partner" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Remove Someone Offsite" })).toBeVisible();
-
-    // Straight to submit: the suggestions must not be in the way.
+    // A link that is not a link is refused, and nothing typed is lost.
+    await page.getByLabel("Link to slides (optional)").fill("my slides");
+    await page.getByRole("button", { name: "Submit nomination" }).click();
+    await expect(page.getByText("That does not look like a link.")).toBeVisible();
+    await expect(page.getByLabel("Headline finding")).toHaveValue(
+      "Two scanners disagree in a useful way",
+    );
+    await page.getByLabel("Link to slides (optional)").fill("https://example.com/slides");
     await page.getByRole("button", { name: "Submit nomination" }).click();
     await expect(page.getByRole("button", { name: "Update entry" })).toBeVisible();
 
@@ -31,16 +36,15 @@ test.describe("putting work forward", () => {
     await expect(page.getByLabel("Headline finding")).toHaveValue(
       "Two scanners disagree in a useful way",
     );
-    await expect(page.getByRole("button", { name: "Remove Petra Partner" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Remove Someone Offsite" })).toBeVisible();
+    await expect(page.getByLabel("Link to slides (optional)")).toHaveValue(
+      "https://example.com/slides",
+    );
 
     // And the track list shows it as entered.
     await page.goto("/nominate");
-    await expect(
-      page.getByRole("link").filter({ hasText: "Linked or collaborative" }),
-    ).toContainText("Submitted");
-
-    await partner.context.close();
+    await expect(page.getByRole("link", { name: /Dual-use use cases/ })).toContainText(
+      "Submitted",
+    );
     await context.close();
   });
 

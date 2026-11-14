@@ -68,11 +68,6 @@ export default async function AdminNominations() {
                     <p className="mt-2 max-w-4xl whitespace-pre-wrap text-sm leading-relaxed">
                       {entry.details}
                     </p>
-                    {entry.collaborators && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Worked with: {entry.collaborators}
-                      </p>
-                    )}
                     {entry.slidesUrl && (
                       <a
                         href={entry.slidesUrl}

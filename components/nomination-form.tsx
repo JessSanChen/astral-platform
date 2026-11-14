@@ -11,7 +11,6 @@ import {
 import { ActionForm } from "@/components/action-form";
 import { Button } from "@/components/ui/button";
 import { formatEventTime } from "@/lib/time";
-import { CollaboratorPicker } from "@/components/collaborator-picker";
 import { KeepFresh } from "@/components/keep-fresh";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -21,7 +20,6 @@ type Existing = {
   headline: string;
   details: string;
   slidesUrl: string | null;
-  collaborators: string | null;
   updatedAt: string;
   submissionCount: number;
 };
@@ -32,7 +30,6 @@ export function NominationForm({
   blurb,
   locked,
   closeAt,
-  participantNames,
   existing,
 }: {
   track: string;
@@ -40,7 +37,6 @@ export function NominationForm({
   blurb: string;
   locked: boolean;
   closeAt: string | null;
-  participantNames: string[];
   existing: Existing | null;
 }) {
   const [state, action, pending] = useActionState<NominationState, FormData>(
@@ -51,7 +47,6 @@ export function NominationForm({
     headline: existing?.headline ?? "",
     details: existing?.details ?? "",
     slidesUrl: existing?.slidesUrl ?? "",
-    collaborators: existing?.collaborators ?? "",
   });
   const set = (k: keyof typeof values, v: string) =>
     setValues((prev) => ({ ...prev, [k]: v }));
@@ -96,7 +91,6 @@ export function NominationForm({
         <ClosedEntry
           closeAt={closeAt}
           existing={existing}
-          showCollaborators={track === "collaborative"}
           unsaved={unsaved}
         />
       ) : (
@@ -132,22 +126,6 @@ export function NominationForm({
             onChange={(ev) => set("details", ev.target.value)}
           />
         </Field>
-
-        {track === "collaborative" && (
-          <Field
-            label="Who did you work with?"
-            htmlFor="collaborators-input"
-            hint="Pick from the participant list, or type a name that is not on it. Press Enter to add each one."
-            error={e.collaborators}
-          >
-            <CollaboratorPicker
-              name="collaborators"
-              value={values.collaborators}
-              onChange={(v) => set("collaborators", v)}
-              participantNames={participantNames}
-            />
-          </Field>
-        )}
 
         <Field
           label="Link to slides (optional)"
@@ -202,12 +180,10 @@ export function NominationForm({
 function ClosedEntry({
   closeAt,
   existing,
-  showCollaborators,
   unsaved,
 }: {
   closeAt: string | null;
   existing: Existing | null;
-  showCollaborators: boolean;
   unsaved: { headline: string; details: string } | null;
 }) {
   return (
@@ -232,11 +208,6 @@ function ClosedEntry({
         <dl className="space-y-5 rounded-[var(--radius)] border border-border bg-card px-5 py-5">
           <ReadOnly label="Headline finding">{existing.headline}</ReadOnly>
           <ReadOnly label="The finding in detail">{existing.details}</ReadOnly>
-          {showCollaborators && (
-            <ReadOnly label="Who you worked with">
-              {existing.collaborators || "Nobody named."}
-            </ReadOnly>
-          )}
           <ReadOnly label="Link to slides">
             {existing.slidesUrl ? (
               <a

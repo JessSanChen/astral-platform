@@ -1,6 +1,6 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { nomination, user } from "@/db/schema";
+import { nomination } from "@/db/schema";
 import { getEventSettings } from "@/lib/openrouter";
 
 export const NOMINATION_TRACKS = [
@@ -16,15 +16,17 @@ export const NOMINATION_TRACKS = [
     blurb:
       "The most interesting, relevant or impactful finding about dual use, where a legitimate purpose and a harmful one are served by the same answer.",
   },
-  {
-    value: "collaborative",
-    label: "Linked or collaborative use cases",
-    blurb:
-      "A finding that came out of working with other participants. Say what the collaboration produced that neither of you would have found alone.",
-  },
 ] as const;
 
+// There was a third track, "collaborative". It was dropped before the
+// event. The database still accepts the value, because entries were made in
+// it while it existed and they are still in the export, but nothing in the
+// interface offers it or lists it.
+
 export type TrackValue = (typeof NOMINATION_TRACKS)[number]["value"];
+
+/** The tracks that exist, for queries that should not count retired ones. */
+export const TRACK_VALUES = NOMINATION_TRACKS.map((t) => t.value);
 
 export function trackLabel(track: string) {
   return NOMINATION_TRACKS.find((t) => t.value === track)?.label ?? track;
@@ -43,7 +45,16 @@ export async function nominationStatus() {
 }
 
 export async function listMyNominations(userId: string) {
-  return db.select().from(nomination).where(eq(nomination.userId, userId));
+  // Only the tracks that still exist.
+  return db
+    .select()
+    .from(nomination)
+    .where(
+      and(
+        eq(nomination.userId, userId),
+        inArray(nomination.track, TRACK_VALUES),
+      ),
+    );
 }
 
 export async function getNomination(userId: string, track: TrackValue) {
@@ -54,11 +65,3 @@ export async function getNomination(userId: string, track: TrackValue) {
   return row ?? null;
 }
 
-/** Participant names, offered as suggestions when naming collaborators. */
-export async function participantNames(excludeUserId: string) {
-  const rows = await db
-    .select({ id: user.id, name: user.name })
-    .from(user)
-    .orderBy(asc(user.name));
-  return rows.filter((r) => r.id !== excludeUserId).map((r) => r.name);
-}

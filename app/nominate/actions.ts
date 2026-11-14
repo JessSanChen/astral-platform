@@ -31,7 +31,6 @@ const schema = z.object({
       (v) => !v || /^https?:\/\/\S+$/i.test(v),
       "That does not look like a link. Paste the full address, starting with https://",
     ),
-  collaborators: z.string().trim().max(1000).optional(),
 });
 
 export type NominationState = {
@@ -63,7 +62,6 @@ export async function submitNomination(
     headline: formData.get("headline"),
     details: formData.get("details"),
     slidesUrl: formData.get("slidesUrl") ?? undefined,
-    collaborators: formData.get("collaborators") ?? undefined,
   });
   if (!parsed.success) {
     const errors: Record<string, string> = {};
@@ -85,7 +83,6 @@ export async function submitNomination(
       headline: v.headline,
       details: v.details,
       slidesUrl: v.slidesUrl || null,
-      collaborators: v.collaborators || null,
       submittedAt: now,
       updatedAt: now,
     })
@@ -95,7 +92,6 @@ export async function submitNomination(
         headline: v.headline,
         details: v.details,
         slidesUrl: v.slidesUrl || null,
-        collaborators: v.collaborators || null,
         updatedAt: now,
         submissionCount: sql`${nomination.submissionCount} + 1`,
       },
