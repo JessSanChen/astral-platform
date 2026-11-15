@@ -398,6 +398,8 @@ export function Radios({
             <input
               type="radio"
               name={name}
+              // Without this a ticked radio posts "on", whatever it stands for.
+              value={option.value}
               className="mt-0.5 h-4 w-4 shrink-0"
               checked={value === option.value}
               onChange={() => onChange(option.value)}

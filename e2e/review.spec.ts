@@ -411,7 +411,8 @@ test.describe("independent review", () => {
 
     // Having seen both, the auditor reviews neither.
     await auditor.page.goto("/review");
-    await auditor.page.getByRole("button", { name: "Next item" }).click();
+    await expect(auditor.page.getByText(/0 reviewed, 1 compared, 0 skipped/)).toBeVisible();
+    await auditor.page.getByRole("button", { name: "Get a review" }).click();
     await expect(auditor.page.getByText(NOTHING)).toBeVisible();
 
     await author.context.close();
