@@ -129,8 +129,9 @@ export default async function ParticipantDetail({
         </div>
         <p className="max-w-3xl text-xs leading-relaxed text-muted-foreground">
           Every conversation in full, newest first, beside the labels given to
-          it. A submitted conversation shows the labels as submitted; one never
-          submitted shows whatever its author had filled in.
+          it. A submitted conversation is shown as it was submitted, with
+          anything added since marked as such; one never submitted shows the
+          conversation as it stands and whatever its author had filled in.
           {empty > 0 &&
             ` ${empty} conversation${empty === 1 ? " was" : "s were"} opened and never typed into, and ${empty === 1 ? "is" : "are"} left out.`}
         </p>
@@ -203,6 +204,8 @@ export default async function ParticipantDetail({
 /** One conversation: what was said on the left, what was said about it on the right. */
 function Transcript({ conversation: c }: { conversation: History[number] }) {
   const after = c.messages.filter((m) => m.afterSubmission).length;
+  // For a submitted conversation, the turns that were submitted.
+  const turnCount = c.messages.length - after;
   return (
     <details
       open
@@ -214,7 +217,7 @@ function Transcript({ conversation: c }: { conversation: History[number] }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{c.title}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {c.messages.length} turn{c.messages.length === 1 ? "" : "s"} · {c.modelId} ·
+            {turnCount} turn{turnCount === 1 ? "" : "s"} · {c.modelId} ·
             started {when(c.createdAt)}
           </p>
         </div>
@@ -267,7 +270,14 @@ function Transcript({ conversation: c }: { conversation: History[number] }) {
                       Marked as evidence
                     </span>
                   )}
-                  {m.afterSubmission && <span>· added after submitting, not part of it</span>}
+                  {m.afterSubmission && (
+                    <span>
+                      ·{" "}
+                      {m.replacesTurn
+                        ? `regenerated after submitting: this replaced turn ${m.replacesTurn} above, and is not part of what was submitted`
+                        : "added after submitting, not part of it"}
+                    </span>
+                  )}
                 </p>
                 {empty ? (
                   <p className="italic text-muted-foreground">
@@ -350,8 +360,10 @@ const SURFACE_WORDS: Record<string, { to: string; from: string }> = {
 
 function clipboardLine(kind: string, surface: string, times: number, characters: number) {
   const words = SURFACE_WORDS[surface] ?? SURFACE_WORDS.other;
-  const verb = kind === "paste" ? "Pasted" : kind === "cut" ? "Cut" : "Copied";
-  const where = kind === "paste" ? words.to : words.from;
+  const incoming = kind === "paste" || kind === "drop";
+  const verb =
+    kind === "paste" ? "Pasted" : kind === "drop" ? "Dragged in" : kind === "cut" ? "Cut" : "Copied";
+  const where = incoming ? words.to : words.from;
   return `${verb} ${where} ${times} time${times === 1 ? "" : "s"}, ${characters.toLocaleString("en-US")} characters in all`;
 }
 

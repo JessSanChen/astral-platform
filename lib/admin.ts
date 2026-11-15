@@ -248,6 +248,16 @@ export type HistoryLabels = {
   notes?: string | null;
 };
 
+/** A message as a submission's snapshot holds it. */
+type SnapshotMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content?: string | null;
+  finishReason?: string | null;
+  error?: unknown;
+  evidence?: boolean;
+};
+
 /**
  * Every conversation one participant has had, in full, with its labels.
  *
@@ -256,9 +266,10 @@ export type HistoryLabels = {
  * queries whatever the number of conversations, so a prolific participant
  * does not make the page slow.
  *
- * For a submitted conversation the labels are the ones submitted with its
- * current version. For one never submitted they are whatever the author had
- * filled in so far.
+ * For a submitted conversation the labels and the messages are the ones
+ * submitted with its current version, followed by anything added since. For
+ * one never submitted they are the conversation as it stands and whatever
+ * its author had filled in so far.
  */
 export async function participantHistory(userId: string) {
   const [conversations, messages, reviews, clipboard] = await Promise.all([
@@ -274,12 +285,10 @@ export async function participantHistory(userId: string) {
         lastSubmittedAt: conversation.lastSubmittedAt,
         lockedAt: conversation.lockedAt,
         submittedLabels: sql<HistoryLabels | null>`${submission.snapshot}->'labels'`,
-        // Which messages made up the submitted version, by id: an author
-        // can keep chatting after submitting.
-        submittedMessageIds: sql<string[] | null>`(
-          select array_agg(m->>'id')
-          from jsonb_array_elements(${submission.snapshot}->'messages') m
-        )`,
+        // The messages as they were submitted. Not the conversation as it
+        // is now: an author can keep chatting after submitting, and can
+        // regenerate the last reply, which replaces it.
+        submittedMessages: sql<SnapshotMessage[] | null>`${submission.snapshot}->'messages'`,
         draftLabels: {
           type: transcriptLabels.type,
           rolePreset: transcriptLabels.rolePreset,
@@ -360,23 +369,81 @@ export async function participantHistory(userId: string) {
   const reviewsFor = group(reviews);
   const clipboardFor = group(clipboard);
 
-  return conversations.map(({ submittedLabels, draftLabels, submittedMessageIds, ...c }) => {
-    const turns = messagesFor.get(c.id) ?? [];
+  return conversations.map(({ submittedLabels, draftLabels, submittedMessages, ...c }) => {
+    const live = messagesFor.get(c.id) ?? [];
     const submitted = c.status === "submitted";
     const labels: HistoryLabels | null = submitted ? submittedLabels : draftLabels;
-    const inVersion = new Set(submittedMessageIds ?? []);
-    const evidence = new Set(labels?.evidenceTurns ?? []);
+    const marked = new Set(labels?.evidenceTurns ?? []);
+
+    type Turn = {
+      id: string;
+      turn: number;
+      role: "user" | "assistant";
+      content: string;
+      finishReason: string | null;
+      failed: boolean;
+      evidence: boolean;
+      /** Written after the version these labels describe. */
+      afterSubmission: boolean;
+      /** Stands where a submitted reply was, having been regenerated. */
+      replacesTurn: number | null;
+    };
+
+    let turns: Turn[];
+    if (!submitted) {
+      turns = live.map((m, i) => ({
+        id: m.id,
+        turn: i + 1,
+        role: m.role,
+        content: m.content,
+        finishReason: m.finishReason,
+        failed: m.failed,
+        evidence: marked.has(i + 1),
+        afterSubmission: false,
+        replacesTurn: null,
+      }));
+    } else {
+      // What was submitted, exactly: these are the messages the labels and
+      // the reviews are about.
+      const snapshot = submittedMessages ?? [];
+      const inVersion = new Set(snapshot.map((m) => m.id));
+      turns = snapshot.map((m, i) => ({
+        id: m.id,
+        turn: i + 1,
+        role: m.role,
+        content: m.content ?? "",
+        finishReason: m.finishReason ?? null,
+        failed: m.error != null,
+        // Marked on the message itself since evidence turns existed; the
+        // numbers on the labels cover anything submitted the same day.
+        evidence: m.evidence ?? marked.has(i + 1),
+        afterSubmission: false,
+        replacesTurn: null,
+      }));
+      // Then whatever the conversation has gained since, which nobody has
+      // labelled or reviewed. A message standing at a number the submitted
+      // version also has is a reply regenerated afterwards.
+      live.forEach((m, i) => {
+        if (inVersion.has(m.id)) return;
+        turns.push({
+          id: m.id,
+          turn: i + 1,
+          role: m.role,
+          content: m.content,
+          finishReason: m.finishReason,
+          failed: m.failed,
+          evidence: false,
+          afterSubmission: true,
+          replacesTurn: i + 1 <= snapshot.length ? i + 1 : null,
+        });
+      });
+    }
+
     return {
       ...c,
       submitted,
       labels,
-      messages: turns.map((m, i) => ({
-        ...m,
-        turn: i + 1,
-        evidence: evidence.has(i + 1),
-        // Only meaningful for a submitted conversation.
-        afterSubmission: submitted && !inVersion.has(m.id),
-      })),
+      messages: turns,
       reviews: reviewsFor.get(c.id) ?? [],
       clipboard: clipboardFor.get(c.id) ?? [],
     };

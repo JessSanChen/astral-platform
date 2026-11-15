@@ -34,6 +34,10 @@ import { recordAudit } from "@/lib/audit";
  * Streamed rather than assembled in memory, so the size of the day does not
  * decide whether this works.
  */
+// As long as the platform allows. The file is built conversation by
+// conversation, and a full day of them takes a while.
+export const maxDuration = 300;
+
 export async function GET(req: Request) {
   const { user: me } = await requireAdmin();
   const submittedOnly = new URL(req.url).searchParams.get("only") === "submitted";
@@ -205,6 +209,10 @@ export async function GET(req: Request) {
           })),
           // Copying and pasting while this conversation was open, in order.
           clipboard_events: clipboard.map((c) => ({
+            // Whose it was. A reviewer reading this transcript can copy
+            // from it too, and that must not be taken for the author's.
+            by: c.userId === convo.userId ? ("author" as const) : ("reviewer" as const),
+            user_id: c.userId,
             kind: c.kind,
             surface: c.surface,
             turn: c.turn,
@@ -241,6 +249,20 @@ export async function GET(req: Request) {
           encoder.encode(JSON.stringify({ record: "nomination", ...entry }) + "\n"),
         );
       }
+
+      // The last line, always. A download that is cut short (a timeout, a
+      // dropped connection) is otherwise a shorter file that looks whole.
+      // No "end" line means the file is not all there.
+      controller.enqueue(
+        encoder.encode(
+          JSON.stringify({
+            record: "end",
+            transcripts: conversations.length,
+            nominations: nominations.length,
+            only_submitted: submittedOnly,
+          }) + "\n",
+        ),
+      );
 
       controller.close();
     },

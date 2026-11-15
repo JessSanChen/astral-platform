@@ -1,7 +1,9 @@
 // Shared by the page that reports copying and pasting and the endpoint that
 // records it, so the two cannot disagree about what is allowed.
 
-export const CLIPBOARD_KINDS = ["copy", "cut", "paste"] as const;
+// "drop" is text dragged in from somewhere else and let go of: a paste by
+// another route, and recorded for the same reason.
+export const CLIPBOARD_KINDS = ["copy", "cut", "paste", "drop"] as const;
 
 /**
  * Where on the page it happened.

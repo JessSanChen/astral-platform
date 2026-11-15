@@ -9,7 +9,8 @@ import {
 } from "@/lib/clipboard";
 
 /**
- * Reports copying, cutting and pasting inside a conversation.
+ * Reports copying, cutting, pasting and dragging text in, inside a
+ * conversation.
  *
  * Returns handlers for the element that wraps the conversation. Where on the
  * page something happened is read from the markup: the nearest element with
@@ -23,16 +24,21 @@ import {
  */
 export function useClipboardLog(conversationId: string) {
   const report = useCallback(
-    (kind: ClipboardKind, e: React.ClipboardEvent) => {
+    (kind: ClipboardKind, e: React.ClipboardEvent | React.DragEvent) => {
       try {
         const target = e.target instanceof Element ? e.target : null;
-        const text = kind === "paste" ? pastedText(e) : selectedText(target);
+        const text =
+          kind === "paste"
+            ? ((e as React.ClipboardEvent).clipboardData?.getData("text/plain") ?? "")
+            : kind === "drop"
+              ? ((e as React.DragEvent).dataTransfer?.getData("text/plain") ?? "")
+              : selectedText(target);
         if (!text) return;
 
         // For a copy, the selection says more than the event's target,
         // which can be the page itself.
         const from =
-          kind === "paste" ? target : (selectionStart() ?? target);
+          kind === "paste" || kind === "drop" ? target : (selectionStart() ?? target);
         const surfaceName = from?.closest<HTMLElement>("[data-clip]")?.dataset.clip;
         const surface: ClipboardSurface = (CLIPBOARD_SURFACES as readonly string[]).includes(
           surfaceName ?? "",
@@ -68,11 +74,9 @@ export function useClipboardLog(conversationId: string) {
     onCopy: (e: React.ClipboardEvent) => report("copy", e),
     onCut: (e: React.ClipboardEvent) => report("cut", e),
     onPaste: (e: React.ClipboardEvent) => report("paste", e),
+    // Text dragged in from another window never fires a paste.
+    onDrop: (e: React.DragEvent) => report("drop", e),
   };
-}
-
-function pastedText(e: React.ClipboardEvent) {
-  return e.clipboardData?.getData("text/plain") ?? "";
 }
 
 /** What is selected: inside a text box, or on the page. */

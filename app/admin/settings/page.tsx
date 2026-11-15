@@ -74,6 +74,14 @@ export default async function AdminSettings() {
           saved message by message as they happen, so nothing is lost when
           someone does not get as far as submitting.
         </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          The last line of a complete file is{" "}
+          <code className="rounded bg-muted px-1 text-xs">
+            &quot;record&quot;: &quot;end&quot;
+          </code>
+          , with the number of transcripts it should contain. A file without
+          that line was cut short on the way: download it again.
+        </p>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
           <a href="/api/admin/export" className="text-sm text-accent underline">
             Download everything as JSONL
