@@ -81,7 +81,12 @@ export async function saveLabels(
 
   const parsed = draftLabelsSchema.safeParse(readForm(formData));
   if (!parsed.success) {
-    return { message: "Some answers could not be saved." };
+    const errors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const key = String(issue.path[0] ?? "form");
+      if (!errors[key]) errors[key] = issue.message;
+    }
+    return { errors, message: "Some answers could not be saved. Nothing was changed." };
   }
 
   await writeLabels(conversationId, parsed.data);
@@ -120,7 +125,11 @@ export async function submitTranscript(
       if (!errors[key]) errors[key] = issue.message;
     }
     // Save what they did fill in, so nothing is lost on a failed submit.
-    await writeLabels(conversationId, draftLabelsSchema.parse(readForm(formData)));
+    // Only if it can be saved: an answer over its length limit fails here
+    // too, and insisting on saving it would turn a message about one box
+    // into an error page.
+    const draft = draftLabelsSchema.safeParse(readForm(formData));
+    if (draft.success) await writeLabels(conversationId, draft.data);
     return { errors, message: "Please complete the highlighted fields." };
   }
 

@@ -25,6 +25,9 @@ const bodySchema = z.object({
 export async function GET() {
   const cu = await getCurrentUser();
   if (!cu) return Response.json({ message: "Unauthorized" }, { status: 401 });
+  // The list names every conversation the account has run a scanner on.
+  const blocked = whyBlocked(cu);
+  if (blocked) return Response.json(blocked, { status: 403 });
   return Response.json({ runs: await listJudgeRuns(cu.user.id) });
 }
 

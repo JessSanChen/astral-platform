@@ -434,7 +434,16 @@ export function ChatView({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => regenerate({ body: { conversationId, regenerate: true } })}
+                onClick={() => {
+                  // The reply about to be replaced may be marked as evidence
+                  // for the labels. The mark was put on that reply, not on
+                  // whatever comes back in its place, so it goes with it.
+                  const replaced = visibleMessages.length;
+                  if (marked.has(replaced)) {
+                    onEvidenceChange(evidenceTurns.filter((t) => t !== replaced));
+                  }
+                  regenerate({ body: { conversationId, regenerate: true } });
+                }}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
                 Regenerate

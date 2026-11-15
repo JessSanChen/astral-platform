@@ -15,6 +15,7 @@ import { OtherText } from "@/components/profile-fields";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useConversationStore } from "@/components/conversation-store";
+import { LABEL_LIMITS } from "@/lib/labels-schema";
 import {
   CHALLENGE_FLAGS,
   DOMAIN_TAGS,
@@ -97,7 +98,9 @@ export function LabelsPanel({
     }));
 
   const [openNotes, setOpenNotes] = useState(false);
-  const e = state.errors ?? {};
+  // Whichever of the two buttons was pressed last is the one whose
+  // complaints are on screen.
+  const e = { ...(saveState.errors ?? {}), ...(state.errors ?? {}) };
   const runAction = useFormAction();
   const version = state.submittedVersion ?? currentVersion;
   const submitted =
@@ -172,6 +175,7 @@ export function LabelsPanel({
           <Input
             id="roleText"
             name="roleText"
+            maxLength={LABEL_LIMITS.roleText}
             value={values.roleText ?? ""}
             onChange={(ev) => set("roleText", ev.target.value)}
             placeholder={values.rolePreset === "Other" ? "What was the role?" : "Optional detail"}
@@ -188,6 +192,7 @@ export function LabelsPanel({
           <Textarea
             id="goalText"
             name="goalText"
+            maxLength={LABEL_LIMITS.goalText}
             rows={3}
             value={values.goalText ?? ""}
             onChange={(ev) => set("goalText", ev.target.value)}
@@ -314,7 +319,7 @@ export function LabelsPanel({
           would drop them from the form, so collapsing the section would
           silently erase answers the participant had already given.
         */}
-        <div className="space-y-4" hidden={!openNotes}>
+        <div className="space-y-4" hidden={!openNotes && !e.notes}>
           <Field
             label="Do you disagree with how the model behaved?"
             htmlFor="challengeFlag"
@@ -328,10 +333,11 @@ export function LabelsPanel({
             />
           </Field>
 
-          <Field label="Anything else worth knowing?" htmlFor="notes">
+          <Field label="Anything else worth knowing?" htmlFor="notes" error={e.notes}>
             <Textarea
               id="notes"
               name="notes"
+              maxLength={LABEL_LIMITS.notes}
               rows={3}
               value={values.notes ?? ""}
               onChange={(ev) => set("notes", ev.target.value)}
@@ -343,6 +349,9 @@ export function LabelsPanel({
       <div className="space-y-2 border-t border-border px-4 py-3">
         {state.message && (
           <p className="text-xs text-danger">{state.message}</p>
+        )}
+        {saveState.message && !state.message && (
+          <p className="text-xs text-danger">{saveState.message}</p>
         )}
         {state.submittedVersion && !state.message && (
           <p className="flex items-center gap-1.5 text-xs text-accent">

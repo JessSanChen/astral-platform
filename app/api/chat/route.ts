@@ -1,8 +1,8 @@
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { after } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { message as messageTable } from "@/db/schema";
+import { message as messageTable, transcriptLabels } from "@/db/schema";
 import {
   ChatError,
   assertModelAllowed,
@@ -165,6 +165,16 @@ export async function POST(req: Request) {
         .update(messageTable)
         .set({ supersededBy: last.id })
         .where(eq(messageTable.id, last.id));
+      // If the author had marked that reply as evidence for their labels,
+      // the mark goes with it. Marks are kept as turn numbers, and the
+      // number is about to belong to a different reply. The page does the
+      // same for what is on screen; this is for what was already saved.
+      await db
+        .update(transcriptLabels)
+        .set({
+          evidenceTurns: sql`array_remove(${transcriptLabels.evidenceTurns}, ${history.length})`,
+        })
+        .where(eq(transcriptLabels.conversationId, conversationId));
       promptHistory = history.slice(0, -1);
     }
   } else {

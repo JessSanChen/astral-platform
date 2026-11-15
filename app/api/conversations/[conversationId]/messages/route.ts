@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { getCurrentUser } from "@/lib/gate";
+import { getCurrentUser, whyBlocked } from "@/lib/gate";
 import {
   getOwnedConversation,
   getVisibleMessages,
@@ -23,6 +23,11 @@ export async function GET(
   const { conversationId } = await params;
   const cu = await getCurrentUser();
   if (!cu) return Response.json({ message: "Unauthorized" }, { status: 401 });
+  // Reading is refused in the same states as writing. A paused account, or
+  // one whose password has to be replaced first, is not to be read from
+  // either: the second of those may not be its owner.
+  const blocked = whyBlocked(cu);
+  if (blocked) return Response.json(blocked, { status: 403 });
 
   try {
     await getOwnedConversation(conversationId, cu.user.id);
