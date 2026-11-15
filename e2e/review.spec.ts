@@ -38,23 +38,41 @@ test.describe("independent review", () => {
     await resetSettings();
   });
 
-  test("the policy and four questions come first, and a wrong answer says why", async ({
+  test("the shared instructions and five questions come first, and a wrong answer says why", async ({
     browser,
   }) => {
     const { page, context, email } = await newParticipant(browser, "Nia Newreviewer");
     await page.goto("/review");
-    await expect(page.getByRole("heading", { name: "Test policy" })).toBeVisible();
+    // The shared definition, word for word where it matters most.
+    await expect(
+      page.getByRole("heading", { name: "Reviewing conversations for specialist attention" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "Ignore whether the assistant answered, refused, or blocked a request when making the referral decision.",
+        { exact: false },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Based on the visible user activity, would you recommend specialist review?", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(page.getByRole("main").getByText(/reference policy/i)).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Get a review" })).toHaveCount(0);
 
-    await page.getByRole("radio", { name: /Whether the displayed record meets/ }).check();
-    await page.getByRole("radio", { name: "Automatically negative." }).check();
-    await page.getByRole("radio", { name: "Skip as outside expertise." }).check();
-    await page.getByRole("radio", { name: "Skip as recognized/discussed." }).check();
+    await page.getByRole("radio", { name: "Whether visible user activity warrants specialist review" }).check();
+    await page.getByRole("radio", { name: "Automatically refer", exact: true }).check();
+    await page.getByRole("radio", { name: "No, judge the user's activity" }).check();
+    await page.getByRole("radio", { name: "Skip as outside my expertise" }).check();
+    await page.getByRole("radio", { name: "Skip as recognized/discussed" }).check();
     await page.getByRole("button", { name: "Check my answers" }).click();
     await expect(page.getByText(/Not that one\. A refusal is something the assistant did/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Get a review" })).toHaveCount(0);
 
-    await page.getByRole("radio", { name: /Apply the policy; refusal alone/ }).check();
+    await page
+      .getByRole("radio", { name: "Do not use the refusal as evidence; judge the user's activity" })
+      .check();
     await page.getByRole("button", { name: "Check my answers" }).click();
     await expect(page.getByRole("button", { name: "Get a review" })).toBeVisible();
 
@@ -115,19 +133,32 @@ test.describe("independent review", () => {
     await expect(form.getByText("Please complete the highlighted answers.")).toBeVisible();
     await expect(form.getByText("Answer the main question.")).toBeVisible();
 
-    // The criteria on offer are the ones that go with the answer.
+    // One screen, and no menu of policy rules on it.
+    await expect(
+      form.getByText("Based on the visible user activity, would you recommend specialist review?"),
+    ).toBeVisible();
+    await expect(form.getByText(/criterion/i)).toHaveCount(0);
+    await expect(form.locator('[data-question="policyBasis"]')).toHaveCount(0);
+
+    // Evidence is the user's messages. The assistant's reply is there to
+    // read, but its number cannot be chosen.
+    await expect(page.getByRole("button", { name: "Turn 1", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Turn 2", exact: true })).toHaveCount(0);
+    await expect(page.locator('[data-turn="2"]')).toContainText("to: What does a ribosome do?");
+
+    // A Yes has to point at something the user did.
     await form.locator('[data-question="verdict"]').getByRole("radio", { name: "Yes", exact: true }).check();
-    await expect(form.getByRole("radio", { name: /^T1:/ })).toBeVisible();
-    await expect(form.getByRole("radio", { name: "No qualifying criterion" })).toHaveCount(0);
+    await expect(form.getByRole("radio", { name: /No specific affirmative evidence/ })).toHaveCount(0);
+    await form.locator('[data-question="verdict"]').getByRole("radio", { name: "No", exact: true }).check();
+    await expect(form.getByRole("radio", { name: /No specific affirmative evidence/ })).toBeVisible();
 
     await fillReview(page, {
       verdict: "Yes",
-      basis: /^T1:/,
       confidence: "Moderate",
-      turns: [2],
-      rationale: "The reply is what rule T1 lists. Based on one exchange only.",
+      turns: [1],
+      rationale: "What the user asks for goes beyond a general explanation.",
     });
-    await expect(form.getByTestId("evidence-summary")).toHaveText("Chosen: 2");
+    await expect(form.getByTestId("evidence-summary")).toHaveText("Chosen: 1");
 
     // Copying out of the record is noted, as it is for the author.
     await page.locator('[data-turn="2"] .markdown').selectText();
@@ -147,24 +178,27 @@ test.describe("independent review", () => {
     const [stored] = await sql`
       select r.verdict, r.policy_basis, r.confidence, r.evidence_mode, r.evidence_turns,
              r.subject_sensitivity, r.aim_evidence, r.form_version, r.policy_version,
+             (select max(version) from review_policy) as instructions,
              a.state, a.slot, a.purpose
       from review_response r join review_assignment a on a.id = r.assignment_id
       where a.id = ${assignmentId}
     `;
     expect(stored).toMatchObject({
       verdict: "yes",
-      policy_basis: "T1",
+      // No rule was asked for, and the record says so.
+      policy_basis: "not_asked",
       confidence: "moderate",
       evidence_mode: "turns",
-      evidence_turns: [2],
+      evidence_turns: [1],
       subject_sensitivity: "g0",
       aim_evidence: "a0",
-      form_version: "C-1.1",
+      form_version: "C-2.0",
       state: "completed",
       slot: 1,
       purpose: "primary",
     });
-    expect(stored.policy_version).toBeGreaterThan(0);
+    // The exact version of the instructions it was made under.
+    expect(stored.policy_version).toBe(stored.instructions);
 
     // Final: the same address now only says it is done.
     await page.goto(`/review/${assignmentId}`);

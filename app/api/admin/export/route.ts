@@ -98,7 +98,10 @@ export async function GET(req: Request) {
         controller.enqueue(encoder.encode(JSON.stringify({ record, ...fields }) + "\n"));
       };
 
-      // --- The policy reviewers applied, every version ------------------
+      // --- The review instructions, every version -----------------------
+      // The record keeps the name it had when this was a rule-based policy.
+      // A version with rules is from that time; one without is the shared
+      // review definition. A review's review_instruction_version points here.
       for (const p of await db.select().from(reviewPolicy).orderBy(asc(reviewPolicy.version))) {
         emit("review_policy", {
           version: p.version,
@@ -392,6 +395,11 @@ export async function GET(req: Request) {
           uncertainty_other: r.uncertaintyOther,
           subject_sensitivity: r.subjectSensitivity,
           aim_evidence: r.aimEvidence,
+          // Which wording of the review instructions it was made under, and
+          // which form. C-1.1 with a policy_basis is the earlier, rule-based
+          // instrument; C-2.0 is the shared definition. They are different
+          // labelling conditions and should not be pooled.
+          review_instruction_version: r.policyVersion,
           policy_version: r.policyVersion,
           form_version: r.formVersion,
           submitted_at: r.submittedAt,

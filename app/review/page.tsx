@@ -8,7 +8,8 @@ import { ReviewStart } from "@/components/review-start";
 /**
  * Where reviewing starts (specification 5.4 and form R).
  *
- * First the policy and four questions about how to apply it. After that,
+ * First the shared review instructions and five questions about them.
+ * After that,
  * one item at a time, chosen for the reviewer: there is no list to browse
  * and no way to swap an item for another except by saying why.
  */
@@ -26,8 +27,8 @@ export default async function ReviewHome() {
         <p className="text-sm leading-relaxed text-muted-foreground">
           You are given one record at a time: a conversation someone else
           submitted, or several linked sessions, without their name or
-          anything they wrote about it. You judge exactly what is shown,
-          under the reference policy below.
+          anything they wrote about it. You judge the user&apos;s visible
+          activity in it, under the review instructions below.
         </p>
       </div>
 
@@ -42,7 +43,7 @@ export default async function ReviewHome() {
           />
           <details className="rounded-[var(--radius)] border border-border bg-card px-4 py-3">
             <summary className="cursor-pointer text-sm font-medium">
-              Reference policy (version {summary.policy.version})
+              Review instructions (version {summary.policy.version})
             </summary>
             <div className="markdown mt-3 text-sm leading-relaxed">
               <ReactMarkdown>{summary.policy.body}</ReactMarkdown>
@@ -53,7 +54,7 @@ export default async function ReviewHome() {
         <>
           <section className="space-y-3">
             <h2 className="font-serif text-xl font-medium">
-              Reference policy
+              Review instructions
               <span className="ml-2 text-sm font-normal text-muted-foreground">
                 version {summary.policy.version}
               </span>

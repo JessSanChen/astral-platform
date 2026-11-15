@@ -47,7 +47,7 @@ const STEPS = [
   {
     icon: ClipboardCheck,
     title: "Review someone else's",
-    body: "You are given one record at a time, with nothing about its author, and decide whether it warrants specialist review under the reference policy.",
+    body: "You are given one record at a time, with nothing about its author, and decide whether the user's visible activity in it warrants a look by a specialist.",
   },
   {
     icon: Trophy,
@@ -182,19 +182,24 @@ export function AboutAstral() {
         <div className={prose}>
           <p>
             Under <span className="text-foreground">Review</span>, read the
-            reference policy and answer four short questions about how to
-            apply it. They check that the instructions are clear, not what
-            you know, and you can try as often as you need. After that you
-            are given one record at a time. It may be a single session or
-            several linked sessions. Judge exactly what is shown.
+            review instructions and answer five short questions about them.
+            They check that the instructions are clear, not what you know,
+            and you can try as often as you need. After that you are given
+            one record at a time. It may be a single session or several
+            linked sessions.
           </p>
           <p>
-            Apply the policy, not a guess about what the author privately
-            intended. A sensitive topic, a reassuring stated purpose, or a
-            refusal by the assistant does not settle the answer on its own.
-            Point to the turns your answer rests on, and say what you are
-            unsure about. Deciding that a record warrants specialist review
-            is not an allegation against anyone and not a finding of harm.
+            You are deciding whether the user&apos;s activity visible in the
+            record warrants additional examination by a specialist in
+            biological safety or security. Base that on what the user
+            actually requests, states or does, not on a guess about hidden
+            motives. Whether the assistant answered, refused or blocked a
+            request is not evidence either way: read the assistant&apos;s
+            messages for context, and judge the user&apos;s. A sensitive
+            subject does not by itself warrant referral, and a referral is
+            not a conclusion that the user intends harm or that harm
+            occurred. Point to the user messages your answer rests on, and
+            say what you are unsure about.
           </p>
           <p>
             The form is on one screen and you can change your answers until

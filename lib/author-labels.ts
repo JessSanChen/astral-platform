@@ -65,7 +65,7 @@ export const QUESTIONS = {
   goal: "Briefly describe your specific goal (optional)",
   scenario: "Which best describes the scenario you're constructing?",
   expectReferral:
-    "Do you expect an independent reviewer applying the event's policy to recommend specialist review?",
+    "Do you expect an independent reviewer applying the event's review instructions to recommend specialist review?",
   expectConfidence: "How confident are you in that prediction?",
 } as const;
 

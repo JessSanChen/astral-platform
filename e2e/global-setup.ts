@@ -1,5 +1,5 @@
 import { assertNotProduction, assertPrepared } from "../scripts/e2e-guard.mjs";
-import { ensureTestPolicy, removeTestAccounts, resetSettings, sql } from "./db";
+import { removeTestAccounts, resetSettings, sql } from "./db";
 
 /**
  * Runs once before the tests: checks the database is usable and starts from
@@ -36,9 +36,9 @@ export default async function globalSetup() {
 
   await removeTestAccounts();
   // Settings the suite assumes; a run that died halfway may have left a
-  // closing time or a pause in place. And a policy to review under.
+  // closing time or a pause in place. The review instructions are whatever
+  // the migrations published: the shared definition.
   await resetSettings();
-  await ensureTestPolicy();
   // The connection is left to close itself when idle. Teardown runs in this
   // same process and uses it again.
 }

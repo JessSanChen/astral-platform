@@ -13,7 +13,7 @@ import {
   type Purpose,
 } from "@/lib/assignments";
 import { getCurrentUser, whyBlocked } from "@/lib/gate";
-import { getPolicy, policyBases } from "@/lib/policy";
+import { getPolicy } from "@/lib/policy";
 import {
   INSTRUCTION_QUESTIONS,
   auditSchema,
@@ -54,7 +54,7 @@ async function guarded<T extends object>(work: () => Promise<T>): Promise<({ ok:
 }
 
 /**
- * The instruction check (form R). All four have to be right; which ones
+ * The instruction check (form R). All five have to be right; which ones
  * were wrong comes back so they can be tried again.
  */
 export async function completeInstructionCheck(
@@ -93,15 +93,6 @@ export async function submitReviewAction(assignmentId: string, draft: unknown) {
   if ("fail" in who) return who.fail;
   const parsed = reviewSchema.safeParse(draft);
   if (!parsed.success) return issues(parsed.error);
-  // Which criterion supports the answer is asked only when the policy
-  // lists rules to choose from.
-  if (!parsed.data.policyBasis && policyBases(await getPolicy()).length > 0) {
-    return {
-      ok: false,
-      message: "Please complete the highlighted answers.",
-      errors: { policyBasis: "Say which criterion supports your answer." },
-    } satisfies Fail;
-  }
   return guarded(() => submitReview(assignmentId, who.id, parsed.data));
 }
 

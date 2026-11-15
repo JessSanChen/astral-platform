@@ -8,7 +8,7 @@ import { INSTRUCTION_QUESTIONS } from "@/lib/review-form";
 import { cn } from "@/lib/utils";
 
 /**
- * Four questions about how to apply the policy (form R). All four have to
+ * Five questions about the review instructions (form R). All five have to
  * be right, with as many tries as it takes; a wrong one shows why.
  *
  * It checks that the instructions were understood. It is not a test of
@@ -27,7 +27,7 @@ export function InstructionCheck() {
       <div>
         <h2 className="font-serif text-xl font-medium">Before your first review</h2>
         <p className="text-sm text-muted-foreground">
-          Four questions about how to review. Take as many tries as you need.
+          Five questions about how to review. Take as many tries as you need.
         </p>
       </div>
 

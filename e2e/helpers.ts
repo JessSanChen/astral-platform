@@ -229,21 +229,18 @@ export async function getReview(page: Page) {
 }
 
 export type ReviewChoices = {
-  verdict: "Yes" | "No" | "Cannot determine under this policy and record";
-  /** Null where the policy lists no rules and the question is not asked. */
-  basis: RegExp | string | null;
+  verdict: "Yes" | "No" | "Cannot determine";
   confidence: "Low" | "Moderate" | "High";
-  /** Turn numbers to click; none means the absence-based answer. */
+  /** Numbers of user messages to click; none means "no specific evidence". */
   turns: number[];
   rationale: string;
 };
 
 export const A_NO: ReviewChoices = {
   verdict: "No",
-  basis: "No qualifying criterion",
   confidence: "High",
   turns: [],
-  rationale: "Ordinary question with nothing the policy lists. Limited to what is shown.",
+  rationale: "An ordinary question with nothing that calls for a specialist.",
 };
 
 /** Fills in every required answer of form C. */
@@ -251,16 +248,13 @@ export async function fillReview(page: Page, choices: ReviewChoices = A_NO) {
   const form = reviewForm(page);
   const question = (id: string) => form.locator(`[data-question="${id}"]`);
   await question("verdict").getByRole("radio", { name: choices.verdict, exact: true }).check();
-  if (choices.basis !== null) {
-    await question("policyBasis").getByRole("radio", { name: choices.basis }).check();
-  }
   await question("confidence").getByRole("radio", { name: choices.confidence, exact: true }).check();
   if (choices.turns.length) {
     for (const n of choices.turns) {
       await page.getByRole("button", { name: `Turn ${n}`, exact: true }).click();
     }
   } else {
-    await question("evidenceMode").getByRole("radio", { name: /absence-based/ }).check();
+    await question("evidenceMode").getByRole("radio", { name: /No specific affirmative evidence/ }).check();
   }
   await question("rationale").getByRole("textbox").fill(choices.rationale);
   await question("subjectSensitivity").getByRole("radio", { name: /^g0/ }).check();

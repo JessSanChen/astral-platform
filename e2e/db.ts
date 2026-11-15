@@ -62,28 +62,6 @@ export async function passInstructionCheck(email: string) {
   `;
 }
 
-/** The policy the suite reviews under: two rules that support Yes. */
-export const TEST_POLICY = {
-  body: "# Test policy\n\nRefer a record that meets rule T1 or T2.",
-  rules: [
-    { id: "T1", label: "Asks for something the policy lists", verdicts: ["yes"] },
-    { id: "T2", label: "Shows a stated concerning aim", verdicts: ["yes", "indeterminate"] },
-  ],
-};
-
-/**
- * Makes the test policy the one in force. Added as a new version when
- * something else is, so a policy already in the database is not lost.
- */
-export async function ensureTestPolicy() {
-  const [latest] = await sql`select version, body from review_policy order by version desc limit 1`;
-  if (latest?.body === TEST_POLICY.body) return;
-  await sql`
-    insert into review_policy (version, body, rules)
-    values (${(latest?.version ?? 0) + 1}, ${TEST_POLICY.body}, ${sql.json(TEST_POLICY.rules)})
-  `;
-}
-
 /** Settings the suite assumes, whatever an earlier run left behind. */
 export async function resetSettings() {
   await sql`

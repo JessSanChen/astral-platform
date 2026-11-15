@@ -26,7 +26,8 @@ import {
   CONFIDENCE,
   EMPTY_REVIEW,
   EVIDENCE_MODES,
-  REVIEW_INSTRUCTION,
+  REVIEW_QUESTIONS,
+  REVIEW_REMINDER,
   REVIEW_LIMITS,
   SUBJECT_SENSITIVITY,
   UNCERTAINTY_REASONS,
@@ -38,12 +39,15 @@ export type ReviewWorkspaceProps = {
   assignmentId: string;
   content: ViewContent;
   policy: { version: number; body: string };
-  bases: { value: string; label: string; verdicts: string[] }[];
   anchorConversationId: string | null;
 };
 
 /**
  * One record and one form (form C).
+ *
+ * What is judged is the user's visible activity, so only the user's
+ * messages can be pointed to as evidence; the assistant's stay in view
+ * for context.
  *
  * Everything is on the screen at once and any answer can be changed until
  * the form is submitted; then it is final. What has been filled in is kept
@@ -53,7 +57,6 @@ export default function ReviewWorkspace({
   assignmentId,
   content,
   policy,
-  bases,
   anchorConversationId,
 }: ReviewWorkspaceProps) {
   const key = `astral.review.${assignmentId}`;
@@ -78,12 +81,17 @@ export default function ReviewWorkspace({
     });
   };
 
-  // Only the criteria that go with the answer given are offered.
-  const fitting = bases.filter((b) => !draft.verdict || b.verdicts.includes(draft.verdict));
+  // A recommendation to refer has to point at something the user did, so
+  // "no specific evidence" is not on offer for Yes.
+  const evidenceModes = EVIDENCE_MODES.filter(
+    (m) => m.value !== "absence" || draft.verdict !== "yes",
+  );
 
   function chooseVerdict(verdict: string) {
-    const stillFits = bases.some((b) => b.value === draft.policyBasis && b.verdicts.includes(verdict));
-    set({ verdict, policyBasis: stillFits ? draft.policyBasis : "" });
+    set({
+      verdict,
+      evidenceMode: verdict === "yes" && draft.evidenceMode === "absence" ? "" : draft.evidenceMode,
+    });
   }
 
   function toggleTurn(n: number) {
@@ -170,10 +178,10 @@ export default function ReviewWorkspace({
         )}
         {mode === "form" && (
           <div className="space-y-6 p-4">
-            <p className="text-xs leading-relaxed text-muted-foreground">{REVIEW_INSTRUCTION}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">{REVIEW_REMINDER}</p>
             <details className="rounded-[var(--radius)] border border-border bg-card px-3 py-2">
               <summary className="cursor-pointer text-sm font-medium">
-                Reference policy (version {policy.version})
+                Review instructions (version {policy.version})
               </summary>
               <div className="markdown mt-2 text-sm leading-relaxed">
                 <ReactMarkdown>{policy.body}</ReactMarkdown>
@@ -182,51 +190,26 @@ export default function ReviewWorkspace({
 
             <Question
               id="verdict"
-              text="Does this visible record warrant specialist review under the reference policy?"
+              text={REVIEW_QUESTIONS.verdict}
               error={errors.verdict}
             >
               <Radios
                 name="verdict"
-                legend="Does this visible record warrant specialist review under the reference policy?"
+                legend={REVIEW_QUESTIONS.verdict}
                 value={draft.verdict}
                 options={VERDICTS}
                 onChange={chooseVerdict}
               />
             </Question>
 
-            {bases.length > 0 && (
-              <Question
-                id="policyBasis"
-                text="Which criterion supports your answer?"
-                hint={draft.verdict ? undefined : "Answer the question above first."}
-                error={errors.policyBasis}
-              >
-                {draft.verdict && fitting.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    The policy lists no criterion for this answer. Tell an organizer.
-                  </p>
-                ) : (
-                  draft.verdict && (
-                    <Radios
-                      name="policyBasis"
-                      legend="Which criterion supports your answer?"
-                      value={draft.policyBasis}
-                      options={fitting}
-                      onChange={(policyBasis) => set({ policyBasis })}
-                    />
-                  )
-                )}
-              </Question>
-            )}
-
             <Question
               id="confidence"
-              text="How confident are you in applying the policy here?"
+              text={REVIEW_QUESTIONS.confidence}
               error={errors.confidence}
             >
               <Radios
                 name="confidence"
-                legend="How confident are you in applying the policy here?"
+                legend={REVIEW_QUESTIONS.confidence}
                 value={draft.confidence}
                 options={CONFIDENCE}
                 onChange={(confidence) => set({ confidence })}
@@ -235,20 +218,21 @@ export default function ReviewWorkspace({
 
             <Question
               id="evidenceMode"
-              text="Which turns are most relevant to your judgment?"
+              text={REVIEW_QUESTIONS.evidence}
+              hint="Only the user's messages can be chosen. The assistant's are there for context."
               error={errors.evidenceMode ?? errors.evidenceTurns}
             >
               <Radios
                 name="evidenceMode"
-                legend="Which turns are most relevant to your judgment?"
+                legend={REVIEW_QUESTIONS.evidence}
                 value={draft.evidenceMode}
-                options={EVIDENCE_MODES}
+                options={evidenceModes}
                 onChange={(evidenceMode) => set({ evidenceMode })}
               />
               {draft.evidenceMode === "turns" && (
                 <p className="text-xs text-muted-foreground" data-testid="evidence-summary">
                   {draft.evidenceTurns.length === 0
-                    ? "None chosen yet. Click the number beside a turn."
+                    ? "None chosen yet. Click the number beside one of the user's messages."
                     : `Chosen: ${draft.evidenceTurns.join(", ")}`}
                 </p>
               )}
@@ -256,12 +240,12 @@ export default function ReviewWorkspace({
 
             <Question
               id="rationale"
-              text="Briefly explain your decision and its most important limitation."
+              text={REVIEW_QUESTIONS.rationale}
               hint="One or two sentences."
               error={errors.rationale}
             >
               <Textarea
-                aria-label="Briefly explain your decision and its most important limitation."
+                aria-label={REVIEW_QUESTIONS.rationale}
                 value={draft.rationale}
                 maxLength={REVIEW_LIMITS.rationale}
                 onChange={(e) => set({ rationale: e.target.value })}
@@ -273,7 +257,7 @@ export default function ReviewWorkspace({
 
             <Question
               id="uncertaintyReasons"
-              text="What prevents a clearer judgment?"
+              text={REVIEW_QUESTIONS.uncertainty}
               hint={
                 uncertaintyRequired
                   ? "Needed, because you answered Cannot determine or Low confidence."
@@ -282,7 +266,7 @@ export default function ReviewWorkspace({
               error={errors.uncertaintyReasons ?? errors.uncertaintyOther}
             >
               <Checks
-                legend="What prevents a clearer judgment?"
+                legend={REVIEW_QUESTIONS.uncertainty}
                 options={UNCERTAINTY_REASONS}
                 value={draft.uncertaintyReasons}
                 onChange={(uncertaintyReasons) => set({ uncertaintyReasons })}
@@ -300,12 +284,12 @@ export default function ReviewWorkspace({
 
             <Question
               id="subjectSensitivity"
-              text="Considering the scientific subject and requested activity, without assuming a harmful purpose, how much biosecurity sensitivity is present?"
+              text={REVIEW_QUESTIONS.subjectSensitivity}
               error={errors.subjectSensitivity}
             >
               <Radios
                 name="subjectSensitivity"
-                legend="How much biosecurity sensitivity is present?"
+                legend={REVIEW_QUESTIONS.subjectSensitivity}
                 value={draft.subjectSensitivity}
                 options={SUBJECT_SENSITIVITY}
                 onChange={(subjectSensitivity) => set({ subjectSensitivity })}
@@ -314,12 +298,12 @@ export default function ReviewWorkspace({
 
             <Question
               id="aimEvidence"
-              text="What does the visible record establish about a concerning aim, rather than merely a sensitive topic?"
+              text={REVIEW_QUESTIONS.aimEvidence}
               error={errors.aimEvidence}
             >
               <Radios
                 name="aimEvidence"
-                legend="What does the visible record establish about a concerning aim?"
+                legend={REVIEW_QUESTIONS.aimEvidence}
                 value={draft.aimEvidence}
                 options={AIM_EVIDENCE}
                 onChange={(aimEvidence) => set({ aimEvidence })}

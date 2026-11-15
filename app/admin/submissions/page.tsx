@@ -222,9 +222,7 @@ function ReviewerPool({ pool }: { pool: Awaited<ReturnType<typeof reviewerPool>>
       <summary className="cursor-pointer px-4 py-2.5 text-sm">
         <span className="font-medium">Who can review</span>{" "}
         <span className="text-xs text-muted-foreground">
-          {pool.policyVersion === 0
-            ? "No policy is published, so nobody can review yet."
-            : `${pool.ready} of ${pool.onboarded} people have passed the instruction check for policy version ${pool.policyVersion}.`}
+          {`${pool.ready} of ${pool.onboarded} people have passed the instruction check for review instructions version ${pool.policyVersion}.`}
         </span>
       </summary>
       <div className="border-t border-border px-4 py-3">

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { loadAssignment, reviewerSummary, touchAssignment } from "@/lib/assignments";
 import { comparisonIntentLabel } from "@/lib/episode-options";
 import { requireOnboarded } from "@/lib/gate";
-import { policyBases } from "@/lib/policy";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -50,7 +49,8 @@ export default async function AssignmentPage({
     );
   }
 
-  // A new policy version means the instruction has to be read again before
+  // New review instructions have to be read, and the questions about them
+  // answered, before
   // anything is judged under it. The item stays theirs meanwhile.
   const summary = await reviewerSummary(user.id);
   if (!summary.policyReady) redirect("/review");
@@ -74,7 +74,6 @@ export default async function AssignmentPage({
       assignmentId={assignmentId}
       content={loaded.view.content}
       policy={{ version: summary.policy.version, body: summary.policy.body }}
-      bases={policyBases(summary.policy)}
       anchorConversationId={loaded.anchorConversationId}
     />
   );

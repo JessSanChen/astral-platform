@@ -627,7 +627,7 @@ export async function reviewerPool() {
     .leftJoin(profile, eq(profile.userId, user.id))
     .where(sql`${user.profileCompletedAt} is not null and coalesce(${user.banned}, false) = false`);
 
-  const ready = people.filter((p) => policy.version > 0 && p.policyReadyVersion === policy.version);
+  const ready = people.filter((p) => p.policyReadyVersion === policy.version);
   const tally = (list: typeof people) =>
     DOMAINS.filter((d) => d.id !== "other").map((d) => {
       const levels = list.map(

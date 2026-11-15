@@ -23,7 +23,6 @@ import {
 import {
   AIM_EVIDENCE,
   ASSIGNMENT_STATES,
-  BUILT_IN_BASES,
   COMPARISON_TYPES,
   CONFIDENCE,
   MATCH,
@@ -274,7 +273,7 @@ function ReviewItem({ review: r }: { review: Detail["reviews"][number] }) {
         <span className="font-medium">
           Warrants specialist review: {labelOf(VERDICTS, r.verdict)}
         </span>{" "}
-        · basis: {labelOf(BUILT_IN_BASES, r.policyBasis)} · confidence{" "}
+        · confidence{" "}
         {labelOf(CONFIDENCE, r.confidence).toLowerCase()}
       </p>
       <p className="whitespace-pre-wrap">{r.rationale}</p>

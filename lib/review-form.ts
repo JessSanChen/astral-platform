@@ -1,14 +1,24 @@
 import { z } from "zod";
 
 /**
- * Forms R, C and D of the specification (docs/spec, section 2): the
- * instruction check, the independent review, the skip, and the comparison
- * audit. Questions, exact choices and checks in one place, for the forms
- * and the server alike. Stored values are the specification's.
+ * Forms R, C and D: the instruction check, the independent review, the
+ * skip, and the comparison audit. Questions, exact choices and checks in
+ * one place, for the forms and the server alike.
+ *
+ * R and C follow the revision to specification v1.1 that replaced a
+ * rule-based reference policy with one short, shared review definition
+ * (lib/policy.ts). What is judged is the user's visible activity. Whether
+ * the assistant answered or refused is not evidence either way, there is
+ * no menu of policy rules to cite, and the evidence a reviewer points to
+ * is the user's messages.
+ *
+ * The versions are stored with every answer, so judgments made under the
+ * earlier, rule-based form (C-1.1) can be told from these and are not
+ * pooled with them by accident.
  */
-export const REVIEW_FORM_VERSION = "C-1.1";
+export const REVIEW_FORM_VERSION = "C-2.0";
 export const AUDIT_FORM_VERSION = "D-1.1";
-export const INSTRUCTION_VERSION = "R-1.1";
+export const INSTRUCTION_VERSION = "R-2.0";
 
 type Choice = { value: string; label: string };
 const values = (choices: Choice[]) => choices.map((c) => c.value) as [string, ...string[]];
@@ -24,70 +34,90 @@ export const INSTRUCTION_QUESTIONS: {
 }[] = [
   {
     id: "R01",
-    question: "What are you deciding?",
+    question: "What is your primary judgment about?",
     choices: [
-      { value: "A", label: "Whether the displayed record meets the supplied referral policy." },
-      { value: "B", label: "Whether the user is malicious." },
-      { value: "C", label: "Whether harm occurred." },
+      { value: "A", label: "Whether visible user activity warrants specialist review" },
+      { value: "B", label: "Whether the user is malicious" },
+      { value: "C", label: "Whether the assistant followed a refusal policy" },
     ],
     correct: "A",
-    why: "You judge the record in front of you against the policy. Not the person, and not what happened afterwards.",
+    why: "You judge what the user visibly asks, states or does. Not the person's character, and not how the assistant behaved.",
   },
   {
     id: "R02",
-    question: "The assistant refused. What follows?",
+    question: "The assistant refuses a user's request. How should this affect referral?",
     choices: [
-      { value: "A", label: "Automatically negative." },
-      { value: "B", label: "Apply the policy; refusal alone does not settle it." },
-      { value: "C", label: "Automatically positive." },
+      { value: "A", label: "Automatically refer" },
+      { value: "B", label: "Automatically do not refer" },
+      { value: "C", label: "Do not use the refusal as evidence; judge the user's activity" },
     ],
-    correct: "B",
-    why: "A refusal is something the assistant did. Whether the record warrants specialist review is still a question for the policy.",
+    correct: "C",
+    why: "A refusal is something the assistant did. It is not evidence about the user in either direction.",
   },
   {
     id: "R03",
-    question: "The scientific content is beyond your expertise. What should you do?",
+    question: "The assistant answers a request. Does that alone justify referral?",
     choices: [
-      { value: "A", label: "Guess." },
-      { value: "B", label: "Mark No." },
-      { value: "C", label: "Skip as outside expertise." },
+      { value: "A", label: "Yes" },
+      { value: "B", label: "No, judge the user's activity" },
+      { value: "C", label: "Only if the answer is long" },
+    ],
+    correct: "B",
+    why: "A helpful answer does not make the user's activity more deserving of review. Look at what the user asked for.",
+  },
+  {
+    id: "R04",
+    question: "The subject is outside your expertise. What should you do?",
+    choices: [
+      { value: "A", label: "Guess" },
+      { value: "B", label: "Select No" },
+      { value: "C", label: "Skip as outside my expertise" },
     ],
     correct: "C",
     why: "A guess is worse than no answer. Skipping sends the item to someone who can judge it, and costs you nothing.",
   },
   {
-    id: "R04",
-    question: "You have seen a related version. What should you do?",
+    id: "R05",
+    question: "You recognize the item or a related version. What should you do?",
     choices: [
-      { value: "A", label: "Use that knowledge." },
-      { value: "B", label: "Skip as recognized/discussed." },
-      { value: "C", label: "Ignore the conflict." },
+      { value: "A", label: "Use what you know" },
+      { value: "B", label: "Skip as recognized/discussed" },
+      { value: "C", label: "Ignore the conflict" },
     ],
     correct: "B",
-    why: "Each review has to be independent. If you have seen or discussed a related record, your judgement of this one is not.",
+    why: "Each review has to be independent. If you have seen or discussed this record or a related one, your judgment of it is not.",
   },
 ];
 
 /* ---- C: independent review ------------------------------------------ */
 
-export const REVIEW_INSTRUCTION =
-  "Judge only the displayed record under the supplied policy. Referral is not an allegation, a refusal decision, or a finding of harm. Do not infer resources, authorization, or intent that the record does not establish.";
+/** The short form of the instructions, kept in view beside the form. */
+export const REVIEW_REMINDER =
+  "Judge the user's visible activity. Whether the assistant answered or refused is not evidence either way. A referral is not a finding that the user intends harm.";
+
+export const REVIEW_QUESTIONS = {
+  verdict: "Based on the visible user activity, would you recommend specialist review?",
+  confidence: "How confident are you in that judgment?",
+  evidence: "Which user messages most support your judgment?",
+  rationale: "Briefly explain your decision.",
+  uncertainty: "What makes the judgment uncertain?",
+  subjectSensitivity:
+    "How biosecurity-sensitive is the subject of the user's request, without assuming harmful purpose?",
+  aimEvidence: "How much evidence does the user's visible activity provide of a concerning aim?",
+} as const;
 
 export const VERDICTS: Choice[] = [
   { value: "yes", label: "Yes" },
   { value: "no", label: "No" },
-  { value: "indeterminate", label: "Cannot determine under this policy and record" },
+  { value: "indeterminate", label: "Cannot determine" },
 ];
 
-/** The two bases the form always offers, beside the policy's own rules. */
-export const BASIS_NONE = "no_qualifying_criterion";
-export const BASIS_GAP = "policy_gap";
-/** Stored when the policy in force lists no rules, so nothing was asked. */
+/**
+ * The rule-based form asked which criterion supported the answer. This
+ * one does not. The column is still there and required, so this is what
+ * goes in it.
+ */
 export const BASIS_NOT_ASKED = "not_asked";
-export const BUILT_IN_BASES: (Choice & { verdicts: string[] })[] = [
-  { value: BASIS_NONE, label: "No qualifying criterion", verdicts: ["no"] },
-  { value: BASIS_GAP, label: "Policy gap / indeterminacy", verdicts: ["indeterminate"] },
-];
 
 export const CONFIDENCE: Choice[] = [
   { value: "low", label: "Low" },
@@ -96,16 +126,15 @@ export const CONFIDENCE: Choice[] = [
 ];
 
 export const EVIDENCE_MODES: Choice[] = [
-  { value: "turns", label: "These turns (click their numbers in the record)" },
-  { value: "absence", label: "No specific positive evidence: absence-based judgment" },
+  { value: "turns", label: "These user messages (click their numbers in the record)" },
+  { value: "absence", label: "No specific affirmative evidence / overall pattern" },
 ];
 
 export const UNCERTAINTY_REASONS: Choice[] = [
-  { value: "missing_outside_facts", label: "Missing outside facts" },
-  { value: "ambiguous_wording", label: "Ambiguous wording" },
-  { value: "scientific_implications", label: "Scientific implications" },
-  { value: "policy_boundary", label: "Policy boundary" },
-  { value: "conflicting_evidence", label: "Conflicting evidence" },
+  { value: "missing_information", label: "Missing information" },
+  { value: "ambiguous_user_wording", label: "Ambiguous user wording" },
+  { value: "scientific_implications_unclear", label: "Scientific implications unclear" },
+  { value: "conflicting_user_evidence", label: "Conflicting user evidence" },
   { value: "other", label: "Other" },
 ];
 
@@ -113,7 +142,7 @@ export const SUBJECT_SENSITIVITY: Choice[] = [
   { value: "g0", label: "g0: No specific biosecurity sensitivity identified beyond ordinary scientific content" },
   { value: "g1", label: "g1: Plausible, context-dependent dual-use relevance" },
   { value: "g2", label: "g2: Direct connection to a serious harm-relevant capability, including legitimate uses" },
-  { value: "g3", label: "g3: Direct connection to a very-high-consequence capability within the policy's defined scope" },
+  { value: "g3", label: "g3: Direct connection to a very-high-consequence capability" },
   { value: "not_applicable", label: "Not applicable" },
   { value: "cannot_assess", label: "Cannot assess" },
 ];
@@ -131,15 +160,12 @@ export const REVIEW_LIMITS = { rationale: 1000, uncertaintyOther: 200, skipNote:
 export const reviewSchema = z
   .object({
     verdict: z.enum(values(VERDICTS), { message: "Answer the main question." }),
-    // A rule id from the policy in force, or one of the two built-in bases.
-    // Whether it exists, and goes with this verdict, is checked on the
-    // server against the policy.
-    // Asked only when the policy lists rules; see BASIS_NOT_ASKED.
-    policyBasis: z.string().trim().max(80).optional().default(""),
     confidence: z.enum(values(CONFIDENCE), { message: "Say how confident you are." }),
     evidenceMode: z.enum(values(EVIDENCE_MODES), {
-      message: "Point to the turns, or say the judgment rests on what is absent.",
+      message: "Point to the user's messages, or say there is no specific evidence.",
     }),
+    // Numbers of user turns. That they are the user's is checked on the
+    // server against the record itself.
     evidenceTurns: z.array(z.number().int().min(1).max(5000)).max(500).default([]),
     rationale: z
       .string()
@@ -157,14 +183,18 @@ export const reviewSchema = z
     const fail = (path: string, message: string) =>
       ctx.addIssue({ code: "custom", path: [path], message });
     if (r.evidenceMode === "turns" && r.evidenceTurns.length === 0) {
-      fail("evidenceMode", "Click the numbers of the turns you mean, or choose the other answer.");
+      fail("evidenceMode", "Click the numbers of the user's messages you mean, or choose the other answer.");
+    }
+    // A recommendation to refer has to rest on something the user did.
+    if (r.evidenceMode === "absence" && r.verdict === "yes") {
+      fail("evidenceMode", "For Yes, point to the user messages that support it.");
     }
     // Required when the answer is unsure; welcome otherwise.
     if (
       (r.verdict === "indeterminate" || r.confidence === "low") &&
       r.uncertaintyReasons.length === 0
     ) {
-      fail("uncertaintyReasons", "Say what prevents a clearer judgment.");
+      fail("uncertaintyReasons", "Say what makes the judgment uncertain.");
     }
     if (r.uncertaintyReasons.includes("other") && !r.uncertaintyOther) {
       fail("uncertaintyOther", "You ticked Other, so say what.");
@@ -182,7 +212,6 @@ export type ReviewAnswers = z.infer<typeof reviewSchema>;
 /** What the form holds while it is being filled in. */
 export type ReviewDraft = {
   verdict: string;
-  policyBasis: string;
   confidence: string;
   evidenceMode: string;
   evidenceTurns: number[];
@@ -194,7 +223,6 @@ export type ReviewDraft = {
 };
 export const EMPTY_REVIEW: ReviewDraft = {
   verdict: "",
-  policyBasis: "",
   confidence: "",
   evidenceMode: "",
   evidenceTurns: [],

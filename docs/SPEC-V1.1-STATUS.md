@@ -17,14 +17,19 @@ All of it is on the branch `claude/biosecurity-transcript-platform-tgu67r`.
 These are the places where I chose something the specification did not
 settle, or went against it. Each is a small change to reverse.
 
-1. **Reviewing starts under a placeholder policy.** The specification
-   says the real policy has to be supplied (2.C, 9.1). So that reviewing
-   does not wait on it, migration 0008 publishes a short placeholder as
-   version 1, at the organizer's request. Replace it from **Organize →
-   Policy** when the real text is ready; every review records the version
-   it was made under, so reviews made under the placeholder can be told
-   apart. The list of numbered rules is optional: with none, the review
-   form does not ask "Which criterion supports your answer?" (C05).
+1. **Reviewers judge under one shared review definition, not a policy
+   of rules.** This follows the organizer's revision to the specification
+   ("shared review definition"). The exact text is published by migration
+   0011 and shown before the first review and beside every one. What is
+   judged is the user's visible activity; whether the assistant answered
+   or refused is not evidence either way. There is no menu of rules to
+   cite (C05 is gone), and only the user's messages can be chosen as
+   evidence. The instruction check has the revision's five questions.
+   Reviews record the instruction version and the form version (`C-2.0`),
+   so they are distinguishable from anything made under the earlier
+   rule-based form (`C-1.1`). The text can be replaced from **Organize →
+   Review instructions**, with a warning that it is meant to stay fixed.
+   See "The shared review definition" below.
 
 2. **New submissions wait for an organizer.** A submission starts as
    *Pending* with no review level, and nobody is offered it until someone
@@ -80,8 +85,8 @@ In this order:
 
 1. Run the migration, then deploy (see `docs/DEPLOY.md`). The migration
    must go first.
-2. **Organize → Policy**: replace the placeholder with the real policy
-   text when you have it. Rules are optional.
+2. **Organize → Review instructions**: nothing to do. The shared
+   definition is published by the migration. Change it only if you must.
 3. **Organize → Terms**: the real study information, if it has changed.
 4. **Organize → Settings**: reviews per view, whether submissions are
    released automatically, and whether related versions are open yet.
@@ -112,9 +117,9 @@ sessions. Existing conversations each became a one-session episode.
 | B1 provenance: real or invented | Built | `components/new-conversation.tsx` |
 | B2 optional activity template, optional goal note | Built | same; goal edits kept in `episode_goal_revision` with whether work had begun |
 | B3 related version: intent and intended difference | Built | `app/chat/related/[episodeId]`, `components/related-version-form.tsx` |
-| R. Instruction check, four questions | Built | `components/instruction-check.tsx`, `lib/review-form.ts` |
+| R. Instruction check | Changed by the revision: its five questions, R01 to R05 | `components/instruction-check.tsx`, `lib/review-form.ts` |
 | C. Independent review (C04 to C13) | Built | `components/review-workspace.tsx`, `lib/review-form.ts` |
-| C05 policy basis from a versioned policy | Changed: asked only when the policy lists rules, which is optional | `lib/policy.ts`, Organize → Policy; stored as `not_asked` otherwise |
+| C05 policy basis | Removed by the revision | the column still exists and holds `not_asked` |
 | C-S. Skip with a reason | Built | `components/review-skip.tsx` |
 | D. Comparison audit (D01 to D06) | Built | `components/pair-audit-workspace.tsx` |
 | N. Prize entry, up to three | Not built, at the organizer's request: prizes are entered by written nomination, as before v1.1 | `/nominate` (the Submit page), `lib/nominations.ts` |
@@ -144,6 +149,32 @@ differs from the specification's form A:
 Years of experience in each subject are not asked, in the specification
 or here. A04 asks for experience by kind of work, and the F0 to F3 rating
 is what routing uses.
+
+#### The shared review definition (revision to v1.1)
+
+The organizer's revision replaces the rule-based reference policy. What
+it asks for, and where it is:
+
+| Revision | Status | Where |
+| --- | --- | --- |
+| The exact reviewer-facing instructions, shown at onboarding and within reach on the review screen | Built | `lib/policy.ts` (`SHARED_REVIEW_DEFINITION`), migration 0011; the Review page; a fold-out beside the form with a one-line reminder above it |
+| One instruction version for all reviews, stored on each | Built | `review_response.policy_version`, exported also as `review_instruction_version` |
+| Five-question check, R01 to R05, with retries | Built | `lib/review-form.ts` |
+| Verdict: Yes / No / Cannot determine, with the revision's question | Built | form C |
+| Confidence, rationale, uncertainty reasons, with the revision's wording and choices | Built | form C |
+| Evidence: user messages only; "No specific affirmative evidence / overall pattern" for No or Cannot determine | Built | only the user's turn numbers are buttons; the server drops any number that is not a user message, and refuses "no specific evidence" for Yes |
+| Optional opposing user-turn references | Not built | the revision makes it optional |
+| Sensitivity and aim scales kept (g0 to g3, a0 to a3) | Built | form C; no referral is computed from them |
+| Policy basis, rule menus, rule configuration removed | Built | removed from the form, the server and the console |
+| Assistant messages stay visible; nothing redacted | Built | the record is shown whole |
+| No platform field derived from refusals | Built | nothing reads refusals, finish reasons or scanner output when recording or adding up reviews |
+| Old rule-based labels distinguishable in the export | Built | `form_version` (`C-1.1` against `C-2.0`) and the instruction version |
+| `policy_ready` meaning | Kept, renamed in meaning | `user.policy_ready_version` now means the instruction check was passed for that version |
+| Author self-label (section 5 of the revision) | Built differently | the organizer asked separately for required author labels, including the expected referral and confidence, answered before submitting; see decision 6 |
+
+The table, the columns and the console address keep the word "policy"
+(`review_policy`, `policy_version`, `/admin/policy`) to avoid a migration
+that renames them. They mean the review instructions.
 
 ### 3. Generation and folders
 

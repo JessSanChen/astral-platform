@@ -18,8 +18,6 @@ The first section is the only one that actually blocks the event.
 
 These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
 
-- **The reference policy.** Reviewing runs under a placeholder until you
-  replace it from Organize → Policy.
 - **Who releases submissions during the event.** Each one waits as
   Pending until someone sets its review level on Organize → Submissions,
   unless you turn on automatic release in Settings.

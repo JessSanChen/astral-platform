@@ -2433,6 +2433,45 @@ and choices are in `lib/author-labels.ts`, with their own version,
 
 ---
 
+## Round 25: one shared review definition in place of a policy of rules
+
+The organizer revised the specification: reviewers no longer apply a
+reference policy with rules, but one short, shared definition of what
+they are deciding.
+
+- **The instructions.** "Reviewing conversations for specialist
+  attention", exactly as written in the revision, published by migration
+  0011 as the next version. Shown before the first review, and beside
+  every review as a fold-out with a one-line reminder above the form.
+- **What is judged is the user's visible activity.** Whether the
+  assistant answered, refused or blocked is not evidence either way. The
+  whole conversation stays in view; nothing is hidden or redacted.
+- **Five instruction questions** (R01 to R05) in place of four.
+- **The review form.** The main question, confidence, rationale and
+  uncertainty reasons use the revision's wording and choices. The
+  question about which criterion supports the answer is gone, with all
+  the rule machinery behind it. Evidence is the user's messages: only
+  their numbers can be clicked, the server drops anything else, and "No
+  specific affirmative evidence / overall pattern" is offered for No and
+  Cannot determine but not for Yes. The sensitivity and aim scales are
+  kept as they were.
+- **Versions.** The form is `C-2.0` and the check `R-2.0`. Each review
+  stores the instruction version it was made under; the export gives it
+  as `review_instruction_version`. Anything made under the earlier
+  rule-based form is `C-1.1` and should not be pooled with these.
+- **The console.** "Policy" is now "Review instructions": one text box,
+  no rules, and a note that the text is meant to stay fixed for the
+  study.
+- The author's question about what a reviewer will decide now says "the
+  event's review instructions" where it said "the event's policy".
+
+Not built: optional references to opposing user messages.
+
+The table and columns keep "policy" in their names to avoid renaming
+them the night before; `lib/policy.ts` says what they now mean.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

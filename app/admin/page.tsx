@@ -52,12 +52,7 @@ export default async function AdminOverview() {
         <Stat
           label="Passed the instruction check"
           value={data.instructionPassed}
-          hint={
-            data.policyVersion === 0
-              ? "No policy is published yet"
-              : `For policy version ${data.policyVersion}`
-          }
-          tone={data.policyVersion === 0 ? "warn" : "normal"}
+          hint={`For review instructions version ${data.policyVersion}`}
         />
         <Stat
           label="Being reviewed now"
@@ -79,15 +74,6 @@ export default async function AdminOverview() {
           <Link href="/admin/submissions?state=pending" className="text-accent underline">
             Open Submissions
           </Link>
-        </p>
-      )}
-      {data.policyVersion === 0 && (
-        <p className="rounded-[var(--radius)] border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
-          No reference policy has been published, so reviewing is closed.{" "}
-          <Link href="/admin/policy" className="underline">
-            Publish one under Policy
-          </Link>
-          .
         </p>
       )}
       {settings.chatPaused && (

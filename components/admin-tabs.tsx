@@ -8,7 +8,7 @@ const TABS = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/participants", label: "Participants" },
   { href: "/admin/submissions", label: "Submissions" },
-  { href: "/admin/policy", label: "Policy" },
+  { href: "/admin/policy", label: "Review instructions" },
   { href: "/admin/nominations", label: "Nominations" },
   { href: "/admin/terms", label: "Terms" },
   { href: "/admin/settings", label: "Settings" },

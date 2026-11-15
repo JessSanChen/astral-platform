@@ -9,8 +9,10 @@ import { cn } from "@/lib/utils";
  * A frozen record as a reviewer sees it: the turns, numbered, and nothing
  * about who wrote it or what they meant by it.
  *
- * With `onToggle`, the numbers are buttons: clicking one marks that turn as
- * something the reviewer's judgment rests on.
+ * With `onToggle`, the numbers beside the user's messages are buttons:
+ * clicking one marks that message as something the reviewer's judgment
+ * rests on. The assistant's turns are never buttons: what the assistant
+ * did is context, not evidence about the user.
  */
 export function ReviewTranscript({
   content,
@@ -66,7 +68,7 @@ function Turn({
   const empty = turn.content.trim().length === 0;
   const cut = !isUser && !empty && turn.finishReason === "aborted";
 
-  const number = onToggle ? (
+  const number = onToggle && isUser ? (
     <button
       type="button"
       aria-pressed={picked}

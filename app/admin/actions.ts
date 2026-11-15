@@ -23,7 +23,6 @@ import { DEFAULT_MODELS } from "@/lib/models";
 import { requireAdmin } from "@/lib/gate";
 import { CACHE_KEYS, invalidate } from "@/lib/cache";
 import { DOMAIN_IDS } from "@/lib/intake";
-import { parseRules } from "@/lib/policy";
 import { ASSIGNMENT_STATES, REVIEW_LEVELS } from "@/lib/review-form";
 
 /** Settings are held briefly in memory, so a change must clear that too. */
@@ -605,66 +604,37 @@ export async function releaseAllPending() {
   return { message: null, released: released.length };
 }
 
-/* ---- The reference policy -------------------------------------------- */
-
-/** The text and rules of a policy as typed, or what is wrong with them. */
-function readPolicyDraft(body: string, rulesText: string) {
-  const text = String(body ?? "").replace(/\r\n/g, "\n").trim();
-  if (text.length < 20) return { message: "That is too short to be the policy." };
-  if (text.length > 60_000) return { message: "That is too long to publish as one policy." };
-  const { rules, problem } = parseRules(String(rulesText ?? ""));
-  if (problem) return { message: problem };
-  // Rules are optional: with none, reviewers are not asked for a criterion.
-  // With some, one of them has to support Yes. "No qualifying criterion"
-  // only goes with No and "Policy gap" only with Cannot determine, so a
-  // reviewer answering Yes would otherwise have nothing to cite.
-  if (rules.length > 0 && !rules.some((r) => r.verdicts.includes("yes"))) {
-    return {
-      message:
-        "Add a rule whose answers include yes, or remove the rules altogether. As it stands, a reviewer who answers Yes has no criterion to cite.",
-    };
-  }
-  return { text, rules };
-}
+/* ---- The review instructions ----------------------------------------- */
 
 /**
- * Reads a policy as it would be published, without publishing it, so the
- * organizer is shown the rules as the form will offer them before saying
- * yes.
- */
-export async function checkPolicyDraft(body: string, rulesText: string) {
-  await requireAdmin();
-  const draft = readPolicyDraft(body, rulesText);
-  if ("message" in draft) return { message: draft.message, rules: null };
-  return { message: null, rules: draft.rules };
-}
-
-/**
- * Publishes a new version of the policy reviewers apply.
+ * Publishes a new version of the review instructions.
  *
- * Like the terms, a version is never edited: every review records the
- * version it was made under, and that has to go on meaning the same text.
- * A new version sends every reviewer back through the four instruction
- * questions before their next item.
+ * The instructions are meant to stay as they are for the whole study.
+ * Where they do have to change, a version is never edited: every review
+ * records the version it was made under, and that has to go on meaning
+ * the same text. A new version sends every reviewer back through the
+ * instruction questions before their next item, and reviews made under
+ * different versions are different conditions, to be analysed apart.
  */
-export async function publishPolicy(body: string, rulesText: string) {
+export async function publishPolicy(body: string) {
   const { user: me } = await requireAdmin();
-  const draft = readPolicyDraft(body, rulesText);
-  if ("message" in draft) return { message: `${draft.message} Nothing was published.` };
-  const { text, rules } = draft;
+  const text = String(body ?? "").replace(/\r\n/g, "\n").trim();
+  if (text.length < 20) {
+    return { message: "That is too short to be the review instructions. Nothing was published." };
+  }
+  if (text.length > 60_000) {
+    return { message: "That is too long to publish. Nothing was published." };
+  }
+  const rules: never[] = [];
 
   const [latest] = await db
     .select()
     .from(reviewPolicy)
     .orderBy(sql`${reviewPolicy.version} desc`)
     .limit(1);
-  if (
-    latest &&
-    latest.body.trim() === text &&
-    JSON.stringify(latest.rules) === JSON.stringify(rules)
-  ) {
+  if (latest && latest.body.trim() === text) {
     return {
-      message: `That is the same policy as version ${latest.version}. Nothing was published.`,
+      message: `That is the same text as version ${latest.version}. Nothing was published.`,
     };
   }
 
@@ -689,7 +659,7 @@ export async function publishPolicy(body: string, rulesText: string) {
     await recordAudit({
       action: "policy_published",
       actor: me,
-      detail: `Version ${published.version}, ${rules.length} rule${rules.length === 1 ? "" : "s"}.`,
+      detail: `Review instructions, version ${published.version}.`,
     });
     revalidatePath("/admin");
     return { version: published.version, message: null };

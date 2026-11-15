@@ -216,7 +216,7 @@ It prints a temporary password, which works once. If nobody is an
 organizer at all, `npm run prod:seed` makes organizers of the addresses in
 `ADMIN_EMAILS`. Both need the database credentials, which only you hold.
 
-## Moving to specification v1.1 (migrations 0007 to 0009)
+## Moving to specification v1.1 (migrations 0007 to 0011)
 
 This is the one release where the order matters more than usual, because
 the new code reads tables the old database does not have.
@@ -227,8 +227,8 @@ the new code reads tables the old database does not have.
 2. Then move `main` to the branch and let it deploy.
 3. Sign in. You will be asked for the background questions like everyone
    else. Then, in the console:
-   - **Policy**: reviewing starts under a placeholder policy, published
-     by the migration. Replace it with the real text when you have it.
+   - **Review instructions**: nothing to do. The shared review
+     definition is published by the migration.
    - **Settings**: reviews per view (3), whether new submissions are
      released for review automatically (off), whether related versions
      are open (on).
@@ -254,8 +254,6 @@ labels, old review and nomination pages would show old data only.
   during the event: removing a model stops conversations already on it.
 - `npm run prod:check-models` and `npm run prod:check-scanners`, so a model
   that has been retired is a thing you find now rather than at 10am.
-- Replace the placeholder reference policy, from **Organize → Policy**.
-  Reviewing works under the placeholder until you do.
 - Replace the placeholder terms, from **Organize → Terms**. They are seeded
   as version 1; publishing a version 2 makes everyone accept it again, so do
   this before people sign up.

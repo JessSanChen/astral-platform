@@ -259,7 +259,7 @@ test.describe("the organizer console", () => {
     await organizer.context.close();
   });
 
-  test("publishing a policy version makes reviewers read the instruction again", async ({
+  test("publishing new review instructions makes reviewers answer the questions again", async ({
     browser,
   }) => {
     const author = await newParticipant(browser, "Nora Norules", "author");
@@ -277,19 +277,16 @@ test.describe("the organizer console", () => {
 
     try {
       await page.goto("/admin/policy");
-      const body = page.getByLabel(`Policy text, version ${next}`);
-      const rules = page.getByLabel("Rules reviewers can cite");
+      await expect(page.getByText(/meant to stay as they are for the whole study/)).toBeVisible();
+      // The text is the whole instrument: there are no rules to enter.
+      await expect(page.getByText(/Rules reviewers can cite/)).toHaveCount(0);
+      const body = page.getByLabel(`Review instructions, version ${next}`);
+      await expect(body).toHaveValue(/Reviewing conversations for specialist attention/);
+      await expect(page.getByRole("button", { name: `Publish as version ${next}` })).toBeDisabled();
+
       await body.fill(`# A newer policy\n\n${marker}`);
-
-      // Rules under which nobody could answer Yes are refused.
-      await rules.fill("N1 | Ordinary education | no");
       await page.getByRole("button", { name: `Publish as version ${next}` }).click();
-      await expect(page.getByRole("status")).toContainText(/yes/i);
-
-      // No rules at all is fine: the text is the policy.
-      await rules.fill("");
-      await page.getByRole("button", { name: `Publish as version ${next}` }).click();
-      await expect(page.getByText(/No rules: reviewers will not be asked/)).toBeVisible();
+      await expect(page.getByText(/should not be pooled|answer the instruction\s+questions again/)).toBeVisible();
       await page.getByRole("button", { name: `Yes, publish version ${next}` }).click();
       await expect(page.getByText(`Version ${next} is in force`)).toBeVisible();
 
@@ -300,18 +297,17 @@ test.describe("the organizer console", () => {
       await expect(reviewer.page.getByRole("button", { name: "Get a review" })).toHaveCount(0);
       await expect(reviewer.page.getByRole("button", { name: "Check my answers" })).toBeVisible();
 
-      // Under a policy with no rules, the form does not ask for a criterion.
+      // A review made now records that it was made under the new version.
       await passInstructionCheck(reviewer.email);
       await sql`update episode set assignment_state = 'held' where assignment_state = 'ready'`;
       await release(episodeId);
       const assignmentId = await getReview(reviewer.page);
-      await expect(reviewForm(reviewer.page).getByText("Which criterion supports your answer?")).toHaveCount(0);
+      await expect(reviewForm(reviewer.page).getByText(`Review instructions (version ${next})`)).toBeVisible();
       await fillReview(reviewer.page, {
         verdict: "No",
-        basis: null,
         confidence: "High",
         turns: [],
-        rationale: "Nothing in it of the kind the policy describes.",
+        rationale: "Nothing in what the user asks calls for a specialist.",
       });
       await submitReview(reviewer.page);
       const [stored] = await sql`

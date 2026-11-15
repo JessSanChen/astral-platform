@@ -14,7 +14,7 @@ import {
 import type { ViewContent } from "@/lib/episodes";
 import type { IntakeDraft } from "@/lib/intake";
 import { getEventSettings } from "@/lib/openrouter";
-import { getPolicy, policyBases } from "@/lib/policy";
+import { getPolicy } from "@/lib/policy";
 import {
   AUDIT_FORM_VERSION,
   BASIS_NOT_ASKED,
@@ -351,19 +351,6 @@ export async function submitReview(
   answers: ReviewAnswers,
 ) {
   const policy = await getPolicy();
-  // A policy with no rules of its own asks for no criterion.
-  const bases = policyBases(policy);
-  let policyBasis = BASIS_NOT_ASKED;
-  if (bases.length > 0) {
-    const basis = bases.find((b) => b.value === answers.policyBasis);
-    if (!basis) {
-      throw new AssignmentError("Choose a criterion from the list.");
-    }
-    if (!basis.verdicts.includes(answers.verdict)) {
-      throw new AssignmentError("That criterion does not go with that answer. Choose one that does.");
-    }
-    policyBasis = basis.value;
-  }
 
   return db.transaction(async (tx) => {
     const { assignment, done } = await claimForFinishing(tx, assignmentId, reviewerId, "primary");
@@ -382,10 +369,14 @@ export async function submitReview(
         "An organizer has put this record on hold, so a review of it cannot be accepted. Nothing was recorded. Go back for another item.",
       );
     }
-    const turns = (view.content as ViewContent).turns.length;
-    const evidenceTurns = answers.evidenceTurns.filter((n) => n <= turns);
+    // Evidence is the user's messages. A number that is the assistant's,
+    // or is not in the record at all, is not accepted as one.
+    const userTurns = new Set(
+      (view.content as ViewContent).turns.filter((t) => t.role === "user").map((t) => t.n),
+    );
+    const evidenceTurns = answers.evidenceTurns.filter((n) => userTurns.has(n));
     if (answers.evidenceMode === "turns" && evidenceTurns.length === 0) {
-      throw new AssignmentError("Point to at least one turn that is in the record.");
+      throw new AssignmentError("Point to at least one of the user's messages in the record.");
     }
 
     await tx.insert(reviewResponse).values({
@@ -393,7 +384,8 @@ export async function submitReview(
       viewId: view.id,
       reviewerId,
       verdict: answers.verdict,
-      policyBasis,
+      // Not asked by this form; see BASIS_NOT_ASKED.
+      policyBasis: BASIS_NOT_ASKED,
       confidence: answers.confidence,
       evidenceMode: answers.evidenceMode,
       evidenceTurns,
