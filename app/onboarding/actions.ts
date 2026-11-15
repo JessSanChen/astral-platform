@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { profile, user as userTable, profileRevision } from "@/db/schema";
+import { profile, user as userTable } from "@/db/schema";
 import { getCurrentUser } from "@/lib/gate";
 import { INTAKE_VERSION, intakeSchema } from "@/lib/intake";
 
@@ -80,20 +80,6 @@ export async function completeOnboarding(
         target: profile.userId,
         set: { ...answers, ...consent, updatedAt: now },
       });
-    // Kept as a revision too, so a later correction does not erase what was
-    // said first.
-    if (parsed?.success || cu.needsTerms) {
-      const [saved] = await tx.select().from(profile).where(eq(profile.userId, cu.user.id));
-      await tx.insert(profileRevision).values({
-        userId: cu.user.id,
-        name: cu.user.name,
-        intake: saved?.intake ?? null,
-        intakeVersion: saved?.intakeVersion ?? null,
-        publicReleasePermission: saved?.publicReleasePermission ?? null,
-        source: "onboarding",
-        savedAt: now,
-      });
-    }
     await tx
       .update(userTable)
       .set({

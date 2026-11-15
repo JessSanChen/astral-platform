@@ -1,4 +1,4 @@
-import { readLabels } from "@/lib/author-labels";
+import { readLabels, readSessionLabels } from "@/lib/author-labels";
 import { outer } from "@/lib/sql";
 import { notFound } from "next/navigation";
 import type { UIMessage } from "ai";
@@ -106,6 +106,8 @@ export default async function ConversationPage({
   };
 
 
+  const sessionLabels = readSessionLabels(convo.authorLabels);
+
   return (
     <ConversationWorkspace
       conversationId={convo.id}
@@ -121,9 +123,11 @@ export default async function ConversationPage({
         isFolder: ep.isFolder,
         status: ep.status,
         submittedAt: ep.submittedAt?.toISOString() ?? null,
-        provenance: ep.taskProvenance,
-        goal: ep.goalText ?? "",
-        labels: readLabels(ep.authorLabels),
+        // A session in a folder answers for itself; a conversation that
+        // stands alone answers for the work.
+        provenance: ep.isFolder ? sessionLabels.provenance || null : ep.taskProvenance,
+        goal: ep.isFolder ? sessionLabels.goal : (ep.goalText ?? ""),
+        labels: ep.isFolder ? sessionLabels : readLabels(ep.authorLabels),
         related: ep.creationMethod === "related_live",
         comparisonOpen: settings.comparisonActivityOpen,
         sessions: sessions.map((s) => ({

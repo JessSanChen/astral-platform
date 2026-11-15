@@ -103,7 +103,7 @@ export function ConversationWorkspace(props: {
           <EpisodePanel
             // A panel per episode: moving between two folders must not
             // carry one's half-typed goal note into the other.
-            key={props.episode.id}
+            key={props.episode.isFolder ? conversationId : props.episode.id}
             episode={{ ...props.episode, status: submitted ? "submitted" : "draft" }}
             currentSessionId={conversationId}
             currentHasMessages={hasMessages}

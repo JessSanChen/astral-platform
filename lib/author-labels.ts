@@ -145,3 +145,69 @@ export const authorLabelsInput = z
 
 export const labelOf = (choices: Choice[], value: string) =>
   choices.find((c) => c.value === value)?.label ?? value;
+
+/* ---- Folders: a few answers for the folder, the rest for each session -- */
+
+/**
+ * A folder is asked only what holds across its sessions: the underlying
+ * role, the underlying kind of task, and an optional goal. Within it a
+ * person may take different personas, pursue different sub-tasks or ask
+ * about different subjects, so everything else is asked of each session.
+ * A session's answers start from the folder's and can differ from them.
+ */
+export const FOLDER_QUESTIONS = {
+  role: "What unified underlying role are you taking across the sessions in this folder?",
+  taskKinds: "What kind of unified underlying task are you trying to accomplish?",
+  goal: "Briefly describe your specific goal across the sessions in this folder (optional)",
+} as const;
+
+export type FolderLabels = Pick<AuthorLabels, "role" | "taskKinds" | "taskOther">;
+export const EMPTY_FOLDER_LABELS: FolderLabels = { role: "", taskKinds: [], taskOther: "" };
+
+export function readFolderLabels(raw: unknown): FolderLabels {
+  const { role, taskKinds, taskOther } = readLabels(raw);
+  return { role, taskKinds, taskOther };
+}
+
+export function missingFolderLabels(labels: FolderLabels) {
+  const { role, taskKinds, taskOther } = missingLabels({ ...EMPTY_LABELS, ...labels });
+  return {
+    ...(role ? { role } : {}),
+    ...(taskKinds ? { taskKinds } : {}),
+    ...(taskOther ? { taskOther } : {}),
+  } as Partial<Record<keyof FolderLabels, string>>;
+}
+
+/**
+ * One session's answers: everything asked about a conversation, including
+ * whether the task is real or invented and the optional goal, which for a
+ * conversation that stands alone are kept on its episode instead.
+ */
+export type SessionLabels = AuthorLabels & { provenance: string; goal: string };
+export const SESSION_GOAL_LIMIT = 500;
+const PROVENANCES = ["real", "invented"];
+
+export function readSessionLabels(raw: unknown): SessionLabels {
+  const r = (raw ?? {}) as { provenance?: unknown; goal?: unknown };
+  return {
+    ...readLabels(raw),
+    provenance: typeof r.provenance === "string" && PROVENANCES.includes(r.provenance) ? r.provenance : "",
+    goal: typeof r.goal === "string" ? r.goal.trim().slice(0, SESSION_GOAL_LIMIT) : "",
+  };
+}
+
+export function missingSessionLabels(labels: SessionLabels) {
+  return {
+    ...(labels.provenance ? {} : { provenance: "Say whether the task is real or was made up for today." }),
+    ...missingLabels(labels),
+  } as Partial<Record<keyof SessionLabels, string>>;
+}
+
+export const sessionLabelsComplete = (labels: SessionLabels) =>
+  Object.keys(missingSessionLabels(labels)).length === 0;
+
+/** The shape a browser may send for a session; read by readSessionLabels. */
+export const sessionLabelsInput = authorLabelsInput.extend({
+  provenance: z.string().max(40).optional(),
+  goal: z.string().max(2000).optional(),
+});

@@ -12,28 +12,23 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   COMPARISON_INTENTS,
   LIMITS,
-  PROVENANCE,
-  RELATED_VERSION_INSTRUCTION,
+  RELATED_QUESTIONS,
 } from "@/lib/episode-options";
 
 export function RelatedVersionForm({
   sourceEpisodeId,
   sourceTitle,
   sourceSessionId,
-  sourceProvenance,
 }: {
   sourceEpisodeId: string;
   sourceTitle: string;
   sourceSessionId: string | null;
-  sourceProvenance: string;
 }) {
   const router = useRouter();
   const { addConversation } = useConversationStore();
   const [pending, start] = useTransition();
   const [intent, setIntent] = useState("");
   const [difference, setDifference] = useState("");
-  // Starts as the source's answer, in plain sight, and can be changed.
-  const [provenance, setProvenance] = useState(sourceProvenance);
   const [error, setError] = useState<string | null>(null);
 
   function create() {
@@ -42,7 +37,6 @@ export function RelatedVersionForm({
       const result = await createRelatedAction(sourceEpisodeId, {
         intent,
         intendedDifference: difference,
-        provenance,
       });
       if (!result.ok) return setError(result.message);
       addConversation({
@@ -73,36 +67,47 @@ export function RelatedVersionForm({
             Back to the original
           </Link>
         )}
-        <div className="space-y-1">
+        <div className="space-y-2">
           <h1 className="font-serif text-3xl font-medium tracking-tight">
-            Create a related version
+            Create a related conversation
           </h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Of <span className="font-medium text-foreground">{sourceTitle}</span>. You
-            will get a fresh, empty conversation on the same model, linked to
-            the original. Nothing from the original is carried into it, and the
-            original stays exactly as submitted.
+            Start a new conversation based on something you&apos;ve already
+            explored. You can investigate how changing the request, context,
+            or wording affects the interaction.
+          </p>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Based on <span className="font-medium text-foreground">{sourceTitle}</span>.
+            The new conversation starts empty: nothing from the original is
+            carried into it, and the original stays exactly as submitted.
           </p>
         </div>
 
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">What would you like to change?</legend>
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-medium">{RELATED_QUESTIONS.intent}</legend>
           {COMPARISON_INTENTS.map((c) => (
-            <label key={c.value} className="flex items-start gap-2 text-sm">
+            <label
+              key={c.value}
+              className="flex cursor-pointer items-start gap-3 rounded-[var(--radius)] border border-border bg-card px-3 py-2.5 text-sm has-[:checked]:border-accent has-[:checked]:bg-accent/5"
+            >
               <input
                 type="radio"
                 name="intent"
+                aria-label={c.label}
                 className="mt-0.5 h-4 w-4 shrink-0"
                 checked={intent === c.value}
                 onChange={() => setIntent(c.value)}
               />
-              {c.label}
+              <span>
+                <span className="font-medium">{c.label}</span>
+                <span className="block text-muted-foreground">{c.help}</span>
+              </span>
             </label>
           ))}
         </fieldset>
 
         <div className="space-y-1.5">
-          <Label htmlFor="difference">Briefly describe what you will change.</Label>
+          <Label htmlFor="difference">{RELATED_QUESTIONS.difference}</Label>
           <Textarea
             id="difference"
             rows={3}
@@ -111,32 +116,6 @@ export function RelatedVersionForm({
             onChange={(e) => setDifference(e.target.value)}
           />
         </div>
-
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">
-            Is the new version based on a real task, or invented for this exercise?
-          </legend>
-          {PROVENANCE.map((p) => (
-            <label key={p.value} className="flex items-start gap-2 text-sm">
-              <input
-                type="radio"
-                name="provenance"
-                className="mt-0.5 h-4 w-4 shrink-0"
-                checked={provenance === p.value}
-                onChange={() => setProvenance(p.value)}
-              />
-              {p.label}
-            </label>
-          ))}
-          <p className="text-xs text-muted-foreground">
-            Starts as the original&apos;s answer. Change it if the new version
-            differs.
-          </p>
-        </fieldset>
-
-        <p className="rounded-[var(--radius)] border border-border bg-muted/50 px-4 py-3 text-sm leading-relaxed">
-          {RELATED_VERSION_INSTRUCTION}
-        </p>
 
         {error && <p className="text-sm text-danger">{error}</p>}
 

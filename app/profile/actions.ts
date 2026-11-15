@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { profile, user as userTable, profileRevision } from "@/db/schema";
+import { profile, user as userTable } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { requireOnboarded } from "@/lib/gate";
 import { INTAKE_VERSION, intakeSchema } from "@/lib/intake";
@@ -66,18 +66,6 @@ export async function updateProfile(
       .update(userTable)
       .set({ name, updatedAt: now })
       .where(eq(userTable.id, user.id));
-    // The answers as they now stand, added to the history. What was there
-    // before stays in the history; the profile row only ever holds the
-    // latest.
-    await tx.insert(profileRevision).values({
-      userId: user.id,
-      name,
-      intake: parsed.data,
-      intakeVersion: INTAKE_VERSION,
-      publicReleasePermission: release === "yes" || release === "no" ? release : null,
-      source: "profile",
-      savedAt: now,
-    });
   });
 
   // The name in the sidebar comes from the session, which is read from a

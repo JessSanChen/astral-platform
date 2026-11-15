@@ -3,17 +3,12 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CheckCircle2, Folder, GitCompareArrows, Plus } from "lucide-react";
 import {
-  CheckCircle2,
-  Folder,
-  GitCompareArrows,
-  Plus,
-} from "lucide-react";
-import {
-  addSessionAction,
   reviseRelatedAction,
   saveDetailsAction,
   saveLabelsAction,
+  saveSessionLabelsAction,
   submitEpisodeAction,
 } from "@/app/chat/episode-actions";
 import { Radios } from "@/components/intake-fields";
@@ -35,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   COMPARISON_INTENTS,
+  RELATED_QUESTIONS,
   LIMITS,
   PROVENANCE,
   comparisonIntentLabel,
@@ -43,7 +39,11 @@ import {
 import { formatEventDateTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
-type Linked = { title: string; sessionId: string | null; submitted: boolean } | null;
+type Linked = {
+  title: string;
+  sessionId: string | null;
+  submitted: boolean;
+} | null;
 
 export type EpisodeInfo = {
   id: string;
@@ -53,12 +53,21 @@ export type EpisodeInfo = {
   submittedAt: string | null;
   provenance: string | null;
   goal: string;
-  /** The author's answers about the work, as far as they have got. */
+  /**
+   * The author's answers, as far as they have got. For a conversation that
+   * stands alone they are about the work. For a session in a folder they
+   * are about that session, and `provenance` and `goal` above are too.
+   */
   labels: AuthorLabels;
   /** Made with Create related version. */
   related: boolean;
   comparisonOpen: boolean;
-  sessions: { id: string; order: number; title: string; userMessages: number }[];
+  sessions: {
+    id: string;
+    order: number;
+    title: string;
+    userMessages: number;
+  }[];
   madeFrom: { intent: string; difference: string; other: Linked } | null;
   versions: { intent: string; difference: string; other: Linked }[];
 };
@@ -95,15 +104,20 @@ export function EpisodePanel({
   const [goal, setGoal] = useState(episode.goal);
   const [savedGoal, setSavedGoal] = useState(episode.goal);
   const [goalNote, setGoalNote] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<null | "submit" | "submit-then-related">(null);
+  const [confirming, setConfirming] = useState<
+    null | "submit" | "submit-then-related"
+  >(null);
   const [error, setError] = useState<string | null>(null);
   // What a related version set out to change, which its author may put
   // differently until it is submitted.
   const [intent, setIntent] = useState(episode.madeFrom?.intent ?? "");
-  const [difference, setDifference] = useState(episode.madeFrom?.difference ?? "");
+  const [difference, setDifference] = useState(
+    episode.madeFrom?.difference ?? "",
+  );
   const [savedIntent, setSavedIntent] = useState({ intent, difference });
   const [intentNote, setIntentNote] = useState<string | null>(null);
-  const intentChanged = intent !== savedIntent.intent || difference !== savedIntent.difference;
+  const intentChanged =
+    intent !== savedIntent.intent || difference !== savedIntent.difference;
 
   function saveIntent() {
     setIntentNote(null);
@@ -123,7 +137,25 @@ export function EpisodePanel({
   const [provenanceMissing, setProvenanceMissing] = useState(false);
   // Shown once someone has tried to submit, not while they are still
   // working their way down the panel.
-  const [labelErrors, setLabelErrors] = useState<Partial<Record<keyof AuthorLabels, string>>>({});
+  const [labelErrors, setLabelErrors] = useState<
+    Partial<Record<keyof AuthorLabels, string>>
+  >({});
+
+  // A session in a folder keeps its answers on the session, with whether
+  // the task is real and its goal beside them. A conversation that stands
+  // alone keeps them on the work.
+  const perSession = episode.isFolder;
+  const saveAnswers = (
+    next: AuthorLabels,
+    extra?: { provenance?: string; goal?: string },
+  ) =>
+    perSession
+      ? saveSessionLabelsAction(currentSessionId, {
+          ...next,
+          provenance: extra?.provenance ?? provenance,
+          goal: extra?.goal ?? goal,
+        })
+      : saveLabelsAction(episode.id, next);
 
   /** Takes an answer, and saves it without making anyone wait. */
   function answer(patch: Partial<AuthorLabels>, save = true) {
@@ -131,11 +163,12 @@ export function EpisodePanel({
     setLabels(next);
     setLabelErrors((e) => {
       const rest = { ...e };
-      for (const key of Object.keys(patch) as (keyof AuthorLabels)[]) delete rest[key];
+      for (const key of Object.keys(patch) as (keyof AuthorLabels)[])
+        delete rest[key];
       if ("taskKinds" in patch) delete rest.taskOther;
       return rest;
     });
-    if (save) void saveLabelsAction(episode.id, next);
+    if (save) void saveAnswers(next);
   }
 
   /** Opens the confirmation, unless a question is still unanswered. */
@@ -145,9 +178,13 @@ export function EpisodePanel({
     setProvenanceMissing(!provenance);
     if (first) {
       setLabelErrors(missing);
-      setError("Answer the marked questions above first. They are required to submit.");
+      setError(
+        "Answer the marked questions above first. They are required to submit.",
+      );
       document
-        .querySelector(`[data-label-question="${first === "taskOther" ? "taskKinds" : first}"]`)
+        .querySelector(
+          `[data-label-question="${first === "taskOther" ? "taskKinds" : first}"]`,
+        )
         ?.scrollIntoView({ block: "center", behavior: "smooth" });
       return;
     }
@@ -167,7 +204,9 @@ export function EpisodePanel({
     setProvenanceMissing(false);
     setError(null);
     start(async () => {
-      const result = await saveDetailsAction(episode.id, { provenance: value });
+      const result = perSession
+        ? await saveAnswers(labels, { provenance: value })
+        : await saveDetailsAction(episode.id, { provenance: value });
       if (!result.ok) setError(result.message);
     });
   }
@@ -175,36 +214,12 @@ export function EpisodePanel({
   function saveGoal() {
     setGoalNote(null);
     start(async () => {
-      const result = await saveDetailsAction(episode.id, { goal: goal.trim() || null });
+      const result = perSession
+        ? await saveAnswers(labels, { goal })
+        : await saveDetailsAction(episode.id, { goal: goal.trim() || null });
       if (!result.ok) return setGoalNote(result.message);
       setSavedGoal(goal);
       setGoalNote("Saved.");
-    });
-  }
-
-  function newSession() {
-    setError(null);
-    start(async () => {
-      const result = await addSessionAction(episode.id);
-      if (!result.ok) return setError(result.message);
-      const first = store.conversations.find((c) => c.episodeId === episode.id);
-      const title = first?.isFolder ? first.episodeTitle : "Folder";
-      store.addConversation({
-        id: result.id,
-        title: "New conversation",
-        status: "draft",
-        createdAt: new Date().toISOString(),
-        episodeId: episode.id,
-        episodeTitle: title,
-        isFolder: true,
-        sessionOrder: result.sessionOrder,
-        episodeStatus: "draft",
-        related: episode.related,
-      });
-      store.patchEpisode(episode.id, { isFolder: true });
-      router.push(`/chat/${result.id}`);
-      // The folder's own name was chosen on the server.
-      router.refresh();
     });
   }
 
@@ -212,13 +227,15 @@ export function EpisodePanel({
     setError(null);
     start(async () => {
       // An unsaved goal note goes in with the submission it belongs to.
-      if (goal !== savedGoal) {
-        const saved = await saveDetailsAction(episode.id, { goal: goal.trim() || null });
+      if (goal !== savedGoal && !perSession) {
+        const saved = await saveDetailsAction(episode.id, {
+          goal: goal.trim() || null,
+        });
         if (!saved.ok) return setError(saved.message);
         setSavedGoal(goal);
       }
       // A reworded change that was not saved goes in with the submission.
-      if (episode.madeFrom && intentChanged && difference.trim()) {
+      if (episode.madeFrom && intentChanged) {
         const revised = await reviseRelatedAction(episode.id, {
           intent,
           intendedDifference: difference,
@@ -230,7 +247,7 @@ export function EpisodePanel({
       }
       // The answers as they stand now, in case the last one is still on
       // its way.
-      const labelled = await saveLabelsAction(episode.id, labels);
+      const labelled = await saveAnswers(labels);
       if (!labelled.ok) {
         setConfirming(null);
         return setError(labelled.message);
@@ -250,10 +267,20 @@ export function EpisodePanel({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-        {episode.isFolder && <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />}
+        {episode.isFolder && (
+          <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
           {episode.isFolder ? episode.title : "This conversation"}
         </h2>
+        {episode.isFolder && (
+          <Link
+            href={`/chat/folder/${episode.id}`}
+            className="shrink-0 text-xs text-accent underline"
+          >
+            Folder details
+          </Link>
+        )}
       </div>
 
       <div className="relative flex-1 space-y-6 overflow-y-auto px-4 py-4">
@@ -265,49 +292,72 @@ export function EpisodePanel({
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
             <span>
               Submitted
-              {episode.submittedAt ? ` ${formatEventDateTime(episode.submittedAt)}` : ""}. It
-              is now fixed: nothing in it can be changed.
+              {episode.submittedAt
+                ? ` ${formatEventDateTime(episode.submittedAt)}`
+                : ""}
+              . It is now fixed: nothing in it can be changed.
             </span>
           </p>
         )}
 
-        <Block
-          title={episode.isFolder ? `Sessions (${episode.sessions.length})` : "Sessions"}
-          note={
-            submitted
-              ? undefined
-              : "Each session is a fresh conversation. It does not see the others, or your notes."
-          }
-        >
-          {episode.isFolder && (
-            <ul className="space-y-0.5">
-              {episode.sessions.map((s) => (
-                <li key={s.id}>
-                  <Link
-                    href={`/chat/${s.id}`}
-                    aria-current={s.id === currentSessionId ? "page" : undefined}
-                    className={cn(
-                      "block truncate rounded-[var(--radius)] px-2 py-1.5 text-sm hover:bg-muted",
-                      s.id === currentSessionId && "bg-muted font-medium",
-                    )}
-                  >
-                    {s.order}.{" "}
-                    {s.title === "New conversation" ? `Session ${s.order}` : s.title}
-                    {!(s.id === currentSessionId ? currentHasMessages : s.userMessages > 0) && (
-                      <span className="font-normal text-muted-foreground"> · empty</span>
-                    )}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          {!submitted && (
-            <Button variant="outline" size="sm" disabled={pending} onClick={newSession}>
-              <Plus className="h-3.5 w-3.5" />
-              {episode.isFolder ? "New session" : "Add a session (makes this a folder)"}
-            </Button>
-          )}
-        </Block>
+        {/* A submitted single conversation has no sessions to list and
+            none to add, so the heading would stand over nothing. */}
+        {(episode.isFolder || !submitted) && (
+          <Block
+            title={
+              episode.isFolder
+                ? `Sessions (${episode.sessions.length})`
+                : "Sessions"
+            }
+            note={
+              submitted
+                ? undefined
+                : "Each session is a fresh conversation. It does not see the others, or your notes."
+            }
+          >
+            {episode.isFolder && (
+              <ul className="space-y-0.5">
+                {episode.sessions.map((s) => (
+                  <li key={s.id}>
+                    <Link
+                      href={`/chat/${s.id}`}
+                      aria-current={
+                        s.id === currentSessionId ? "page" : undefined
+                      }
+                      className={cn(
+                        "block truncate rounded-[var(--radius)] px-2 py-1.5 text-sm hover:bg-muted",
+                        s.id === currentSessionId && "bg-muted font-medium",
+                      )}
+                    >
+                      {s.order}.{" "}
+                      {s.title === "New conversation"
+                        ? `Session ${s.order}`
+                        : s.title}
+                      {!(s.id === currentSessionId
+                        ? currentHasMessages
+                        : s.userMessages > 0) && (
+                        <span className="font-normal text-muted-foreground">
+                          {" "}
+                          · empty
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!submitted && (
+              <Link href={`/chat?to=${episode.id}`} className="inline-block">
+                <Button variant="outline" size="sm" disabled={pending}>
+                  <Plus className="h-3.5 w-3.5" />
+                  {episode.isFolder
+                    ? "New session"
+                    : "Add a session (makes this a folder)"}
+                </Button>
+              </Link>
+            )}
+          </Block>
+        )}
 
         {episode.madeFrom && (
           <Block title="A related version">
@@ -327,16 +377,22 @@ export function EpisodePanel({
             </p>
             {submitted ? (
               <p className="text-xs text-muted-foreground">
-                {comparisonIntentLabel(intent)}:{" "}
-                <span className="text-foreground">{difference}</span>
+                {comparisonIntentLabel(intent)}
+                {difference && (
+                  <>
+                    : <span className="text-foreground">{difference}</span>
+                  </>
+                )}
               </p>
             ) : (
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <p className="text-sm font-medium">What would you like to change?</p>
+                  <p className="text-sm font-medium">
+                    {RELATED_QUESTIONS.intent}
+                  </p>
                   <Radios
                     name="related-intent"
-                    legend="What would you like to change?"
+                    legend={RELATED_QUESTIONS.intent}
                     value={intent}
                     options={[...COMPARISON_INTENTS]}
                     onChange={(value) => {
@@ -346,8 +402,11 @@ export function EpisodePanel({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="related-difference" className="text-sm font-medium">
-                    Briefly describe what you will change.
+                  <label
+                    htmlFor="related-difference"
+                    className="text-sm font-medium"
+                  >
+                    {RELATED_QUESTIONS.difference}
                   </label>
                   <Textarea
                     id="related-difference"
@@ -364,20 +423,23 @@ export function EpisodePanel({
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={pending || !intentChanged || !difference.trim()}
+                    disabled={pending || !intentChanged}
                     onClick={saveIntent}
                   >
                     Save change
                   </Button>
                   {intentNote && (
-                    <span role="status" className="text-xs text-muted-foreground">
+                    <span
+                      role="status"
+                      className="text-xs text-muted-foreground"
+                    >
                       {intentNote}
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  You can revise this until you submit. A reviewer comparing
-                  the two versions is shown it; nothing else you write here.
+                  You can revise this until you submit. A reviewer comparing the
+                  two versions is shown it; nothing else you write here.
                 </p>
               </div>
             )}
@@ -404,7 +466,10 @@ export function EpisodePanel({
                 name="provenance"
                 legend="Is this based on a real task, or invented for this exercise?"
                 value={provenance}
-                options={PROVENANCE.map((p) => ({ value: p.value, label: p.label }))}
+                options={PROVENANCE.map((p) => ({
+                  value: p.value,
+                  label: p.label,
+                }))}
                 onChange={changeProvenance}
               />
             </LabelQuestion>
@@ -412,7 +477,7 @@ export function EpisodePanel({
         </Block>
 
         <Block
-          title={episode.isFolder ? "Folder setup" : "Conversation setup"}
+          title={episode.isFolder ? "Session setup" : "Conversation setup"}
           note={
             submitted
               ? "Author-only. Not sent to the assistant, not shown to reviewers."
@@ -424,15 +489,25 @@ export function EpisodePanel({
               <Answered q="Role">{labelOf(AUTHOR_ROLES, labels.role)}</Answered>
               <Answered q="Kind of task">
                 {labels.taskKinds
-                  .map((k) => (k === "other" && labels.taskOther ? labels.taskOther : labelOf(TASK_KINDS, k)))
+                  .map((k) =>
+                    k === "other" && labels.taskOther
+                      ? labels.taskOther
+                      : labelOf(TASK_KINDS, k),
+                  )
                   .join("; ")}
               </Answered>
               <Answered q="Specific goal">{episode.goal}</Answered>
-              <Answered q="Scenario">{labelOf(SCENARIOS, labels.scenario)}</Answered>
+              <Answered q="Scenario">
+                {labelOf(SCENARIOS, labels.scenario)}
+              </Answered>
             </dl>
           ) : (
             <div className="space-y-5">
-              <LabelQuestion id="role" text={QUESTIONS.role} error={labelErrors.role}>
+              <LabelQuestion
+                id="role"
+                text={QUESTIONS.role}
+                error={labelErrors.role}
+              >
                 <Radios
                   name="label-role"
                   legend={QUESTIONS.role}
@@ -452,7 +527,10 @@ export function EpisodePanel({
                   <legend className="sr-only">{QUESTIONS.taskKinds}</legend>
                   <div className="space-y-1.5">
                     {TASK_KINDS.map((kind) => (
-                      <label key={kind.value} className="flex items-start gap-2 text-sm">
+                      <label
+                        key={kind.value}
+                        className="flex items-start gap-2 text-sm"
+                      >
                         <input
                           type="checkbox"
                           className="mt-0.5 h-4 w-4 shrink-0"
@@ -461,7 +539,9 @@ export function EpisodePanel({
                             answer({
                               taskKinds: e.target.checked
                                 ? [...labels.taskKinds, kind.value]
-                                : labels.taskKinds.filter((k) => k !== kind.value),
+                                : labels.taskKinds.filter(
+                                    (k) => k !== kind.value,
+                                  ),
                             })
                           }
                         />
@@ -476,8 +556,10 @@ export function EpisodePanel({
                     placeholder="Say what"
                     maxLength={TASK_OTHER_LIMIT}
                     value={labels.taskOther}
-                    onChange={(e) => answer({ taskOther: e.target.value }, false)}
-                    onBlur={() => void saveLabelsAction(episode.id, labels)}
+                    onChange={(e) =>
+                      answer({ taskOther: e.target.value }, false)
+                    }
+                    onBlur={() => void saveAnswers(labels)}
                   />
                 )}
               </LabelQuestion>
@@ -502,11 +584,19 @@ export function EpisodePanel({
                   >
                     Save note
                   </Button>
-                  {goalNote && <span className="text-xs text-muted-foreground">{goalNote}</span>}
+                  {goalNote && (
+                    <span className="text-xs text-muted-foreground">
+                      {goalNote}
+                    </span>
+                  )}
                 </div>
               </LabelQuestion>
 
-              <LabelQuestion id="scenario" text={QUESTIONS.scenario} error={labelErrors.scenario}>
+              <LabelQuestion
+                id="scenario"
+                text={QUESTIONS.scenario}
+                error={labelErrors.scenario}
+              >
                 <Radios
                   name="label-scenario"
                   legend={QUESTIONS.scenario}
@@ -520,12 +610,17 @@ export function EpisodePanel({
         </Block>
 
         {episode.versions.length > 0 && (
-          <Block title={`Related versions made from this (${episode.versions.length})`}>
+          <Block
+            title={`Related versions made from this (${episode.versions.length})`}
+          >
             <ul className="space-y-1.5">
               {episode.versions.map((v, i) => (
                 <li key={i} className="text-sm">
                   {v.other?.sessionId ? (
-                    <Link href={`/chat/${v.other.sessionId}`} className="text-accent underline">
+                    <Link
+                      href={`/chat/${v.other.sessionId}`}
+                      className="text-accent underline"
+                    >
                       {v.other.title}
                     </Link>
                   ) : (
@@ -535,7 +630,9 @@ export function EpisodePanel({
                     {" "}
                     · {v.other?.submitted ? "submitted" : "not submitted yet"}
                   </span>
-                  <span className="block text-xs text-muted-foreground">{v.difference}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {v.difference}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -604,7 +701,9 @@ export function EpisodePanel({
               {included.length === 1
                 ? "One session will be submitted"
                 : `${included.length} sessions will be submitted`}
-              {episode.isFolder && `: ${included.map((s) => s.order).join(", ")}`}.
+              {episode.isFolder &&
+                `: ${included.map((s) => s.order).join(", ")}`}
+              .
               {empty > 0 &&
                 ` ${empty} empty session${empty === 1 ? " is" : "s are"} left out.`}
             </p>
@@ -620,7 +719,11 @@ export function EpisodePanel({
                     ? "Submit and continue"
                     : "Yes, submit"}
               </Button>
-              <Button variant="ghost" disabled={pending} onClick={() => setConfirming(null)}>
+              <Button
+                variant="ghost"
+                disabled={pending}
+                onClick={() => setConfirming(null)}
+              >
                 Cancel
               </Button>
             </div>
@@ -644,7 +747,8 @@ export function EpisodePanel({
             )}
             {busy && (
               <p className="text-xs text-muted-foreground">
-                A reply is being written. It can be submitted once that has finished.
+                A reply is being written. It can be submitted once that has
+                finished.
               </p>
             )}
             <Button
@@ -711,7 +815,14 @@ function LabelQuestion({
   return (
     <div data-label-question={id} className="space-y-2">
       <div>
-        <p className={cn("text-sm font-medium leading-snug", error && "text-danger")}>{text}</p>
+        <p
+          className={cn(
+            "text-sm font-medium leading-snug",
+            error && "text-danger",
+          )}
+        >
+          {text}
+        </p>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </div>
       {children}
@@ -730,7 +841,9 @@ function Answered({ q, children }: { q: string; children: React.ReactNode }) {
     <div>
       <dt className="text-xs text-muted-foreground">{q}</dt>
       <dd className="whitespace-pre-wrap">
-        {children || <span className="text-muted-foreground">None recorded.</span>}
+        {children || (
+          <span className="text-muted-foreground">None recorded.</span>
+        )}
       </dd>
     </div>
   );

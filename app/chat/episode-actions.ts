@@ -3,11 +3,11 @@
 import { z } from "zod";
 import {
   EpisodeError,
-  addSession,
   createRelatedVersion,
   reviseRelatedIntent,
   saveAuthorLabels,
   saveEpisodeDetails,
+  saveSessionLabels,
   submitEpisode,
 } from "@/lib/episodes";
 import {
@@ -15,7 +15,7 @@ import {
   LIMITS,
   PROVENANCE_VALUES,
 } from "@/lib/episode-options";
-import { authorLabelsInput } from "@/lib/author-labels";
+import { authorLabelsInput, sessionLabelsInput } from "@/lib/author-labels";
 import { getCurrentUser, whyBlocked } from "@/lib/gate";
 import { getEventSettings } from "@/lib/openrouter";
 
@@ -40,10 +40,15 @@ async function run<T extends object>(work: (userId: string) => Promise<T>): Prom
   }
 }
 
-export async function addSessionAction(episodeId: string) {
+/** One session's answers, for a session in a folder. */
+export async function saveSessionLabelsAction(conversationId: string, labels: unknown) {
+  const parsed = sessionLabelsInput.safeParse(labels);
+  if (!parsed.success) {
+    return { ok: false as const, message: "Those answers could not be saved. Try again." };
+  }
   return run(async (userId) => {
-    const session = await addSession(episodeId, userId);
-    return { id: session.id, sessionOrder: session.sessionOrder };
+    await saveSessionLabels(conversationId, userId, parsed.data);
+    return {};
   });
 }
 
@@ -52,7 +57,7 @@ export async function reviseRelatedAction(
   targetEpisodeId: string,
   input: { intent: string; intendedDifference: string },
 ) {
-  const parsed = relatedSchema.omit({ provenance: true }).safeParse(input);
+  const parsed = relatedSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false as const, message: parsed.error.issues[0]?.message ?? "Check the form." };
   }
@@ -99,20 +104,14 @@ export async function submitEpisodeAction(episodeId: string) {
 }
 
 const relatedSchema = z.object({
-  intent: z.enum(COMPARISON_INTENT_VALUES, { message: "Choose what you would like to change." }),
-  intendedDifference: z
-    .string()
-    .trim()
-    .min(1, "Briefly describe what you will change.")
-    .max(LIMITS.intendedDifference),
-  provenance: z.enum(PROVENANCE_VALUES, {
-    message: "Say whether the new version is based on a real task or invented.",
-  }),
+  intent: z.enum(COMPARISON_INTENT_VALUES, { message: "Choose what you would like to explore." }),
+  // Optional: the choice above is the answer, and this adds to it.
+  intendedDifference: z.string().trim().max(LIMITS.intendedDifference).optional().default(""),
 });
 
 export async function createRelatedAction(
   sourceEpisodeId: string,
-  input: { intent: string; intendedDifference: string; provenance: string },
+  input: { intent: string; intendedDifference: string },
 ) {
   const parsed = relatedSchema.safeParse(input);
   if (!parsed.success) {

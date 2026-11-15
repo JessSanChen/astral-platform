@@ -1,4 +1,12 @@
-import { AUTHOR_LABELS_VERSION, labelsComplete, readLabels } from "@/lib/author-labels";
+import {
+  AUTHOR_LABELS_VERSION,
+  labelsComplete,
+  missingFolderLabels,
+  readFolderLabels,
+  readLabels,
+  readSessionLabels,
+  sessionLabelsComplete,
+} from "@/lib/author-labels";
 import { outer } from "@/lib/sql";
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -47,6 +55,8 @@ export async function createEpisode(opts: {
   template?: string | null;
   goal?: string | null;
   folder?: boolean;
+  /** For a folder: the answers that hold across its sessions. */
+  folderLabels?: unknown;
   related?: { sourceEpisodeId: string; familyId: string };
 }) {
   return db.transaction(async (tx) => {
@@ -76,6 +86,13 @@ export async function createEpisode(opts: {
         activityTemplate: opts.template || null,
         goalText: goal,
         goalUpdatedAt: goal ? now : null,
+        ...(opts.folder && opts.folderLabels
+          ? {
+              authorLabels: readFolderLabels(opts.folderLabels),
+              authorLabelsVersion: AUTHOR_LABELS_VERSION,
+              authorLabelsUpdatedAt: now,
+            }
+          : {}),
         creationMethod: opts.related ? "related_live" : "original_live",
         // An original starts a family of its own; a related version joins
         // its source's.
@@ -94,6 +111,14 @@ export async function createEpisode(opts: {
         modelId: opts.modelId,
         episodeId: id,
         sessionOrder: 1,
+        // A folder's session starts from the folder's answers.
+        ...(opts.folder && opts.folderLabels
+          ? {
+              authorLabels: readFolderLabels(opts.folderLabels),
+              authorLabelsVersion: AUTHOR_LABELS_VERSION,
+              authorLabelsUpdatedAt: now,
+            }
+          : {}),
       })
       .returning();
     return { episode: created, session: first };
@@ -101,10 +126,16 @@ export async function createEpisode(opts: {
 }
 
 /**
- * Adds an empty session to a draft episode. A standalone conversation
- * becomes a folder by this, with its first session exactly as it was.
+ * Adds a session to a draft: a fresh conversation in the same piece of
+ * work, on whichever model is asked for.
+ *
+ * A session starts from the folder's answers about role and kind of task,
+ * and can change them. Adding one to a conversation that stood alone
+ * turns it into a folder: what its author had said about it becomes what
+ * they said about its first session, and the answers that hold across a
+ * folder (role, kind of task) start from those.
  */
-export async function addSession(episodeId: string, userId: string) {
+export async function addSession(episodeId: string, userId: string, modelId?: string) {
   return db.transaction(async (tx) => {
     const [ep] = await tx
       .select()
@@ -115,6 +146,7 @@ export async function addSession(episodeId: string, userId: string) {
     if (ep.status !== "draft") {
       throw new EpisodeError("This has been submitted, so nothing can be added to it.");
     }
+    const now = new Date();
     const [{ next, folders }] = await tx
       .select({
         next: sql<number>`coalesce(max(${conversation.sessionOrder}), 0)::int + 1`,
@@ -122,18 +154,78 @@ export async function addSession(episodeId: string, userId: string) {
       })
       .from(conversation)
       .where(eq(conversation.episodeId, episodeId));
-    const [session] = await tx
-      .insert(conversation)
-      .values({ userId, modelId: ep.modelId, episodeId, sessionOrder: next })
-      .returning();
+
+    const folderLabels = readFolderLabels(ep.authorLabels);
+    let title = ep.title;
     if (!ep.isFolder) {
+      title = `Folder ${folders + 1}`;
+      // What was said about the conversation goes with the conversation.
+      await tx
+        .update(conversation)
+        .set({
+          authorLabels: {
+            ...readLabels(ep.authorLabels),
+            provenance: ep.taskProvenance ?? "",
+            goal: ep.goalText ?? "",
+          },
+          authorLabelsVersion: AUTHOR_LABELS_VERSION,
+          authorLabelsUpdatedAt: now,
+        })
+        .where(eq(conversation.episodeId, episodeId));
       await tx
         .update(episode)
-        .set({ isFolder: true, title: `Folder ${folders + 1}`, updatedAt: new Date() })
+        .set({
+          isFolder: true,
+          title,
+          authorLabels: folderLabels,
+          authorLabelsVersion: AUTHOR_LABELS_VERSION,
+          authorLabelsUpdatedAt: now,
+          taskProvenance: null,
+          goalText: null,
+          updatedAt: now,
+        })
         .where(eq(episode.id, episodeId));
     }
-    return session;
+    const [session] = await tx
+      .insert(conversation)
+      .values({
+        userId,
+        modelId: modelId ?? ep.modelId,
+        episodeId,
+        sessionOrder: next,
+        authorLabels: folderLabels,
+        authorLabelsVersion: AUTHOR_LABELS_VERSION,
+        authorLabelsUpdatedAt: now,
+      })
+      .returning();
+    return { session, episodeTitle: title };
   });
+}
+
+/**
+ * Saves the author's answers about one session of a folder, as far as
+ * they have got. Fixed once the folder is submitted.
+ */
+export async function saveSessionLabels(conversationId: string, userId: string, raw: unknown) {
+  const labels = readSessionLabels(raw);
+  const [row] = await db
+    .select({ status: episode.status, isFolder: episode.isFolder })
+    .from(conversation)
+    .innerJoin(episode, eq(episode.id, conversation.episodeId))
+    .where(and(eq(conversation.id, conversationId), eq(conversation.userId, userId)));
+  if (!row) throw new EpisodeError("That session could not be found.");
+  if (row.status !== "draft") {
+    throw new EpisodeError("This has been submitted, so it can no longer be changed.");
+  }
+  await db
+    .update(conversation)
+    .set({
+      authorLabels: labels,
+      authorLabelsVersion: AUTHOR_LABELS_VERSION,
+      authorLabelsUpdatedAt: new Date(),
+    })
+    .where(eq(conversation.id, conversationId));
+  return { labels };
 }
 
 /**
@@ -195,7 +287,12 @@ export async function saveEpisodeDetails(
  * after.
  */
 export async function saveAuthorLabels(episodeId: string, userId: string, raw: unknown) {
-  const labels = readLabels(raw);
+  const [kind] = await db
+    .select({ isFolder: episode.isFolder })
+    .from(episode)
+    .where(and(eq(episode.id, episodeId), eq(episode.userId, userId)));
+  // A folder is asked less: only what holds across its sessions.
+  const labels = kind?.isFolder ? readFolderLabels(raw) : readLabels(raw);
   const [saved] = await db
     .update(episode)
     .set({
@@ -221,6 +318,8 @@ type SessionSummary = {
   id: string;
   order: number;
   title: string;
+  modelId: string;
+  authorLabels: unknown;
   messages: number;
   userMessages: number;
   lastRole: string | null;
@@ -234,6 +333,8 @@ export async function listSessions(episodeId: string): Promise<SessionSummary[]>
       id: conversation.id,
       order: conversation.sessionOrder,
       title: conversation.title,
+      modelId: conversation.modelId,
+      authorLabels: conversation.authorLabels,
       messages: sql<number>`(
         select count(*)::int from ${message} m
         where m.conversation_id = ${outer(conversation.id)} and m.superseded_by is null
@@ -340,8 +441,25 @@ export async function submitEpisode(episodeId: string, userId: string) {
     if (included.length === 0) {
       throw new EpisodeError("Send at least one message before submitting.");
     }
-    // The author's own account of the work goes in with it, complete.
-    if (!ep.taskProvenance || !labelsComplete(readLabels(ep.authorLabels))) {
+    // The author's own account of the work goes in with it, complete. A
+    // folder answers a little for itself and the rest for each session.
+    if (ep.isFolder) {
+      if (Object.keys(missingFolderLabels(readFolderLabels(ep.authorLabels))).length > 0) {
+        throw new EpisodeError(
+          "Answer the folder's own questions first: open the folder from the list on the left.",
+        );
+      }
+      const unanswered = included.filter(
+        (s) => !sessionLabelsComplete(readSessionLabels(s.authorLabels)),
+      );
+      if (unanswered.length > 0) {
+        throw new EpisodeError(
+          `Session${unanswered.length === 1 ? "" : "s"} ${unanswered
+            .map((s) => s.sessionOrder)
+            .join(", ")} still ${unanswered.length === 1 ? "has" : "have"} unanswered questions. Open ${unanswered.length === 1 ? "it" : "each"} and answer them, then submit.`,
+        );
+      }
+    } else if (!ep.taskProvenance || !labelsComplete(readLabels(ep.authorLabels))) {
       throw new EpisodeError(
         "Answer the questions in the panel about this work before submitting. They are marked.",
       );
@@ -360,6 +478,29 @@ export async function submitEpisode(episodeId: string, userId: string) {
     }
 
     const now = new Date();
+    // What the author said about each session. For a conversation that
+    // stands alone that is what they said about the work, written onto the
+    // session now so that every submitted session carries its own answers.
+    const sessionLabelsAtSubmit = (s: (typeof included)[number]) =>
+      ep.isFolder
+        ? readSessionLabels(s.authorLabels)
+        : readSessionLabels({
+            ...readLabels(ep.authorLabels),
+            provenance: ep.taskProvenance ?? "",
+            goal: ep.goalText ?? "",
+          });
+    if (!ep.isFolder) {
+      for (const s of included) {
+        await tx
+          .update(conversation)
+          .set({
+            authorLabels: sessionLabelsAtSubmit(s),
+            authorLabelsVersion: AUTHOR_LABELS_VERSION,
+            authorLabelsUpdatedAt: now,
+          })
+          .where(eq(conversation.id, s.id));
+      }
+    }
     const [author] = await tx
       .select({ name: user.name, email: user.email })
       .from(user)
@@ -382,6 +523,7 @@ export async function submitEpisode(episodeId: string, userId: string) {
           scenario: s.scenario,
           title: s.title,
           sessionOrder: s.sessionOrder,
+          sessionLabels: sessionLabelsAtSubmit(s),
           episode: {
             title: ep.title,
             isFolder: ep.isFolder,
@@ -518,7 +660,6 @@ export async function createRelatedVersion(opts: {
   userId: string;
   intent: string;
   intendedDifference: string;
-  provenance: Provenance;
 }) {
   const source = await getOwnedEpisode(opts.sourceEpisodeId, opts.userId);
   if (source.status !== "submitted") {
@@ -527,10 +668,15 @@ export async function createRelatedVersion(opts: {
   const { episode: created, session } = await createEpisode({
     userId: opts.userId,
     modelId: source.modelId,
-    provenance: opts.provenance,
+    // Whether the task is real starts as the original's answer and can be
+    // changed in the panel. In a folder each session answers for itself.
+    provenance: source.isFolder ? null : (source.taskProvenance as Provenance | null),
     // A related version of a folder starts as a folder, ready for more
     // sessions; of a conversation, as a conversation.
     folder: source.isFolder,
+    // The answers that held across the original folder are where its
+    // related version starts; they can be changed.
+    folderLabels: source.isFolder ? source.authorLabels : undefined,
     related: { sourceEpisodeId: source.id, familyId: source.sourceFamilyId },
   });
   await db.insert(relatedVersion).values({

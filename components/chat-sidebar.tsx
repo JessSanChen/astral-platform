@@ -54,20 +54,13 @@ export function ChatSidebar() {
 
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-muted/30">
-      <div className="grid grid-cols-2 gap-2 p-3">
+      <div className="p-3">
         <Link
           href="/chat"
           className="flex items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border bg-card px-2 py-2 text-sm font-medium hover:bg-muted"
         >
           <Plus className="h-4 w-4" />
-          Conversation
-        </Link>
-        <Link
-          href="/chat?folder=1"
-          className="flex items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border bg-card px-2 py-2 text-sm font-medium hover:bg-muted"
-        >
-          <Plus className="h-4 w-4" />
-          Folder
+          New
         </Link>
       </div>
 
@@ -93,13 +86,21 @@ export function ChatSidebar() {
           }
           return (
             <div key={e.id} className="mb-1.5 mt-1">
-              <p className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-muted-foreground">
+              {/* The folder's own page: what holds across its sessions. */}
+              <Link
+                href={`/chat/folder/${e.id}`}
+                aria-current={pathname === `/chat/folder/${e.id}` ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-[var(--radius)] px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
+                  pathname === `/chat/folder/${e.id}` && "bg-muted text-foreground",
+                )}
+              >
                 <Folder className="h-3.5 w-3.5 shrink-0" />
                 <span className="min-w-0 flex-1 truncate">{first.episodeTitle}</span>
                 <span className="shrink-0 font-normal">
                   {first.episodeStatus === "submitted" ? "Submitted" : "Draft"}
                 </span>
-              </p>
+              </Link>
               <div className="ml-3 border-l border-border pl-1">
                 {e.sessions.map((s) => (
                   <SessionLink

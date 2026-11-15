@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { createEpisode } from "@/lib/episodes";
+import { authorLabelsInput, missingFolderLabels, readFolderLabels } from "@/lib/author-labels";
+import { EpisodeError, addSession, createEpisode } from "@/lib/episodes";
 import {
   ACTIVITY_TEMPLATE_IDS,
   LIMITS,
@@ -17,6 +18,11 @@ const createSchema = z.object({
   template: z.enum(ACTIVITY_TEMPLATE_IDS).nullish(),
   goal: z.string().trim().max(LIMITS.goal).nullish(),
   folder: z.boolean().optional(),
+  // For a new folder: the answers that hold across its sessions.
+  folderLabels: authorLabelsInput.nullish(),
+  // To add a session to work that already exists. A conversation that
+  // stood alone becomes a folder when one is added.
+  episodeId: z.string().uuid().nullish(),
 });
 
 /** Starts a conversation, or a folder with its first session. */
@@ -43,6 +49,34 @@ export async function POST(req: Request) {
     throw e;
   }
 
+  if (parsed.data.episodeId) {
+    try {
+      const added = await addSession(parsed.data.episodeId, cu.user.id, parsed.data.modelId);
+      return Response.json({
+        id: added.session.id,
+        episodeId: parsed.data.episodeId,
+        episodeTitle: added.episodeTitle,
+        isFolder: true,
+        sessionOrder: added.session.sessionOrder,
+      });
+    } catch (e) {
+      if (e instanceof EpisodeError) return Response.json({ message: e.message }, { status: 400 });
+      throw e;
+    }
+  }
+
+  if (parsed.data.folder) {
+    const missing = missingFolderLabels(readFolderLabels(parsed.data.folderLabels));
+    // Asked on the New screen; a folder made another way answers them on
+    // its own page before it can be submitted.
+    if (parsed.data.folderLabels && Object.keys(missing).length > 0) {
+      return Response.json(
+        { message: "Answer the folder's questions first.", errors: missing },
+        { status: 400 },
+      );
+    }
+  }
+
   const { episode, session } = await createEpisode({
     userId: cu.user.id,
     modelId: parsed.data.modelId,
@@ -50,11 +84,13 @@ export async function POST(req: Request) {
     template: parsed.data.template,
     goal: parsed.data.goal,
     folder: parsed.data.folder,
+    folderLabels: parsed.data.folderLabels ?? undefined,
   });
   return Response.json({
     id: session.id,
     episodeId: episode.id,
     episodeTitle: episode.title,
     isFolder: episode.isFolder,
+    sessionOrder: 1,
   });
 }

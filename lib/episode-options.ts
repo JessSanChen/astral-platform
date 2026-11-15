@@ -31,17 +31,47 @@ export const ACTIVITY_TEMPLATE_IDS = ACTIVITY_TEMPLATES.map((t) => t.id) as [str
 /** Recorded with the choice, so a later rewording does not rewrite history. */
 export const ACTIVITY_TEMPLATE_VERSION = "B2-1.1";
 
+/**
+ * What a related conversation sets out to explore. The values are what is
+ * stored; `presentation_change` and `exploratory` keep the values they had
+ * under earlier wording.
+ */
 export const COMPARISON_INTENTS = [
-  { value: "fact_change", label: "Change a substantive fact, stated purpose, or request" },
-  { value: "presentation_change", label: "Change wording or format while keeping the substantive facts" },
-  { value: "exploratory", label: "Explore a related version without a precise contrast" },
+  {
+    value: "goal_purpose",
+    label: "A different goal or purpose",
+    help: "Keep the scientific topic similar, but explore a different reason for the request.",
+  },
+  {
+    value: "context_change",
+    label: "Different circumstances or context",
+    help: "Explore how additional or different background information affects the interaction.",
+  },
+  {
+    value: "presentation_change",
+    label: "A different way of asking",
+    help: "Explore different wording, tone, or format without substantially changing the request.",
+  },
+  {
+    value: "exploratory",
+    label: "Something else",
+    help: "Explore another variation or comparison.",
+  },
 ] as const;
 export const COMPARISON_INTENT_VALUES = COMPARISON_INTENTS.map((c) => c.value) as [string, ...string[]];
+/** Choices no longer offered, kept so earlier answers still read as they were given. */
+const RETIRED_INTENTS: Record<string, string> = {
+  fact_change: "Change a substantive fact, stated purpose, or request",
+};
 export const comparisonIntentLabel = (value: string) =>
-  COMPARISON_INTENTS.find((c) => c.value === value)?.label ?? value;
+  COMPARISON_INTENTS.find((c) => c.value === value)?.label ?? RETIRED_INTENTS[value] ?? value;
+export const comparisonIntentHelp = (value: string) =>
+  COMPARISON_INTENTS.find((c) => c.value === value)?.help ?? "";
 
-export const RELATED_VERSION_INSTRUCTION =
-  "Keep the scientific topic, task type, and level of technical detail as comparable as you can. Make only the non-operational change you described, within the event's content boundaries. The actual conversations may differ in other ways. You do not need to make reviewers assign different labels.";
+export const RELATED_QUESTIONS = {
+  intent: "What would you like to explore?",
+  difference: "What are you planning to change? (optional)",
+} as const;
 
 export const LIMITS = { title: 80, goal: 500, intendedDifference: 400 } as const;
 

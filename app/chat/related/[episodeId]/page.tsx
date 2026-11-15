@@ -36,7 +36,6 @@ export default async function RelatedVersionPage({
       sourceEpisodeId={source.id}
       sourceTitle={source.isFolder ? source.title : (first?.title ?? source.title)}
       sourceSessionId={first?.id ?? null}
-      sourceProvenance={source.taskProvenance ?? ""}
     />
   );
 }

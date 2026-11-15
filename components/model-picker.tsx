@@ -25,7 +25,7 @@ export function ModelPicker({
   // opened from the room there actually is. With ten models the list is
   // taller than the space under the button on a laptop, and it used to run
   // off the bottom of the screen with no way to reach the rest.
-  const [placement, setPlacement] = useState({ up: false, maxHeight: 384 });
+  const [placement, setPlacement] = useState({ up: false, right: false, maxHeight: 384 });
   const ref = useRef<HTMLDivElement>(null);
   const selected = models.find((m) => m.id === value);
 
@@ -35,7 +35,10 @@ export function ModelPicker({
       const below = window.innerHeight - box.bottom - 16;
       const above = box.top - 16;
       const up = below < 280 && above > below;
-      setPlacement({ up, maxHeight: Math.max(160, Math.min(480, up ? above : below)) });
+      // The list is 20rem wide. Near the right edge of the window it hangs
+      // from the button's right side, so that it is not cut off.
+      const right = box.left + 320 > window.innerWidth - 8;
+      setPlacement({ up, right, maxHeight: Math.max(160, Math.min(480, up ? above : below)) });
     }
     setOpen((o) => !o);
   }
@@ -90,7 +93,8 @@ export function ModelPicker({
           role="listbox"
           style={{ maxHeight: placement.maxHeight }}
           className={cn(
-            "absolute left-0 z-50 w-80 overflow-y-auto overscroll-contain rounded-xl border border-border bg-card p-1.5 shadow-lg",
+            "absolute z-50 w-80 max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-xl border border-border bg-card p-1.5 shadow-lg",
+            placement.right ? "right-0" : "left-0",
             placement.up ? "bottom-full mb-1" : "top-full mt-1",
           )}
         >
