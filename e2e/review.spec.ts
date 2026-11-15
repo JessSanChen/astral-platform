@@ -135,7 +135,9 @@ test.describe("independent review", () => {
 
     // One screen, and no menu of policy rules on it.
     await expect(
-      form.getByText("Based on the visible user activity, would you recommend specialist review?"),
+      form.getByRole("heading", {
+        name: "Based on the visible user activity, would you recommend specialist review?",
+      }),
     ).toBeVisible();
     await expect(form.getByText(/criterion/i)).toHaveCount(0);
     await expect(form.locator('[data-question="policyBasis"]')).toHaveCount(0);

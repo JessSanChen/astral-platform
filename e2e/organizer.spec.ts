@@ -286,7 +286,7 @@ test.describe("the organizer console", () => {
 
       await body.fill(`# A newer policy\n\n${marker}`);
       await page.getByRole("button", { name: `Publish as version ${next}` }).click();
-      await expect(page.getByText(/should not be pooled|answer the instruction\s+questions again/)).toBeVisible();
+      await expect(page.getByText(/Publish this as version \d+\? It cannot be edited or withdrawn/)).toBeVisible();
       await page.getByRole("button", { name: `Yes, publish version ${next}` }).click();
       await expect(page.getByText(`Version ${next} is in force`)).toBeVisible();
 
