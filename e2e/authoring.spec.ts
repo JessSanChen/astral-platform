@@ -484,6 +484,33 @@ test.describe("writing conversations", () => {
     await context.close();
   });
 
+  test("the scanners give a verdict on the conversation", async ({ browser }) => {
+    const { page, context } = await newParticipant(browser, "Sam Scanner");
+    await startConversation(page);
+    await say(page, "What are the biosafety levels?");
+
+    // The panel has two tabs; the questions about the work are on the other.
+    await page.getByRole("button", { name: "Scanners" }).click();
+    await expect(page.getByRole("button", { name: "Submit conversation" })).toHaveCount(0);
+    // The scanner is chosen from one of our dropdowns too.
+    const picker = page.getByLabel("Scanner");
+    await expect(picker).toHaveRole("combobox");
+    await page.getByRole("button", { name: "Run on this conversation" }).click();
+    // The stand-in provider answers for whichever scanner is asked; what
+    // matters here is that a result is recorded and shown.
+    const result = page.locator("li").filter({ hasText: "This conversation" }).first();
+    await expect(result).toContainText("at turn 2", { timeout: 30_000 });
+    await expect(result).not.toContainText("Scanner failed");
+
+    // Back on Details, the questions are still there, and the panel closes
+    // from either tab.
+    await page.getByRole("button", { name: "Details", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Submit conversation" })).toBeVisible();
+    await page.getByRole("button", { name: "Close panel" }).click();
+    await expect(page.getByRole("button", { name: "Scanners" })).toHaveCount(0);
+    await context.close();
+  });
+
   test("copying and pasting in a conversation is recorded", async ({ browser }) => {
     const { page, context } = await newParticipant(browser, "Petra Paster");
     const id = await startConversation(page);

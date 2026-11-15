@@ -53,10 +53,14 @@ settle, or went against it. Each is a small change to reverse.
    models; the model is fixed for a conversation or folder, and a related
    version always uses its source's model.
 
-5. **The automated scanners are hidden from participants.** Their
-   endpoints answer organizers only. The specification has no author-side
-   feedback from monitors, and showing a verdict would steer what people
-   write.
+5. **Participants can run the scanners on their own conversations.**
+   The specification has no author-side feedback from monitors, and they
+   were hidden when v1.1 was first built, because a verdict shown to an
+   author can steer what they write and how they answer "do you expect a
+   reviewer to refer this?". The organizer asked for them back. The side
+   panel has a Scanners tab beside Details, as before v1.1. Results are
+   visible only to the person who ran them, and are never shown to a
+   reviewer or used in recording or adding up reviews.
 
 6. **Authors label their own work, with new questions.** The
    specification replaced the old labels with provenance, an optional goal
@@ -250,19 +254,23 @@ that renames them. They mean the review instructions.
 
 ### 8. Prizes
 
-The organizer chose to keep the nomination system the platform had before
-v1.1, in place of the specification's mark on submitted work. A prize
-entry is a written finding, not a conversation.
+The organizer set five awards in place of the specification's four, with
+written nominations in place of a mark on submitted work.
 
-| Item | Status | Where |
+| Award | Type | How it is entered |
 | --- | --- | --- |
-| Four award categories with scoring weights | Not built | the briefing lists the two nominated tracks and says the organizers will announce amounts, deadlines and any other awards |
-| Up to three authored entries marked on submitted work | Not built; replaced | one written entry per track on the Submit page: a headline, the finding in detail, an optional link to slides |
-| Entries can be closed by hand or at a set time | Built (as before) | Organize → Nominations |
-| Scoring by a separate panel | Not built | judging happens outside the platform, from the export |
+| Most Qualified Transcripts | Quantitative | No entry. Counted from submitted work; Organize → Participants sorts by it. Whether a conversation is distinct, substantive and usable is the organizers' call |
+| Most Qualified Reviews | Quantitative | No entry. Counted from completed reviews, on the same page; quality is the organizers' call |
+| Most Interesting AI Risk Finding | Qualitative | A written entry on the Submit page |
+| Best Comparative Investigation | Qualitative | A written entry on the Submit page |
+| Best Multi-Session Investigation | Qualitative | A written entry on the Submit page |
 
-The tracks are the two that existed before: "Adversarial use cases" and
-"Dual-use use cases". They are one list in `lib/nominations.ts`.
+An entry is a headline, the finding in detail and an optional link to
+slides, one per award, editable until nominations are closed from
+**Organize → Nominations**. The awards and the wording shown for each are
+one list in `lib/nominations.ts`. Amounts and deadlines are not stated;
+the briefing says the organizers will announce them. Scoring happens
+outside the platform, from the console and the export.
 
 ### 9. Acceptance tests
 

@@ -27,7 +27,7 @@ export default async function NominateTrackPage({
     <NominationForm
       track={definition.value}
       label={definition.label}
-      blurb={definition.blurb}
+      blurb={`${definition.question} ${definition.focus}`}
       locked={status.locked}
       closeAt={status.closeAt?.toISOString() ?? null}
       existing={

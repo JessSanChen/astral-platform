@@ -16,6 +16,31 @@ import { Chat } from "@ai-sdk/react";
  * One session, with what is needed about the episode it belongs to. An
  * episode is a standalone conversation (one session) or a folder (several).
  */
+/** One run of a safety scanner over a conversation, as the panel lists it. */
+export type JudgeRun = {
+  id: string;
+  conversationId: string;
+  conversationTitle: string;
+  conversationStartedAt?: string;
+  judgeName: string;
+  turnCount?: number | null;
+  verdict: string | null;
+  parsed: { verdict?: JudgeVerdictShape } | null;
+  status: string;
+  createdAt: string;
+};
+
+export type JudgeVerdictShape = {
+  headline: string;
+  detail?: string;
+  severity?: number;
+  categories?: string[];
+  flagged: boolean;
+};
+
+/** The side panel's two tabs: the work's details, and the scanners. */
+export type RightTab = "details" | "scanners";
+
 export type StoredConversation = {
   id: string;
   title: string;
@@ -56,6 +81,12 @@ type Store = {
   // Whether the panel beside the chat is open; kept across conversations.
   rightPanelOpen: boolean;
   setRightPanelOpen: (open: boolean) => void;
+  rightTab: RightTab;
+  setRightTab: (tab: RightTab) => void;
+  // Scanner results are kept here, not in the tab, so that switching tabs
+  // or conversations does not lose them or fetch them again.
+  judgeRuns: JudgeRun[];
+  setJudgeRuns: (runs: JudgeRun[]) => void;
 };
 
 const Ctx = createContext<Store | null>(null);
@@ -88,6 +119,8 @@ export function ConversationStoreProvider({
   const generating = useRef(new Set<string>());
   const [generatingTick, setGeneratingTick] = useState(0);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightTab, setRightTab] = useState<RightTab>("details");
+  const [judgeRuns, setJudgeRuns] = useState<JudgeRun[]>([]);
 
   const addConversation = useCallback((c: StoredConversation) => {
     setConversations((list) =>
@@ -174,9 +207,15 @@ export function ConversationStoreProvider({
       setGenerating,
       rightPanelOpen,
       setRightPanelOpen,
+      rightTab,
+      setRightTab,
+      judgeRuns,
+      setJudgeRuns,
     }),
     [
       rightPanelOpen,
+      rightTab,
+      judgeRuns,
       conversations,
       addConversation,
       patchConversation,

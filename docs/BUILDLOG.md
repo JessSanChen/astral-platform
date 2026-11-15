@@ -2500,6 +2500,28 @@ still exist and answer organizers.
 
 ---
 
+## Round 27: scanners back, the infohazard guide, five awards
+
+- **The Scanners tab is back.** The side panel beside a conversation has
+  two tabs again: Details (sessions, the author's questions, submitting)
+  and Scanners (Llama Guard and the judge, run on the conversation on
+  screen). The component is restored from before v1.1 unchanged, and the
+  scanner endpoints answer participants again. Results are visible only
+  to the person who ran them.
+- **Infohazard guide.** A page of its own in the menu, under How it
+  works, with the safety lead's text as written, and a link to it at the
+  top of How it works. The text is one constant in
+  `lib/infohazard-guide.ts`.
+- **Five awards.** Most Qualified Transcripts and Most Qualified Reviews
+  are counted and need no entry. Most Interesting AI Risk Finding, Best
+  Comparative Investigation and Best Multi-Session Investigation are
+  entered by written nomination on the Submit page, each with its own
+  question and description. The earlier two tracks are retired; the
+  database goes on accepting their values (migration 0013 adds the new
+  ones). The briefing's prize table lists all five.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

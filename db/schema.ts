@@ -143,10 +143,15 @@ export const reviewerIntent = pgEnum("reviewer_intent", [
   "unclear",
 ]);
 
+// The first three are tracks that no longer exist. The database goes on
+// accepting them because entries were made in them; nothing offers them.
 export const nominationTrack = pgEnum("nomination_track", [
   "adversarial",
   "dual_use",
   "collaborative",
+  "ai_risk_finding",
+  "comparative",
+  "multi_session",
 ]);
 
 export const reviewerActor = pgEnum("reviewer_actor", [

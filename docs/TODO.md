@@ -20,12 +20,15 @@ These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
 
 - **Clipboard logging.** The specification says not to; you asked for it
   earlier. It is still on. Your call.
-- **Prizes.** Nominations are back, with the two tracks from before
-  (adversarial, dual use). Amounts, deadlines and any other awards are
-  not stated anywhere; the briefing says the organizers will announce
-  them. The tracks are one list in `lib/nominations.ts`.
-- **The scanner panel.** Hidden from participants since round 21. Bring
-  it back, or show it only after submitting?
+- **Prizes.** Five awards: two counted, three by written nomination.
+  Amounts and deadlines are not stated anywhere; the briefing says the
+  organizers will announce them. What makes a transcript or a review
+  "qualified" for the two counted awards is yours to decide; the platform
+  only counts.
+- **The infohazard guide and the briefing say different things about
+  purpose.** The guide says "you'll push AI models to their limits"; How
+  it works says "you do not have to make a model fail". Both are on
+  screen. Worth one read side by side.
 - **Safe examples for the g and a scales.** The form shows the anchors
   from the specification with no examples.
 

@@ -81,3 +81,15 @@ progress {
 .markdown blockquote { border-left: 3px solid var(--border); padding-left: 0.75rem; color: var(--muted-foreground); }
 .markdown table { border-collapse: collapse; font-size: 0.9em; }
 .markdown th, .markdown td { border: 1px solid var(--border); padding: 0.3em 0.6em; }
+
+/* The infohazard guide is a page of its own, not a note inside one, so
+   its headings are page-sized and its rules have room around them. */
+.infohazard-guide h1 { font-size: 1.9rem; font-weight: 500; letter-spacing: -0.01em; }
+.infohazard-guide h2 { font-size: 1.4rem; font-weight: 500; margin-top: 1.6em; }
+.infohazard-guide h3 { font-size: 1.1rem; margin-top: 1.4em; }
+.infohazard-guide hr { border: 0; border-top: 1px solid var(--border); margin: 1.8em 0; }
+.infohazard-guide li + li { margin-top: 0.3em; }
+.infohazard-guide table { width: 100%; font-size: 0.95em; }
+.infohazard-guide thead { display: none; }
+.infohazard-guide td { padding: 0.5em 0.8em; }
+.infohazard-guide td:last-child { white-space: nowrap; }

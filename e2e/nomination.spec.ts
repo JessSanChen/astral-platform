@@ -5,15 +5,23 @@ test.describe("putting work forward", () => {
   test("an entry, with a link to slides, saved and listed", async ({ browser }) => {
     const { page, context } = await newParticipant(browser, "Nico Nominator", "nominator");
 
-    // Two tracks are decided by nomination. There used to be a third.
+    // Three awards are decided by nomination. The earlier tracks are gone.
     await page.goto("/nominate");
-    await expect(page.getByRole("link", { name: /Adversarial use cases/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Dual-use use cases/ })).toBeVisible();
-    await expect(page.getByText(/collaborat/i)).toHaveCount(0);
-    const gone = await page.request.get("/nominate/collaborative");
-    expect(gone.status()).toBe(404);
+    for (const award of [
+      /Most Interesting AI Risk Finding/,
+      /Best Comparative Investigation/,
+      /Best Multi-Session Investigation/,
+    ]) {
+      await expect(page.getByRole("link", { name: award })).toBeVisible();
+    }
+    await expect(page.getByText(/collaborat|Adversarial use cases|Dual-use use cases/i)).toHaveCount(0);
+    for (const retired of ["collaborative", "adversarial", "dual_use"]) {
+      expect((await page.request.get(`/nominate/${retired}`)).status(), retired).toBe(404);
+    }
 
-    await page.goto("/nominate/dual_use");
+    await page.goto("/nominate/comparative");
+    // The award's own question is at the top of its form.
+    await expect(page.getByText(/What changes the result\? The focus is a meaningful comparison/)).toBeVisible();
     await page.getByLabel("Headline finding").fill("Two scanners disagree in a useful way");
     await page
       .getByLabel("The finding in detail")
@@ -42,7 +50,7 @@ test.describe("putting work forward", () => {
 
     // And the track list shows it as entered.
     await page.goto("/nominate");
-    await expect(page.getByRole("link", { name: /Dual-use use cases/ })).toContainText(
+    await expect(page.getByRole("link", { name: /Best Comparative Investigation/ })).toContainText(
       "Submitted",
     );
     await context.close();
@@ -50,7 +58,7 @@ test.describe("putting work forward", () => {
 
   test("an entry with nothing in it is refused", async ({ browser }) => {
     const { page, context } = await newParticipant(browser, "Blank Bella", "nominator");
-    await page.goto("/nominate/adversarial");
+    await page.goto("/nominate/ai_risk_finding");
     await page.getByLabel("Headline finding").fill("   ");
     await page.getByLabel("The finding in detail").fill("   ");
     await page.getByRole("button", { name: "Submit nomination" }).click();

@@ -7,7 +7,7 @@ import {
   Send,
   Trophy,
 } from "lucide-react";
-import { NOMINATION_TRACKS } from "@/lib/nominations";
+import { AWARDS, NOMINATION_TRACKS } from "@/lib/nominations";
 
 /**
  * What Astral is, what the day looks like, and how the prizes work.
@@ -52,7 +52,7 @@ const STEPS = [
   {
     icon: Trophy,
     title: "Put your best work forward",
-    body: "Prizes are decided by nomination. On the Submit page, write up what you found and why it matters, one entry per track.",
+    body: "Two awards are counted from what you write and review. Three are entered on the Submit page: write up what you found and why it matters.",
   },
 ];
 
@@ -135,6 +135,12 @@ export function AboutAstral() {
             A message that has been sent stays sent, and a reply stays the
             reply. Nothing can be edited or regenerated. If you want to
             correct or clarify something, say so in your next message.
+          </p>
+          <p>
+            The <span className="text-foreground">Scanners</span> tab beside
+            the chat runs common safety tools over the conversation on
+            screen, so you can see what they catch and what they miss. The
+            results are visible only to you.
           </p>
           <p>
             Before you submit, the panel beside the conversation asks a few
@@ -229,26 +235,30 @@ export function AboutAstral() {
           Prizes
         </h2>
         <p className="text-[15px] leading-relaxed text-muted-foreground">
-          Prizes are decided by nomination. You nominate your own work by
-          describing what you found: a finding, not a single conversation.
-          They do not reward dangerous output, getting around safeguards,
-          length, or volume.
+          Five awards. Two are counted by the platform and need no entry.
+          Three are decided by nomination: you describe what you found, and
+          the entry is the finding, not a single conversation. None of them
+          rewards a dangerous output or getting around a safeguard.
         </p>
 
         <div className="overflow-hidden rounded-[var(--radius)] border border-border">
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/60 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-4 py-2.5 font-medium">Track</th>
-                <th className="px-4 py-2.5 font-medium">What is rewarded</th>
+                <th className="px-4 py-2.5 font-medium">Award</th>
+                <th className="px-4 py-2.5 font-medium">Type</th>
+                <th className="px-4 py-2.5 font-medium">What we are rewarding</th>
               </tr>
             </thead>
             <tbody>
-              {NOMINATION_TRACKS.map((track) => (
-                <tr key={track.value} className="border-t border-border">
-                  <td className="px-4 py-3 align-top font-medium">{track.label}</td>
+              {AWARDS.map((a, i) => (
+                <tr key={a.award} className="border-t border-border">
+                  <td className="px-4 py-3 align-top font-medium">
+                    {i + 1}. {a.award}
+                  </td>
+                  <td className="px-4 py-3 align-top text-muted-foreground">{a.type}</td>
                   <td className="px-4 py-3 align-top leading-relaxed text-muted-foreground">
-                    {track.blurb}
+                    {a.rewarding}
                   </td>
                 </tr>
               ))}
@@ -258,15 +268,30 @@ export function AboutAstral() {
 
         <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
           <p>
-            To nominate, open <span className="text-foreground">Submit</span>{" "}
-            in the menu and choose a track. An entry is a headline, a
-            write-up of the finding, and, if you have them, a link to
-            slides. There is one entry per track, so revise yours rather
-            than writing another: you can change it until nominations close.
+            The two quantitative awards are counted from what you submit and
+            what you review, and checked by the organizers: what counts is
+            distinct, substantive, usable conversations and careful,
+            evidence-grounded reviews, not a raw total.
+          </p>
+          {NOMINATION_TRACKS.map((track) => (
+            <p key={track.value}>
+              <span className="font-medium text-foreground">
+                {track.label}: {track.question}
+              </span>{" "}
+              {track.focus}
+            </p>
+          ))}
+          <p>
+            To enter one of the three, open{" "}
+            <span className="text-foreground">Submit</span> in the menu and
+            choose it. An entry is a headline, a write-up of the finding,
+            and, if you have them, a link to slides. There is one entry per
+            award, so revise yours rather than writing another: you can
+            change it until nominations close.
           </p>
           <p>
-            The organizers will announce the prize amounts, when nominations
-            close, and any other awards. No award depends on whether you gave
+            The organizers will announce the prize amounts and when
+            nominations close. No award depends on whether you gave
             permission for public release.
           </p>
         </div>

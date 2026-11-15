@@ -58,7 +58,7 @@ test.describe("running the day", () => {
     const organizer = await newOrganizer(browser, "Olga Organizer");
     const page = participant.page;
 
-    await page.goto("/nominate/adversarial");
+    await page.goto("/nominate/ai_risk_finding");
     await page.getByLabel("Headline finding").fill("Entered before the close");
     await page.getByLabel("The finding in detail").fill("Enough detail to be an entry.");
     await page.getByRole("button", { name: "Submit nomination" }).click();
@@ -91,12 +91,12 @@ test.describe("running the day", () => {
       await expect(page.getByRole("status")).toContainText("can no longer be changed");
       await expect(page.getByText("change an entry until nominations close")).toHaveCount(0);
       // The entry made is there to read. A track never entered goes nowhere.
-      await expect(page.getByRole("link", { name: /Adversarial/ })).toContainText("read only");
-      await expect(page.getByRole("link", { name: /Dual-use/ })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: /AI Risk Finding/ })).toContainText("read only");
+      await expect(page.getByRole("link", { name: /Comparative/ })).toHaveCount(0);
 
       // Going to a track directly is no way round it, and neither is
       // sending the form without the page.
-      await page.goto("/nominate/dual_use");
+      await page.goto("/nominate/comparative");
       await expect(page.getByRole("status")).toContainText(
         "No entry was submitted for this track, and one can no longer be made.",
       );
@@ -112,7 +112,7 @@ test.describe("running the day", () => {
         organizer.page.getByRole("button", { name: "Close nominations now" }),
       ).toBeVisible();
 
-      await page.goto("/nominate/adversarial");
+      await page.goto("/nominate/ai_risk_finding");
       await page.getByLabel("Headline finding").fill("Changed after reopening");
       await page.getByRole("button", { name: "Update entry" }).click();
       await expect(page.getByText("Saved. You can change this until nominations close.")).toBeVisible();

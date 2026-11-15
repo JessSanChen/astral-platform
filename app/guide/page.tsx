@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireOnboarded } from "@/lib/gate";
 import { AboutAstral } from "@/components/about-astral";
 
@@ -13,6 +14,14 @@ export default async function GuidePage() {
         <p className="text-sm leading-relaxed text-muted-foreground">
           Why the day exists, how writing and reviewing work, the prizes, and
           what happens to what you write.
+        </p>
+        <p className="text-sm leading-relaxed">
+          Before you start, read the{" "}
+          <Link href="/infohazards" className="font-medium text-accent underline">
+            infohazard guide
+          </Link>
+          : what must not leave the room, and what to do if something in a
+          conversation concerns you.
         </p>
       </div>
       <AboutAstral />

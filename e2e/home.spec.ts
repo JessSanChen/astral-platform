@@ -36,12 +36,33 @@ test.describe("the front page", () => {
     await expect(page.getByRole("table").getByRole("row")).not.toHaveCount(1);
     const main = page.getByRole("main");
     await expect(main.getByText(/collaborat/i)).toHaveCount(0);
-    // Prizes are by nomination, in the two tracks that exist.
-    await expect(main.getByText(/decided by nomination/i).first()).toBeVisible();
-    const tracks = page.getByRole("table");
-    await expect(tracks.getByRole("row").filter({ hasText: "Adversarial use cases" })).toBeVisible();
-    await expect(tracks.getByRole("row").filter({ hasText: "Dual-use use cases" })).toBeVisible();
-    await expect(main.getByText(/scanner/i)).toHaveCount(0);
+    // Five awards: two counted, three entered by nomination.
+    const awards = page.getByRole("table");
+    await expect(awards.getByRole("row")).toHaveCount(6);
+    for (const award of [
+      "Most Qualified Transcripts",
+      "Most Qualified Reviews",
+      "Most Interesting AI Risk Finding",
+      "Best Comparative Investigation",
+      "Best Multi-Session Investigation",
+    ]) {
+      await expect(awards.getByRole("row").filter({ hasText: award })).toBeVisible();
+    }
+    await expect(main.getByText(/Adversarial use cases|Dual-use use cases/)).toHaveCount(0);
+    await expect(main.getByText("What changes the result?", { exact: false })).toBeVisible();
+
+    // The infohazard guide is one click away, here and in the menu.
+    await main.getByRole("link", { name: "infohazard guide" }).click();
+    await expect(page).toHaveURL(/\/infohazards$/);
+    await expect(page.getByRole("heading", { name: "Infohazard guide", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "The three rules" })).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: "Screenshots, photos, copying" })).toContainText(
+      "Never",
+    );
+    await expect(page.getByRole("link", { name: "Infohazard guide" })).toHaveAttribute(
+      "href",
+      "/infohazards",
+    );
 
     // The way to nominate is in the menu.
     await page.getByRole("link", { name: "Submit", exact: true }).click();

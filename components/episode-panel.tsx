@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Folder,
   GitCompareArrows,
-  PanelRightClose,
   Plus,
 } from "lucide-react";
 import {
@@ -78,7 +77,6 @@ export function EpisodePanel({
   currentSessionId,
   currentHasMessages,
   busy,
-  onClose,
 }: {
   episode: EpisodeInfo;
   currentSessionId: string;
@@ -86,7 +84,6 @@ export function EpisodePanel({
   currentHasMessages: boolean;
   /** A reply is being written in the session on screen. */
   busy: boolean;
-  onClose: () => void;
 }) {
   const router = useRouter();
   const store = useConversationStore();
@@ -257,9 +254,6 @@ export function EpisodePanel({
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
           {episode.isFolder ? episode.title : "This conversation"}
         </h2>
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close panel">
-          <PanelRightClose className="h-4 w-4" />
-        </Button>
       </div>
 
       <div className="relative flex-1 space-y-6 overflow-y-auto px-4 py-4">

@@ -9,6 +9,7 @@ import {
   MessagesSquare,
   PanelLeft,
   Settings2,
+  ShieldAlert,
   Trophy,
 } from "lucide-react";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 // everyone goes back to for a deadline.
 const SECTIONS = [
   { href: "/guide", label: "How it works", icon: BookOpen },
+  { href: "/infohazards", label: "Infohazard guide", icon: ShieldAlert },
   { href: "/chat", label: "My chats", icon: MessagesSquare },
   { href: "/review", label: "Review", icon: ClipboardCheck },
   { href: "/nominate", label: "Submit", icon: Trophy },
