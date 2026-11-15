@@ -76,6 +76,28 @@ test.describe("writing conversations", () => {
     await context.close();
   });
 
+  test("every model can be reached on a short screen", async ({ browser }) => {
+    const { page, context } = await newParticipant(browser, "Lena Laptop");
+    for (const height of [900, 620]) {
+      await page.setViewportSize({ width: 1280, height });
+      await page.goto("/chat");
+      const picker = page.locator('button[aria-haspopup="listbox"]');
+      await picker.click();
+      const list = page.getByRole("listbox");
+      await expect(list).toBeVisible();
+      // The whole list is on the screen, and scrolls where it has to.
+      const box = (await list.boundingBox())!;
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(height);
+      const last = list.getByRole("option").last();
+      const name = (await last.locator("span.text-sm").innerText()).trim();
+      await last.click();
+      await expect(page.getByRole("listbox")).toHaveCount(0);
+      await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
+    }
+    await context.close();
+  });
+
   test("the server refuses a changed reply, a message after submitting, and a second submission", async ({
     browser,
   }) => {

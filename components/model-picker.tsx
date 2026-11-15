@@ -21,8 +21,24 @@ export function ModelPicker({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  // Where the list goes and how tall it may be, worked out each time it is
+  // opened from the room there actually is. With ten models the list is
+  // taller than the space under the button on a laptop, and it used to run
+  // off the bottom of the screen with no way to reach the rest.
+  const [placement, setPlacement] = useState({ up: false, maxHeight: 384 });
   const ref = useRef<HTMLDivElement>(null);
   const selected = models.find((m) => m.id === value);
+
+  function toggle() {
+    if (!open && ref.current) {
+      const box = ref.current.getBoundingClientRect();
+      const below = window.innerHeight - box.bottom - 16;
+      const above = box.top - 16;
+      const up = below < 280 && above > below;
+      setPlacement({ up, maxHeight: Math.max(160, Math.min(480, up ? above : below)) });
+    }
+    setOpen((o) => !o);
+  }
 
   // Close on outside click or Escape.
   useEffect(() => {
@@ -53,7 +69,7 @@ export function ModelPicker({
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         aria-haspopup="listbox"
         aria-expanded={open}
         className={cn(
@@ -72,7 +88,11 @@ export function ModelPicker({
       {open && (
         <div
           role="listbox"
-          className="absolute left-0 z-50 mt-1 w-80 overflow-hidden rounded-xl border border-border bg-card p-1.5 shadow-lg"
+          style={{ maxHeight: placement.maxHeight }}
+          className={cn(
+            "absolute left-0 z-50 w-80 overflow-y-auto overscroll-contain rounded-xl border border-border bg-card p-1.5 shadow-lg",
+            placement.up ? "bottom-full mb-1" : "top-full mt-1",
+          )}
         >
           {grouped.map((group) => (
             <div key={group.family} className="py-1">

@@ -20,7 +20,7 @@ about a running system and are run when there is a reason to.
 
 ## Browser tests
 
-Fifty-seven tests in `e2e/`, written with Playwright. Each one opens a real
+Fifty-eight tests in `e2e/`, written with Playwright. Each one opens a real
 browser and uses the app the way a person would: clicking, typing, reading
 what is on the screen. They run against a production build, because that is
 what participants get.
