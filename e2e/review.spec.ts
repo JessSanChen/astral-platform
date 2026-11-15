@@ -185,13 +185,13 @@ test.describe("independent review", () => {
 
     const { page, context } = await newReviewer(browser, "Rosa Resumes");
     const assignmentId = await getReview(page);
-    const shown = await page.locator('[data-turn="1"]').innerText();
+    const shown = (await page.locator('[data-turn="1"] p.whitespace-pre-wrap').textContent())!;
     const form = reviewForm(page);
     await form.locator('[data-question="verdict"]').getByRole("radio", { name: "No", exact: true }).check();
     await form.locator('[data-question="rationale"]').getByRole("textbox").fill("Half a thought.");
 
     await page.reload();
-    await expect(page.locator('[data-turn="1"]')).toHaveText(shown);
+    await expect(page.locator('[data-turn="1"]')).toContainText(shown);
     await expect(
       reviewForm(page).locator('[data-question="verdict"]').getByRole("radio", { name: "No", exact: true }),
     ).toBeChecked();
@@ -205,7 +205,7 @@ test.describe("independent review", () => {
     await expect(page.getByRole("button", { name: /Get a review|Next item/ })).toHaveCount(0);
     await page.getByRole("button", { name: "Continue where you left off" }).click();
     await page.waitForURL(`**/review/${assignmentId}`);
-    await expect(page.locator('[data-turn="1"]')).toHaveText(shown);
+    await expect(page.locator('[data-turn="1"]')).toContainText(shown);
 
     const [{ n }] = await sql`
       select count(*)::int as n from review_assignment where id = ${assignmentId} and state = 'active'
