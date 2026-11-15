@@ -3223,6 +3223,14 @@ database from the organizer's own machine.
   participants' conversations and names, so it is for organizers, and
   the `audits` folder is kept out of git.
 
+- **`scripts/verify-overview.sql`**: for checking the Overview page
+  against the database. The first query recomputes every number on the
+  page, one row each, in the order they appear; the rest count the same
+  totals a second way, look for records that should not exist, and
+  explain why sessions, views and reviews are different numbers. Tested
+  by running it beside the page's own code on the same sample data, with
+  one account marked as a tester: all thirty numbers agree.
+
 There is no right answer to check a review against. What can be
 checked is whether the records were read (time, against how much the
 reviewer is asked to read, which is the user's messages) and whether the
