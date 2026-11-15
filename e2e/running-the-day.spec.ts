@@ -142,6 +142,16 @@ test.describe("running the day", () => {
       const publish = admin.getByRole("button", { name: `Publish as version ${before + 1}` });
       await expect(publish).toBeDisabled();
 
+      // The terms the platform comes with can be loaded into the box. They
+      // still carry a note to the organizer where a part is missing, and
+      // cannot be published until that is dealt with.
+      await admin.getByRole("button", { name: "Load the default terms" }).click();
+      await expect(
+        admin.getByRole("heading", { name: "ASTRAL Hackathon — Participant Terms and Conditions" }),
+      ).toBeVisible();
+      await expect(admin.getByRole("alert").filter({ hasText: "[ORGANIZER: ...]" })).toBeVisible();
+      await expect(publish).toBeDisabled();
+
       await admin.getByLabel(`Text of version ${before + 1}`).fill(text);
       // What participants will see is shown as it is written.
       await expect(admin.getByRole("heading", { name: "Terms for the test" })).toBeVisible();
@@ -163,15 +173,15 @@ test.describe("running the day", () => {
       await expect(page.getByText("Your message is still saved")).toHaveCount(0);
       await page.getByRole("link", { name: "Read and accept the updated terms" }).click();
       await page.waitForURL("**/onboarding");
-      await expect(page.getByRole("heading", { name: "Updated study information" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Updated terms and conditions" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Terms for the test" })).toBeVisible();
       await expect(page.getByText(marker)).toBeVisible();
       // Only the study information: their background is not asked for again.
       await expect(page.getByRole("heading", { name: "About your background" })).toHaveCount(0);
 
-      // Accepting needs the boxes ticked.
+      // Accepting needs the box ticked.
       await page.getByRole("button", { name: "Continue" }).click();
-      await expect(page.getByText("You need to agree to take part in order to continue.")).toBeVisible();
+      await expect(page.getByText("You need to agree to the terms in order to continue.")).toBeVisible();
 
       await agreeToStudy(page);
       await page.getByRole("button", { name: "Continue" }).click();

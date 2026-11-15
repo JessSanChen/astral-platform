@@ -3,6 +3,7 @@ import { eventCode, sql } from "./db";
 import {
   INTAKE,
   PASSWORD,
+  TERMS_BOX,
   agreeToStudy,
   choose,
   fillIntake,
@@ -168,21 +169,23 @@ test.describe("getting in", () => {
     expect(row.public_release_permission).toBeNull();
   });
 
-  test("both agreements are needed; public release is a separate, optional answer", async ({
+  test("agreeing to the terms is needed; public release is a separate, optional answer", async ({
     page,
   }) => {
     const email = uniqueEmail("agree");
     await signUp(page, "Agnes Agrees", email);
+    // One agreement, worded as the terms word it. No second box.
+    await expect(page.getByRole("heading", { name: "Participant Terms and Conditions" })).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: /stated research/ })).toHaveCount(0);
+    await expect(page.getByRole("main").getByText(/study information/i)).toHaveCount(0);
     await fillIntake(page);
-    await page.getByRole("checkbox", { name: /I have read the study information/ }).check();
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText(/This agreement is needed to contribute to the research/)).toBeVisible();
+    await expect(page.getByText("You need to agree to the terms in order to continue.")).toBeVisible();
     await expect(page).toHaveURL(/\/onboarding$/);
     // What was already answered is still there.
-    await expect(page.getByRole("checkbox", { name: /I have read the study information/ })).toBeChecked();
     await expect(page.getByRole("checkbox", { name: INTAKE.noBackground })).toBeChecked();
 
-    await page.getByRole("checkbox", { name: /may be used for the\s+stated research/ }).check();
+    await page.getByRole("checkbox", { name: TERMS_BOX }).check();
     await page.getByRole("group", { name: "Public release" }).getByRole("radio", { name: "No" }).check();
     await page.getByRole("button", { name: "Continue" }).click();
     await page.waitForURL("**/chat");

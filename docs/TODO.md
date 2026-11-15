@@ -42,6 +42,12 @@ These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
   nothing about its size. Announce it with the other amounts.
 - **Six smaller points from the review of rounds 29 and 30** are listed
   at the end of round 31 in the build log, not fixed. None loses data.
+- **Publish the terms and conditions.** Organize → Terms → "Load the
+  default terms". First finish them: Appendix A was cut off in the text
+  you sent (paste the rest where the `[ORGANIZER: ...]` note is and
+  remove the note), fill in the privacy notice named in section 6, and
+  check the organization name and email address in Appendix A. Then
+  publish. Everyone is asked to agree again.
 - **Before the event starts: mark everyone as a tester.** Organize →
   Participants → "Mark everyone so far as a tester". Do it once the
   last test is done and before the first participant signs up.

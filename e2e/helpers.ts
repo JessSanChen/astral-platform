@@ -69,9 +69,11 @@ export const INTAKE = {
 /** Someone who says they can assess one subject, and how well. */
 export type Expertise = { area: string; level: string };
 
+/** The one agreement: to the terms, in the terms' own words. */
+export const TERMS_BOX = /I have read and agree to the ASTRAL Hackathon Participant Terms and Conditions/;
+
 export async function agreeToStudy(page: Page) {
-  await page.getByRole("checkbox", { name: /I have read the study information/ }).check();
-  await page.getByRole("checkbox", { name: /may be used for the\s+stated research/ }).check();
+  await page.getByRole("checkbox", { name: TERMS_BOX }).check();
 }
 
 /** The five rows about kinds of work, each answered. */

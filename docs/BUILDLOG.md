@@ -3082,6 +3082,61 @@ account made afterwards not marked.
 
 ---
 
+## Round 36: the terms and conditions, one agreement, and starting a session in a folder
+
+### Terms and conditions
+
+- **The organizer's Participant Terms and Conditions are the default**
+  (`lib/default-terms.ts`), in place of the placeholder. They are what a
+  new database starts with, and Organize → Terms has "Load the default
+  terms", which puts them in the box to be checked and published.
+  Publishing stays a deliberate act by an organizer: it asks every
+  account to agree again.
+- **Nothing was published by this change.** The live site keeps the
+  terms it has until an organizer publishes.
+- **The text supplied was cut off** part-way through Appendix A, in the
+  conflict of interest list, before the reporting procedure that the
+  terms refer to. The default carries a note in square brackets at that
+  point, beginning `[ORGANIZER:`, and **text containing that note
+  cannot be published**: the button stays off and the server refuses.
+  Paste the rest, remove the note, publish.
+- **Three more things in the supplied text for the organizer to
+  check**, left exactly as supplied:
+  - section 6 ends "described in [Event Privacy Notice or ASTRAL
+    Privacy Policy]", a placeholder;
+  - Appendix A opens "The Cambridge Boston Alignment Initiative
+    (ASTRAL)" and gives an address at "ASTRAL.ai", which look like one
+    organization's name replaced by another's throughout;
+  - Appendix A names a member of staff and their email address.
+- **One agreement at sign-up**, worded as the terms word it: "I have
+  read and agree to the ASTRAL Hackathon Participant Terms and
+  Conditions, including the ASTRAL Code of Conduct and Anti-Harassment
+  Policy." Before, there were two boxes, the second saying
+  contributions would be used "under restricted access", which the new
+  terms do not say. Agreeing records both the participation and the
+  research-use agreement, since section 12 makes them one. The optional
+  question about public release is unchanged. The in-text checkbox line
+  under "Acceptance" was left out of the document, because the form
+  supplies the box.
+- "Study information" is now "Terms and Conditions" wherever a
+  participant reads it.
+
+### Starting a session in a folder
+
+- **The folder's page opens with a "New session" button**, beside its
+  title, above everything else. It used to sit beside the list of
+  sessions further down.
+- **The folder's row in the list has a "+"** at its right-hand end,
+  which goes straight to a new session in that folder. It is there
+  while the folder is open and gone once the folder is submitted.
+
+Tests: the default terms load into the box and cannot be published
+with the note in them; sign-up has one agreement, refused without it;
+the "+" in the list starts a session in the folder and is gone after
+the folder is submitted; "New session" is above the folder's questions.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

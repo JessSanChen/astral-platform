@@ -254,9 +254,10 @@ labels, old review and nomination pages would show old data only.
   during the event: removing a model stops conversations already on it.
 - `npm run prod:check-models` and `npm run prod:check-scanners`, so a model
   that has been retired is a thing you find now rather than at 10am.
-- Replace the placeholder terms, from **Organize → Terms**. They are seeded
-  as version 1; publishing a version 2 makes everyone accept it again, so do
-  this before people sign up.
+- Publish the terms, from **Organize → Terms**. "Load the default terms"
+  puts the participant terms and conditions in the box; finish the parts
+  marked for the organizer, then publish. Publishing makes everyone accept
+  again, so do this before people sign up.
 - Decide who else should be an organizer and promote them from the
   participants table once they have signed up. Nothing grants the role at
   sign-up any more, so there is no list to get right in advance.

@@ -130,8 +130,12 @@ test.describe("writing conversations", () => {
     await expect(page.getByRole("radio", { name: "Researcher or scientist", exact: true })).toBeChecked();
     await expect(page.getByRole("checkbox", { name: "Conduct research or investigate a question" })).toBeChecked();
 
-    // Another session, on a different model, starting from nothing.
-    await page.getByRole("button", { name: "New session" }).click();
+    // Another session, on a different model, starting from nothing. The
+    // folder's row in the list has a + for exactly this.
+    await page
+      .getByRole("navigation", { name: "My work" })
+      .getByRole("link", { name: /^New session in Folder \d+$/ })
+      .click();
     await expect(page.getByRole("heading", { name: /^New session in Folder \d+$/ })).toBeVisible();
     await expect(page.getByRole("radio", { name: /^Folder/ })).toHaveCount(0);
     const other = DEFAULT_MODELS[2];
@@ -206,6 +210,12 @@ test.describe("writing conversations", () => {
     await page.waitForURL(`**/chat/folder/${episodeId}`);
     await expect(page.getByRole("radio", { name: "Researcher or scientist", exact: true })).toBeChecked();
     await expect(page.getByText(other.displayName)).toBeVisible();
+    // Starting a session is the first thing on the folder's page, above
+    // its questions.
+    const starter = page.getByRole("main").getByRole("button", { name: "New session" });
+    const about = page.getByRole("heading", { name: "About the folder" });
+    expect((await starter.boundingBox())!.y).toBeLessThan((await about.boundingBox())!.y);
+    await expect(page.getByRole("main").getByRole("button", { name: "New session" })).toHaveCount(1);
     await page.getByRole("radio", { name: "Student or learner", exact: true }).check();
     await expect(page.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
     expect((await folder()).author_labels).toMatchObject({ role: "student" });
@@ -222,6 +232,8 @@ test.describe("writing conversations", () => {
     await submitWork(page, { ...PLAIN_ANSWERS, role: "Researcher or scientist" });
     await expect(nav.getByRole("link", { name: /^Folder \d+/ })).toContainText("Submitted");
     await expect(nav.getByRole("link", { name: /^Folder \d+/ })).not.toContainText("Not submitted");
+    // Nothing can be added to a submitted folder, so its + is gone.
+    await expect(nav.getByRole("link", { name: /^New session in Folder \d+$/ })).toHaveCount(0);
 
     // Each session by itself, and the two together in the order things
     // happened, under neutral names.
