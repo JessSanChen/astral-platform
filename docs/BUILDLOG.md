@@ -2894,6 +2894,88 @@ no longer in it; the new names.
 
 ---
 
+## Round 33: a list of your reviews, reopening and changing them, straight on to the next record
+
+From the organizer, using the Review pages as a reviewer.
+
+### What was asked and what was done
+
+- **"After I submitted a review a whole new page came up confirming it
+  and sent me back to the landing page."** Submitting now goes
+  **straight to the next record** of the same kind. Only when there is
+  no next record does it go back to Review, which then says what was
+  recorded and why nothing followed. Skipping does the same.
+
+  The page seen was "You have finished this one", a dead end meant for
+  someone returning to an old address. It could replace the form after
+  a submit, because the page behind the form can be asked for again
+  once the record is finished. That page no longer exists for finished
+  records: they open as below.
+
+- **A list of your own reviews, beside every Review page**, as the
+  interface had before v1.1. "In progress" has the transcript review
+  and the comparison in hand, if any. "Completed" has everything
+  finished, newest first. Records are numbered ("Transcript 3"), never
+  named: a reviewer is not shown a title or anything about an author.
+
+- **A finished review or comparison opens again with its answers, and
+  they can be changed.** The button reads "Update review" or "Update
+  comparison". **Every earlier version is kept** (`review_revision`,
+  migration 0020), with the first answer as version 1, so the first,
+  independent judgment is never lost. The current answers carry
+  `revised_at` and `revision_count`, and the list marks a changed item.
+  Saving with nothing different is not a change. All of this is in the
+  export.
+
+  This replaces "a review is final", which is what the specification
+  asks for. The reason for that rule is that a judgment changed after
+  seeing other records, or after talking to people, is no longer
+  independent. Keeping the first version answers that: analysis can
+  take first answers only, latest only, or study what changed.
+
+- **The comparison screen is laid out like the transcript review**:
+  the "Skip this one" box first, then a line on what is being judged,
+  then the instructions folded away, then the questions.
+
+- **"Why am I given nothing to review when there are unreviewed
+  transcripts?"** The usual reasons, in order: the work is your own;
+  you have already been shown it (reviewed, compared, skipped, or in
+  progress), and a piece of work is shown to a person once, in one way;
+  it already has all its reviews; an organizer has held it back. In the
+  example given, the organizer had compared that pair, so neither side
+  can be reviewed by them: comparing shows what the author set out to
+  explore, which a reviewer of either side must not know.
+
+  Two changes came out of it. **"Nothing right now" now says why, in
+  numbers**: how many records there are and how many fall under each
+  reason (`whyNothing` in `lib/assignments.ts`). And **a record whose
+  hold only ran out, with nothing recorded, can come back to the same
+  person**; before, a record left open past the reservation time was
+  closed to that person for good, which uses up a small pool quickly
+  when testing.
+
+- **"27 sessions in 24 pieces of work?"** A folder is one piece of
+  work and holds several sessions. The overview now says
+  "Conversations and folders submitted", how many of each, and that a
+  folder counts once.
+
+### Where
+
+`components/review-sidebar.tsx` and `app/review/layout.tsx` (the list);
+`components/review-workspace.tsx` and `components/pair-audit-workspace.tsx`
+(reopening, the common layout, going on to the next record);
+`submitReview` and `submitAudit` in `lib/assignments.ts` (a change is
+the same call as a first answer, and keeps what it replaces).
+
+Tests: a finished review is in the list by number, opens with its
+answers, is changed with the earlier version kept, and saving again
+changes nothing; the same for a comparison; submitting goes to the next
+record with no page between; a timed-out record is given again; the
+reasons for "nothing" are stated; the comparison form opens with the
+way to skip and folded instructions.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

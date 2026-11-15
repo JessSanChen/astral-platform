@@ -229,6 +229,7 @@ that renames them. They mean the review instructions.
 | Ready / Held / Withdrawn | Built: available on arrival; an organizer can hold, withdraw or restore | Organize → Submissions |
 | General, Routine (F2 or F3 in a listed subject), Specialist (F3) | Removed at the organizer's request | reviewers are not matched on subject knowledge; they skip instead |
 | "Other" and the focus tags never grant eligibility | No longer applies | nothing grants or limits eligibility |
+| A submitted review is final | Changed at the organizer's request (round 33): a reviewer can reopen a finished review or comparison and change it. Every earlier version is kept, the first as version 1, so first answers can still be analysed alone | `review_revision`, `revised_at`, `revision_count` |
 | One active item per reviewer, enforced by the database | Changed at the organizer's request: one transcript review and one comparison can be in progress together, never two of a kind | unique index `review_assignment_one_active_uq` on reviewer and kind (migration 0016) |
 | Never your own work; never two views from one family | Built | unique index `review_assignment_family_uq` plus the selection query |
 | Exposure recorded when the item is handed over | Built | the assignment row is the record; skips and expiries are kept |

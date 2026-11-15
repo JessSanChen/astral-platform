@@ -46,6 +46,9 @@ These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
   and I will make them agree.
 - **Six smaller points from the review of rounds 29 and 30** are listed
   at the end of round 31 in the build log, not fixed. None loses data.
+- **Reviews can now be changed after submitting** (round 33). The
+  specification says a review is final. Earlier versions are kept, so
+  an analysis can use first answers only. Decide which you will report.
 - **The revised infohazard guide.** You said you had tidied the wording;
   the new text did not reach me. Paste it, or edit
   `lib/infohazard-guide.ts`, which is the only place it lives.
