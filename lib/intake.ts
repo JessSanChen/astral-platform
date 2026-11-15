@@ -14,7 +14,11 @@ import { z } from "zod";
 // assess is asked beside the areas, not in a section of its own; the rows
 // about writing, teaching and other work, and the questions on biosafety
 // and biosecurity experience, are gone; two focus tags became one.
-export const INTAKE_VERSION = "A-1.2";
+// A-1.3: fewer ways not to answer. The role, the kinds of work and the
+// use of AI assistants no longer offer "prefer not to say", and the last
+// is required; the question about AI safety and biosecurity is required,
+// with "Neither" as an answer; primary area and specialization are gone.
+export const INTAKE_VERSION = "A-1.3";
 
 type Choice = { value: string; label: string };
 
@@ -99,7 +103,6 @@ export const ROLES: Choice[] = [
   { value: "policy_safety", label: "Policy or safety professional" },
   { value: "independent_researcher", label: "Independent researcher" },
   { value: "other", label: "Other" },
-  { value: "prefer_not_to_say", label: "Prefer not to say" },
 ];
 
 /* ---- A04: work personally performed --------------------------------- */
@@ -119,7 +122,6 @@ export const EXPERIENCE_BANDS: Choice[] = [
   { value: "applied_1_to_under_3_years", label: "1 to under 3 years of applied experience" },
   { value: "applied_3_to_under_8_years", label: "3 to under 8 years of applied experience" },
   { value: "applied_8_plus_years", label: "8 or more years of applied experience" },
-  { value: "prefer_not_to_say", label: "Prefer not to say" },
 ];
 
 /* ---- A05: topic-specific review familiarity ------------------------- */
@@ -148,16 +150,12 @@ export const AI_USE: Choice[] = [
   { value: "monthly", label: "Monthly" },
   { value: "weekly", label: "Weekly" },
   { value: "daily_or_almost_daily", label: "Daily or almost daily" },
-  { value: "prefer_not_to_say", label: "Prefer not to say" },
 ];
 
 /* ---- The answers, and what makes them complete ---------------------- */
 
 const values = (choices: Choice[]) => choices.map((c) => c.value) as [string, ...string[]];
 const shortText = (max: number) => z.string().trim().max(max).optional().default("");
-const optionalChoice = (choices: Choice[]) =>
-  z.preprocess((v) => (v === "" || v == null ? undefined : v), z.enum(values(choices)).optional());
-
 export const intakeSchema = z
   .object({
     // Checked below with the rest, not here: a failure here would stop the
@@ -170,24 +168,22 @@ export const intakeSchema = z
     // "none" and "prefer_not_to_say", ticked in the same list as the areas.
     backgroundFlags: z.array(z.enum(values(BACKGROUND_ALONE))).default([]),
     otherDomainText: shortText(120),
-    // A selected area, or "no_single" for no single primary area.
-    primaryDomain: z.string().trim().max(60).optional().default(""),
-    specializationText: shortText(200),
     focusTags: z.array(z.enum(values(FOCUS_TAGS))).default([]),
+    // "Neither", which is an answer; nothing ticked at all is not.
+    focusNone: z.boolean().default(false),
     // What the person could assess, for up to three of the areas ticked.
     familiarity: z.record(z.string(), z.enum(values(FAMILIARITY_LEVELS))).default({}),
 
-    workResponse: z.enum(["answered", "prefer_not_to_say"]).default("answered"),
     work: z.record(z.string(), z.enum(values(EXPERIENCE_BANDS))).default({}),
 
-    aiUse: optionalChoice(AI_USE),
+    aiUse: z.preprocess((v) => v ?? "", z.string().max(60)),
   })
   .superRefine((a, ctx) => {
     const fail = (path: string, message: string) =>
       ctx.addIssue({ code: "custom", path: [path], message });
 
     if (!ROLES.some((r) => r.value === a.role)) {
-      fail("role", "Choose your current role, or prefer not to say.");
+      fail("role", "Choose your current role.");
     }
 
     const areas = a.backgroundDomains.length > 0;
@@ -209,21 +205,24 @@ export const intakeSchema = z
       fail("familiarity", "Rate only areas you ticked.");
     }
 
-    if (a.workResponse === "answered") {
-      const missing = WORK_AREAS.filter((w) => !a.work[w.key]);
-      if (missing.length > 0) {
-        fail(
-          "work",
-          `Choose an answer for each row (${missing.length} left), or prefer not to say for the whole question.`,
-        );
-      }
+    if (a.focusTags.length === 0 && !a.focusNone) {
+      fail("focusTags", "Tick one or both, or Neither.");
+    }
+
+    const missing = WORK_AREAS.filter((w) => !a.work[w.key]);
+    if (missing.length > 0) {
+      fail("work", `Choose an answer for each row (${missing.length} left).`);
+    }
+
+    if (!AI_USE.some((c) => c.value === a.aiUse)) {
+      fail("aiUse", "Say how often you use AI assistants.");
     }
   })
   // What is stored keeps the shape the rest of the platform reads: one
   // answer about background, one about rating, each worked out from what
   // was ticked. Answers that only mean something beside another answer are
   // dropped when that answer changes, so nothing stale is stored next to it.
-  .transform(({ backgroundFlags, ...a }) => {
+  .transform(({ backgroundFlags, focusNone, ...a }) => {
     const domains = a.backgroundDomains;
     const backgroundResponse =
       domains.length > 0 ? "selected_areas" : (backgroundFlags[0] ?? "prefer_not_to_say");
@@ -232,15 +231,11 @@ export const intakeSchema = z
       ...a,
       backgroundResponse,
       otherDomainText: domains.includes("other") ? a.otherDomainText : "",
-      primaryDomain:
-        a.primaryDomain === "no_single" || domains.includes(a.primaryDomain as (typeof DOMAIN_IDS)[number])
-          ? a.primaryDomain
-          : "",
+      focusTags: focusNone ? [] : a.focusTags,
       roleOther: a.role === "other" ? a.roleOther : "",
-      work:
-        a.workResponse === "answered"
-          ? Object.fromEntries(WORK_AREAS.filter((w) => a.work[w.key]).map((w) => [w.key, a.work[w.key]]))
-          : {},
+      // Every row is answered now; kept so the stored shape does not change.
+      workResponse: "answered",
+      work: Object.fromEntries(WORK_AREAS.map((w) => [w.key, a.work[w.key]])),
       familiarityResponse: rated
         ? "rated_areas"
         : backgroundResponse === "prefer_not_to_say"
@@ -261,11 +256,9 @@ export type IntakeDraft = {
   backgroundDomains: string[];
   backgroundFlags: string[];
   otherDomainText: string;
-  primaryDomain: string;
-  specializationText: string;
   focusTags: string[];
+  focusNone: boolean;
   familiarity: Record<string, string>;
-  workResponse: string;
   work: Record<string, string>;
   aiUse: string;
 };
@@ -276,11 +269,9 @@ export const EMPTY_INTAKE: IntakeDraft = {
   backgroundDomains: [],
   backgroundFlags: [],
   otherDomainText: "",
-  primaryDomain: "",
-  specializationText: "",
   focusTags: [],
+  focusNone: false,
   familiarity: {},
-  workResponse: "answered",
   work: {},
   aiUse: "",
 };
@@ -292,10 +283,14 @@ export const EMPTY_INTAKE: IntakeDraft = {
  */
 export function intakeDraft(stored: unknown): IntakeDraft {
   const s = (stored ?? {}) as Partial<Intake> & { focusTags?: string[] };
-  const tags = (s.focusTags ?? []).map((t) => OLDER_FOCUS_TAGS[t] ?? t);
+  const older = (s.focusTags ?? []).map((t) => OLDER_FOCUS_TAGS[t] ?? t);
+  const tags = FOCUS_TAGS.map((t) => t.value).filter((t) => older.includes(t));
   const work = s.work ?? {};
+  const known = (choices: Choice[], value: string | undefined) =>
+    choices.some((c) => c.value === value) ? (value as string) : "";
   return {
-    role: s.role ?? "",
+    // An answer the form no longer offers is asked again.
+    role: known(ROLES, s.role),
     roleOther: s.roleOther ?? "",
     backgroundDomains: s.backgroundDomains ?? [],
     backgroundFlags:
@@ -303,13 +298,14 @@ export function intakeDraft(stored: unknown): IntakeDraft {
         ? [s.backgroundResponse]
         : [],
     otherDomainText: s.otherDomainText ?? "",
-    primaryDomain: s.primaryDomain ?? "",
-    specializationText: s.specializationText ?? "",
-    focusTags: FOCUS_TAGS.map((t) => t.value).filter((t) => tags.includes(t)),
+    focusTags: tags,
+    // Someone who has been through the form and ticked neither said Neither.
+    focusNone: Boolean(s.role) && tags.length === 0,
     familiarity: s.familiarity ?? {},
-    workResponse: s.workResponse ?? "answered",
-    work: Object.fromEntries(WORK_AREAS.filter((w) => work[w.key]).map((w) => [w.key, work[w.key]])),
-    aiUse: s.aiUse ?? "",
+    work: Object.fromEntries(
+      WORK_AREAS.filter((w) => known(EXPERIENCE_BANDS, work[w.key])).map((w) => [w.key, work[w.key]]),
+    ),
+    aiUse: known(AI_USE, s.aiUse),
   };
 }
 

@@ -31,16 +31,18 @@ import {
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { PROVENANCE_VALUES } from "@/lib/episode-options";
 import { submitEpisode } from "@/lib/episodes";
-import { INTAKE_VERSION, intakeSchema } from "@/lib/intake";
+import { INTAKE_VERSION, WORK_AREAS, intakeSchema } from "@/lib/intake";
 
 // The shortest set of intake answers the form would accept: no specialized
 // background, nothing to rate. Run through the form's own checks, so this
 // fails loudly here if the form changes rather than storing something the
 // platform would never have let through.
 const INTAKE = intakeSchema.parse({
-  role: "prefer_not_to_say",
+  role: "other",
   backgroundFlags: ["none"],
-  workResponse: "prefer_not_to_say",
+  focusNone: true,
+  work: Object.fromEntries(WORK_AREAS.map((w) => [w.key, "none"])),
+  aiUse: "weekly",
 });
 
 const USERS = Number(process.argv[2] ?? 20);

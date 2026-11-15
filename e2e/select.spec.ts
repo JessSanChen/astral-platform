@@ -67,7 +67,7 @@ test.describe("the dropdown", () => {
     await field.click();
 
     const list = page.getByRole("listbox");
-    await expect(list.getByRole("option")).toHaveCount(8);
+    await expect(list.getByRole("option")).toHaveCount(6);
     await list.getByRole("option", { name: "Coursework or training only" }).click();
 
     await field.click();

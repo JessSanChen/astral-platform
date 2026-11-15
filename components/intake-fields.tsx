@@ -44,7 +44,8 @@ export function IntakeFields({
   const ratedCount = Object.keys(values.familiarity).length;
   // Said as soon as it happens, not only when the form is sent.
   const conflict =
-    (values.backgroundDomains.length > 0 && values.backgroundFlags.length > 0) ||
+    (values.backgroundDomains.length > 0 &&
+      values.backgroundFlags.length > 0) ||
     values.backgroundFlags.length > 1;
 
   return (
@@ -88,7 +89,9 @@ export function IntakeFields({
         <div
           className={cn(
             "space-y-4 rounded-[var(--radius)] border bg-card p-4",
-            conflict || errors.backgroundDomains ? "border-danger/50" : "border-border",
+            conflict || errors.backgroundDomains
+              ? "border-danger/50"
+              : "border-border",
           )}
         >
           {DOMAIN_GROUPS.map((group) => (
@@ -104,18 +107,14 @@ export function IntakeFields({
                       className="mt-0.5 h-4 w-4 shrink-0"
                       checked={values.backgroundDomains.includes(d.id)}
                       onChange={(e) => {
-                        const next = toggle(values.backgroundDomains, d.id, e.target.checked);
+                        const next = toggle(
+                          values.backgroundDomains,
+                          d.id,
+                          e.target.checked,
+                        );
                         const familiarity = { ...values.familiarity };
                         if (!e.target.checked) delete familiarity[d.id];
-                        onChange({
-                          backgroundDomains: next,
-                          familiarity,
-                          primaryDomain: next.includes(values.primaryDomain)
-                            ? values.primaryDomain
-                            : values.primaryDomain === "no_single"
-                              ? "no_single"
-                              : "",
-                        });
+                        onChange({ backgroundDomains: next, familiarity });
                       }}
                     />
                     {d.label}
@@ -129,14 +128,21 @@ export function IntakeFields({
             <legend className="sr-only">Or</legend>
             <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
               {BACKGROUND_ALONE.map((answer) => (
-                <label key={answer.value} className="flex items-start gap-2 text-sm">
+                <label
+                  key={answer.value}
+                  className="flex items-start gap-2 text-sm"
+                >
                   <input
                     type="checkbox"
                     className="mt-0.5 h-4 w-4 shrink-0"
                     checked={values.backgroundFlags.includes(answer.value)}
                     onChange={(e) =>
                       onChange({
-                        backgroundFlags: toggle(values.backgroundFlags, answer.value, e.target.checked),
+                        backgroundFlags: toggle(
+                          values.backgroundFlags,
+                          answer.value,
+                          e.target.checked,
+                        ),
                       })
                     }
                   />
@@ -151,11 +157,17 @@ export function IntakeFields({
               {BACKGROUND_CONFLICT}
             </p>
           ) : (
-            errors.backgroundDomains && <Complaint>{errors.backgroundDomains}</Complaint>
+            errors.backgroundDomains && (
+              <Complaint>{errors.backgroundDomains}</Complaint>
+            )
           )}
 
           {values.backgroundDomains.includes("other") && (
-            <Field label="Which other area?" htmlFor="otherDomainText" error={errors.otherDomainText}>
+            <Field
+              label="Which other area?"
+              htmlFor="otherDomainText"
+              error={errors.otherDomainText}
+            >
               <Input
                 id="otherDomainText"
                 maxLength={120}
@@ -176,10 +188,10 @@ export function IntakeFields({
               <p className="text-xs leading-relaxed text-muted-foreground">
                 Pick the areas you know best and say how far you could judge
                 whether a conversation in that area is scientifically or
-                technically plausible. This decides which conversations you
-                can be asked to review. It is your own estimate, not a
-                credential; you can leave an area unrated, and you can always
-                skip a review that turns out to be beyond you.
+                technically plausible. This decides which conversations you can
+                be asked to review. It is your own estimate, not a credential;
+                you can leave an area unrated, and you can always skip a review
+                that turns out to be beyond you.
               </p>
               <p className="text-xs text-muted-foreground">
                 {ratedCount} of up to {MAX_RATED_AREAS} rated.
@@ -200,68 +212,67 @@ export function IntakeFields({
                     onChange({ familiarity });
                   }}
                   placeholder="Not rated"
-                  options={[{ value: "", label: "Not rated" }, ...FAMILIARITY_LEVELS]}
+                  options={[
+                    { value: "", label: "Not rated" },
+                    ...FAMILIARITY_LEVELS,
+                  ]}
                 />
               </div>
             ))}
             {(errors.familiarity || ratedCount > MAX_RATED_AREAS) && (
               <Complaint>
-                {errors.familiarity ?? `Rate at most ${MAX_RATED_AREAS} areas: the ones you know best.`}
+                {errors.familiarity ??
+                  `Rate at most ${MAX_RATED_AREAS} areas: the ones you know best.`}
               </Complaint>
             )}
           </div>
         )}
 
-        {values.backgroundDomains.length > 0 && (
-          <div className="grid gap-5 sm:grid-cols-2">
-            {values.backgroundDomains.length > 1 && (
-              <Field label="Your primary area (optional)" htmlFor="primaryDomain">
-                <Select
-                  id="primaryDomain"
-                  value={values.primaryDomain}
-                  onChange={(v) => onChange({ primaryDomain: v })}
-                  placeholder="Select..."
-                  options={[
-                    { value: "", label: "Not answered" },
-                    ...values.backgroundDomains.map((id) => ({
-                      value: id,
-                      label: id === "other" ? "Other" : domainLabel(id),
-                    })),
-                    { value: "no_single", label: "No single primary area" },
-                  ]}
-                />
-              </Field>
-            )}
-            <Field label="Your narrower specialization (optional)" htmlFor="specializationText">
-              <Input
-                id="specializationText"
-                maxLength={200}
-                value={values.specializationText}
-                onChange={(e) => onChange({ specializationText: e.target.value })}
-              />
-            </Field>
-          </div>
-        )}
-
-        <fieldset>
+        <fieldset aria-invalid={errors.focusTags ? true : undefined}>
           <legend className="text-sm font-medium">
-            Do either of these also describe your work? (optional)
+            Do either of these also describe your work?
           </legend>
           <div className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1.5">
             {FOCUS_TAGS.map((tag) => (
-              <label key={tag.value} className="flex items-center gap-2 text-sm">
+              <label
+                key={tag.value}
+                className="flex items-center gap-2 text-sm"
+              >
                 <input
                   type="checkbox"
                   className="h-4 w-4"
                   checked={values.focusTags.includes(tag.value)}
                   onChange={(e) =>
-                    onChange({ focusTags: toggle(values.focusTags, tag.value, e.target.checked) })
+                    onChange({
+                      focusTags: toggle(
+                        values.focusTags,
+                        tag.value,
+                        e.target.checked,
+                      ),
+                      focusNone: false,
+                    })
                   }
                 />
                 {tag.label}
               </label>
             ))}
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={values.focusNone}
+                onChange={(e) =>
+                  onChange(
+                    e.target.checked
+                      ? { focusNone: true, focusTags: [] }
+                      : { focusNone: false },
+                  )
+                }
+              />
+              Neither
+            </label>
           </div>
+          {errors.focusTags && <Complaint>{errors.focusTags}</Complaint>}
         </fieldset>
       </Section>
 
@@ -271,63 +282,56 @@ export function IntakeFields({
         question="What kinds of work have you personally done, and approximately how much experience do you have in each?"
         note="Overlapping work can count in more than one row. An applied student project counts as applied work."
       >
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={values.workResponse === "prefer_not_to_say"}
-            onChange={(e) =>
-              onChange({ workResponse: e.target.checked ? "prefer_not_to_say" : "answered" })
-            }
-          />
-          Prefer not to say, for this whole question
-        </label>
-
-        {values.workResponse === "answered" && (
-          <div className="divide-y divide-border rounded-[var(--radius)] border border-border bg-card">
-            {WORK_AREAS.map((area) => (
-              <div
-                key={area.key}
-                className="grid items-center gap-x-4 gap-y-1.5 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_17rem]"
-              >
-                <div>
-                  <p id={`work-${area.key}-label`} className="text-sm font-medium">
-                    {area.label}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{area.help}</p>
-                </div>
-                <Select
-                  id={`work-${area.key}`}
-                  aria-label={area.label}
-                  value={values.work[area.key] ?? ""}
-                  onChange={(v) => {
-                    const work = { ...values.work };
-                    if (v) work[area.key] = v;
-                    else delete work[area.key];
-                    onChange({ work });
-                  }}
-                  placeholder="Select..."
-                  options={[{ value: "", label: "Not answered" }, ...EXPERIENCE_BANDS]}
-                />
+        <div className="divide-y divide-border rounded-[var(--radius)] border border-border bg-card">
+          {WORK_AREAS.map((area) => (
+            <div
+              key={area.key}
+              className="grid items-center gap-x-4 gap-y-1.5 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_17rem]"
+            >
+              <div>
+                <p
+                  id={`work-${area.key}-label`}
+                  className="text-sm font-medium"
+                >
+                  {area.label}
+                </p>
+                <p className="text-xs text-muted-foreground">{area.help}</p>
               </div>
-            ))}
-          </div>
-        )}
+              <Select
+                id={`work-${area.key}`}
+                aria-label={area.label}
+                value={values.work[area.key] ?? ""}
+                onChange={(v) => {
+                  const work = { ...values.work };
+                  if (v) work[area.key] = v;
+                  else delete work[area.key];
+                  onChange({ work });
+                }}
+                required
+                placeholder="Select..."
+                options={EXPERIENCE_BANDS}
+              />
+            </div>
+          ))}
+        </div>
         {errors.work && <Complaint>{errors.work}</Complaint>}
       </Section>
 
       {/* A07 */}
       <Section title="AI assistants">
         <Field
-          label="How often do you currently use AI assistants? (optional)"
+          label="How often do you currently use AI assistants?"
           htmlFor="aiUse"
+          error={errors.aiUse}
         >
           <Select
             id="aiUse"
             value={values.aiUse}
             onChange={(v) => onChange({ aiUse: v })}
+            required
+            invalid={Boolean(errors.aiUse)}
             placeholder="Select..."
-            options={[{ value: "", label: "Not answered" }, ...AI_USE]}
+            options={AI_USE}
           />
         </Field>
       </Section>
@@ -351,7 +355,11 @@ function Section({
       <div className="space-y-1">
         <h3 className="font-serif text-lg font-medium">{title}</h3>
         {question && <p className="text-sm leading-relaxed">{question}</p>}
-        {note && <p className="text-xs leading-relaxed text-muted-foreground">{note}</p>}
+        {note && (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {note}
+          </p>
+        )}
       </div>
       {children}
     </section>

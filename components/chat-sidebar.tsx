@@ -66,7 +66,7 @@ export function ChatSidebar() {
           href="/chat?folder=1"
           className="flex items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border bg-card px-2 py-2 text-sm font-medium hover:bg-muted"
         >
-          <Folder className="h-4 w-4" />
+          <Plus className="h-4 w-4" />
           Folder
         </Link>
       </div>

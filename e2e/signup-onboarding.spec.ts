@@ -6,8 +6,8 @@ import {
   agreeToStudy,
   choose,
   fillIntake,
+  fillWorkRows,
   finishOnboarding,
-  skipWorkRows,
   signUp,
   uniqueEmail,
 } from "./helpers";
@@ -133,6 +133,14 @@ test.describe("getting in", () => {
       "AI assistants",
     ]);
     await expect(page.getByText("Other technical fields")).toBeVisible();
+    // One way of declining is left, in the list of subject areas. Nothing
+    // in the background questions is marked optional.
+    const background = page.locator("section").filter({
+      has: page.getByRole("heading", { name: "About your background" }),
+    });
+    await expect(background.getByText("Prefer not to say")).toHaveCount(1);
+    await expect(background.getByText(/\(optional\)/)).toHaveCount(0);
+    await expect(background.getByText(/primary area|specialization/i)).toHaveCount(0);
 
     await finishOnboarding(page, { area: INTAKE.virology, level: INTAKE.specialist });
     await expect(page.getByRole("heading", { name: "New conversation" })).toBeVisible();
@@ -144,12 +152,16 @@ test.describe("getting in", () => {
       backgroundDomains: ["bio_microbiology"],
       familiarityResponse: "rated_areas",
       familiarity: { bio_microbiology: "F3" },
-      workResponse: "prefer_not_to_say",
+      focusTags: [],
+      work: { wet_lab: "none", clinical: "none" },
+      aiUse: "weekly",
     });
-    // Questions that are no longer asked leave nothing behind.
-    expect(row.intake).not.toHaveProperty("biosafety");
-    expect(row.intake).not.toHaveProperty("backgroundFlags");
-    expect(row.intake_version).toBe("A-1.2");
+    // Questions that are no longer asked, and the form's own bookkeeping,
+    // leave nothing behind.
+    for (const gone of ["biosafety", "primaryDomain", "specializationText", "backgroundFlags", "focusNone"]) {
+      expect(row.intake).not.toHaveProperty(gone);
+    }
+    expect(row.intake_version).toBe("A-1.3");
     expect(row.participation_agreed_at).not.toBeNull();
     expect(row.research_use_agreed_at).not.toBeNull();
     // Left unanswered is stored as unanswered, not as No.
@@ -188,18 +200,22 @@ test.describe("getting in", () => {
     await agreeToStudy(page);
     await page.getByRole("checkbox", { name: INTAKE.noBackground }).check();
     await choose(page, INTAKE.wetLab, "Coursework or training only");
-    // The role, and four of the five kinds of work, deliberately left alone.
+    // The role, four of the five kinds of work, the two tick boxes about
+    // AI safety and biosecurity, and AI use, deliberately left alone.
     await page.getByRole("button", { name: "Continue" }).click();
 
+    // Every one of them is named, at once.
     await expect(page.getByText("Please complete the highlighted answers.")).toBeVisible();
-    await expect(page.getByText("Choose your current role, or prefer not to say.")).toBeVisible();
-    await expect(page.getByText(/Choose an answer for each row \(4 left\)/)).toBeVisible();
+    await expect(page.getByText("Choose your current role.")).toBeVisible();
+    await expect(page.getByText("Choose an answer for each row (4 left).")).toBeVisible();
+    await expect(page.getByText("Tick one or both, or Neither.")).toBeVisible();
+    await expect(page.getByText("Say how often you use AI assistants.")).toBeVisible();
     await expect(page).toHaveURL(/\/onboarding$/);
     // A screen reader is told which field it is.
     const role = page.getByLabel(INTAKE.role, { exact: true });
     await expect(role).toHaveAttribute("aria-invalid", "true");
     await expect(role).toHaveAttribute("aria-required", "true");
-    await expect(role).toHaveAccessibleDescription("Choose your current role, or prefer not to say.");
+    await expect(role).toHaveAccessibleDescription("Choose your current role.");
     await expect(page.getByLabel(INTAKE.wetLab, { exact: true })).toContainText(
       "Coursework or training only",
     );
@@ -211,7 +227,14 @@ test.describe("getting in", () => {
     await signUp(page, "Connie Conflict", email);
     await agreeToStudy(page);
     await choose(page, INTAKE.role, "Doctoral student");
-    await skipWorkRows(page);
+    await page.getByRole("checkbox", { name: "AI safety and alignment" }).check();
+    // "Neither" and a tick beside it cannot both stand: the later one wins.
+    await page.getByRole("checkbox", { name: "Neither", exact: true }).check();
+    await expect(page.getByRole("checkbox", { name: "AI safety and alignment" })).not.toBeChecked();
+    await page.getByRole("checkbox", { name: "Biosecurity", exact: true }).check();
+    await expect(page.getByRole("checkbox", { name: "Neither", exact: true })).not.toBeChecked();
+    await fillWorkRows(page);
+    await choose(page, INTAKE.aiUse, "Daily or almost daily");
 
     // Nothing ticked at all is refused, by name.
     await page.getByRole("button", { name: "Continue" }).click();
@@ -236,6 +259,8 @@ test.describe("getting in", () => {
       backgroundDomains: ["bio_immunology"],
       familiarityResponse: "none_to_rate",
       familiarity: {},
+      focusTags: ["biosecurity"],
+      aiUse: "daily_or_almost_daily",
     });
   });
 
@@ -248,7 +273,9 @@ test.describe("getting in", () => {
     await expect(which).toHaveCount(0);
     await page.getByRole("checkbox", { name: /^Other/ }).check();
     await expect(which).toBeVisible();
-    await skipWorkRows(page);
+    await page.getByRole("checkbox", { name: "Neither", exact: true }).check();
+    await fillWorkRows(page);
+    await choose(page, INTAKE.aiUse, "Never");
 
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Please say which other area.")).toBeVisible();

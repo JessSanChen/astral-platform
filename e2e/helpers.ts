@@ -55,7 +55,14 @@ export const INTAKE = {
     "I can assess specialized or ambiguous work and explain its important limitations in this area.",
   virology: "Microbiology and virology",
   wetLab: "Wet-lab research",
-  aiUse: "How often do you currently use AI assistants? (optional)",
+  workRows: [
+    "Wet-lab research",
+    "Computational or statistical research",
+    "Clinical or patient-facing work",
+    "Public-health practice or field research",
+    "Software, AI, or research engineering",
+  ],
+  aiUse: "How often do you currently use AI assistants?",
 } as const;
 
 /** Someone who says they can assess one subject, and how well. */
@@ -66,12 +73,12 @@ export async function agreeToStudy(page: Page) {
   await page.getByRole("checkbox", { name: /may be used for the\s+stated research/ }).check();
 }
 
-/** The five rows about kinds of work, answered in one go. */
-export async function skipWorkRows(page: Page) {
-  await page.getByRole("checkbox", { name: "Prefer not to say, for this whole question" }).check();
+/** The five rows about kinds of work, each answered. */
+export async function fillWorkRows(page: Page, rows: readonly string[] = INTAKE.workRows) {
+  for (const row of rows) await choose(page, row, "None");
 }
 
-/** The intake questions that have to be answered, answered. */
+/** The intake questions, answered. */
 export async function fillIntake(page: Page, expertise?: Expertise) {
   await choose(page, INTAKE.role, "Postdoctoral researcher");
   if (expertise) {
@@ -80,7 +87,9 @@ export async function fillIntake(page: Page, expertise?: Expertise) {
   } else {
     await page.getByRole("checkbox", { name: INTAKE.noBackground }).check();
   }
-  await skipWorkRows(page);
+  await page.getByRole("checkbox", { name: "Neither", exact: true }).check();
+  await fillWorkRows(page);
+  await choose(page, INTAKE.aiUse, "Weekly");
 }
 
 export async function finishOnboarding(page: Page, expertise?: Expertise) {
@@ -190,7 +199,8 @@ export async function getReview(page: Page) {
 
 export type ReviewChoices = {
   verdict: "Yes" | "No" | "Cannot determine under this policy and record";
-  basis: RegExp | string;
+  /** Null where the policy lists no rules and the question is not asked. */
+  basis: RegExp | string | null;
   confidence: "Low" | "Moderate" | "High";
   /** Turn numbers to click; none means the absence-based answer. */
   turns: number[];
@@ -210,7 +220,9 @@ export async function fillReview(page: Page, choices: ReviewChoices = A_NO) {
   const form = reviewForm(page);
   const question = (id: string) => form.locator(`[data-question="${id}"]`);
   await question("verdict").getByRole("radio", { name: choices.verdict, exact: true }).check();
-  await question("policyBasis").getByRole("radio", { name: choices.basis }).check();
+  if (choices.basis !== null) {
+    await question("policyBasis").getByRole("radio", { name: choices.basis }).check();
+  }
   await question("confidence").getByRole("radio", { name: choices.confidence, exact: true }).check();
   if (choices.turns.length) {
     for (const n of choices.turns) {
