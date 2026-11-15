@@ -160,7 +160,10 @@ const optionalChoice = (choices: Choice[]) =>
 
 export const intakeSchema = z
   .object({
-    role: z.enum(values(ROLES), { message: "Choose your current role, or prefer not to say." }),
+    // Checked below with the rest, not here: a failure here would stop the
+    // other checks from running, and the form would name one problem at a
+    // time instead of all of them.
+    role: z.preprocess((v) => v ?? "", z.string().max(60)),
     roleOther: shortText(120),
 
     backgroundDomains: z.array(z.enum(DOMAIN_IDS)).default([]),
@@ -182,6 +185,10 @@ export const intakeSchema = z
   .superRefine((a, ctx) => {
     const fail = (path: string, message: string) =>
       ctx.addIssue({ code: "custom", path: [path], message });
+
+    if (!ROLES.some((r) => r.value === a.role)) {
+      fail("role", "Choose your current role, or prefer not to say.");
+    }
 
     const areas = a.backgroundDomains.length > 0;
     if (!areas && a.backgroundFlags.length === 0) {

@@ -13,6 +13,9 @@ test.describe("the dropdown", () => {
 
   test("works from the keyboard alone", async ({ page }) => {
     const field = page.getByLabel(INTAKE.role, { exact: true });
+    // The pointer is wherever the last click left it, which is where this
+    // list opens. Out of the way: this test is about the keyboard.
+    await page.mouse.move(0, 0);
     await field.focus();
     await expect(field).toHaveAttribute("aria-expanded", "false");
     await expect(field).toContainText("Select...");

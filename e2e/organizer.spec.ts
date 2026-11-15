@@ -111,7 +111,7 @@ test.describe("the organizer console", () => {
     const view = lines.find((l) => l.record === "review_view" && l.episode_id === submitted.episodeId)!;
     expect(JSON.stringify(view)).toContain("to: What is a virus?");
     const intake = lines.find((l) => l.record === "participant_intake" && l.email === participant.email)!;
-    expect(intake.intake_version).toBe("A-1.1");
+    expect(intake.intake_version).toBe("A-1.2");
     expect(lines.some((l) => l.record === "review_policy")).toBe(true);
 
     // Asked for submitted work only, the draft is left out.
