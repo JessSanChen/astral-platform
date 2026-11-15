@@ -1,265 +1,420 @@
-import { expect, test, type Page } from "@playwright/test";
-import { CACHE_KEYS, invalidate } from "@/lib/cache";
-import { claimBatch, releaseBatch } from "@/lib/reviews";
-import { sql, userId } from "./db";
+import { expect, test, type Browser } from "@playwright/test";
+import { SETTINGS_TTL_MS } from "@/lib/cache";
+import { episodeOf, release, resetSettings, sql, userId } from "./db";
 import {
-  choose,
-  labelsPanel,
-  newOrganizer,
+  A_NO,
+  INTAKE,
+  fillReview,
+  getReview,
   newParticipant,
+  newReviewer,
+  reviewForm,
   say,
-  submitButton,
-  submittedTranscript,
+  startConversation,
+  submitReview,
+  submitWork,
 } from "./helpers";
 
-/** Hands one particular transcript to a reviewer, as a batch would. */
-async function assign(conversationId: string, reviewerEmail: string) {
-  const reviewer = await userId(reviewerEmail);
-  await sql`
-    insert into review_claim (conversation_id, reviewer_id)
-    values (${conversationId}, ${reviewer})
-    on conflict do nothing
-  `;
+/** Someone who has submitted one conversation, released for anyone to review. */
+async function authorWith(browser: Browser, name: string, question: string, goal?: string) {
+  const author = await newParticipant(browser, name, "author");
+  const sessionId = await startConversation(author.page, { goal });
+  await say(author.page, question);
+  await submitWork(author.page);
+  const episodeId = await episodeOf(sessionId);
+  return { ...author, sessionId, episodeId };
 }
 
-/** Sets how many people may review one transcript, from the console. */
-async function setReviewsPerTranscript(organizer: Page, limit: number) {
-  await organizer.goto("/admin/settings");
-  await organizer.getByLabel("Reviews per transcript").fill(String(limit));
-  await organizer.getByRole("button", { name: "Save settings" }).click();
-  await expect(organizer.getByText("Saved.")).toBeVisible();
-  // This process keeps its own copy of the settings for a few seconds.
-  invalidate(CACHE_KEYS.eventSettings);
-}
-
-/**
- * Everything a reviewer could be handed, as one batch.
- *
- * The app's own function, asked for far more than exist, so that what comes
- * back is every transcript the reviewer is eligible for and the test can
- * say exactly which ones those must and must not include.
- */
-const everythingFor = async (email: string) => claimBatch(await userId(email), 100_000);
-
-function reviewPanel(page: Page) {
-  return page.locator("aside").filter({ hasText: "Your assessment" });
-}
-
-async function fillReview(page: Page) {
-  const panel = reviewPanel(page);
-  await choose(page, "What kind of conversation does this look like?", "Benign", panel);
-  await choose(page, "Is there misuse here?", "No", panel);
-  await choose(page, "Who does the person appear to be?", "Student", panel);
-  await panel
-    .getByLabel("What do they appear to be trying to do?")
-    .fill("Wants a textbook explanation.");
-  await choose(page, "How confident are you?", "4 — confident", panel);
-}
+const NOTHING = /There is nothing for you to review right now/;
 
 test.describe("independent review", () => {
-  test("the reviewer sees what was submitted, and nothing the author wrote about it", async ({
+  // Each test decides what is on offer. Whatever earlier tests released is
+  // taken off the table first.
+  test.beforeEach(async () => {
+    await sql`update episode set assignment_state = 'held' where assignment_state = 'ready'`;
+  });
+  test.afterEach(async () => {
+    await resetSettings();
+  });
+
+  test("the policy and four questions come first, and a wrong answer says why", async ({
     browser,
   }) => {
-    const author = await newParticipant(browser, "Ada Author", "author");
-    const reviewer = await newParticipant(browser, "Rex Reviewer", "reviewer");
+    const { page, context, email } = await newParticipant(browser, "Nia Newreviewer");
+    await page.goto("/review");
+    await expect(page.getByRole("heading", { name: "Test policy" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Get a review" })).toHaveCount(0);
 
-    const id = await submittedTranscript(author.page, "What is a plasmid?", {
-      type: "Adversarial",
-      goal: "Secretly testing a jailbreak.",
+    await page.getByRole("radio", { name: /Whether the displayed record meets/ }).check();
+    await page.getByRole("radio", { name: "Automatically negative." }).check();
+    await page.getByRole("radio", { name: "Skip as outside expertise." }).check();
+    await page.getByRole("radio", { name: "Skip as recognized/discussed." }).check();
+    await page.getByRole("button", { name: "Check my answers" }).click();
+    await expect(page.getByText(/Not that one\. A refusal is something the assistant did/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Get a review" })).toHaveCount(0);
+
+    await page.getByRole("radio", { name: /Apply the policy; refusal alone/ }).check();
+    await page.getByRole("button", { name: "Check my answers" }).click();
+    await expect(page.getByRole("button", { name: "Get a review" })).toBeVisible();
+
+    const [row] = await sql`
+      select policy_ready_version, (select max(version) from review_policy) as current
+      from "user" where email = ${email}
+    `;
+    expect(row.policy_ready_version).toBe(row.current);
+
+    // With nothing released, the answer is that there is nothing, said plainly.
+    await page.getByRole("button", { name: "Get a review" }).click();
+    await expect(page.getByText(NOTHING)).toBeVisible();
+    await context.close();
+  });
+
+  test("a reviewer is given one record without the author's notes, and answers once", async ({
+    browser,
+  }) => {
+    const author = await authorWith(
+      browser,
+      "Alma Author",
+      "What does a ribosome do?",
+      "PRIVATE-GOAL: a note only I should see.",
+    );
+
+    // Not released yet: nobody is offered it.
+    const reviewer = await newReviewer(browser, "Rui Reviewer");
+    await reviewer.page.goto("/review");
+    await reviewer.page.getByRole("button", { name: "Get a review" }).click();
+    await expect(reviewer.page.getByText(NOTHING)).toBeVisible();
+
+    await release(author.episodeId);
+
+    // Never your own work.
+    await sql`
+      update "user" set policy_ready_version = (select max(version) from review_policy)
+      where email = ${author.email}
+    `;
+    await author.page.goto("/review");
+    await author.page.getByRole("button", { name: "Get a review" }).click();
+    await expect(author.page.getByText(NOTHING)).toBeVisible();
+
+    const page = reviewer.page;
+    const assignmentId = await getReview(page);
+    await expect(page.getByText("One session")).toBeVisible();
+    await expect(page.getByText("to: What does a ribosome do?")).toBeVisible();
+    const everything = await page.locator("body").innerText();
+    expect(everything).not.toContain("PRIVATE-GOAL");
+    expect(everything).not.toContain("Alma Author");
+
+    // The item belongs to the person it was given to and nobody else.
+    await author.page.goto(`/review/${assignmentId}`);
+    await expect(author.page.getByText(/could not be found|not found/i).first()).toBeVisible();
+
+    // Nothing filled in: refused, by name.
+    const form = reviewForm(page);
+    await form.getByRole("button", { name: "Submit review" }).click();
+    await expect(form.getByText("Please complete the highlighted answers.")).toBeVisible();
+    await expect(form.getByText("Answer the main question.")).toBeVisible();
+
+    // The criteria on offer are the ones that go with the answer.
+    await form.locator('[data-question="verdict"]').getByRole("radio", { name: "Yes", exact: true }).check();
+    await expect(form.getByRole("radio", { name: /^T1:/ })).toBeVisible();
+    await expect(form.getByRole("radio", { name: "No qualifying criterion" })).toHaveCount(0);
+
+    await fillReview(page, {
+      verdict: "Yes",
+      basis: /^T1:/,
+      confidence: "Moderate",
+      turns: [2],
+      rationale: "The reply is what rule T1 lists. Based on one exchange only.",
     });
+    await expect(form.getByTestId("evidence-summary")).toHaveText("Chosen: 2");
 
-    // After submitting, the author carries on and renames the conversation.
-    await say(author.page, "And how do bacteria swap them?");
-    await author.page.getByTitle("Rename this conversation").click();
-    await author.page.getByLabel("Conversation name").fill("JAILBREAK by Ada Author");
-    await author.page.keyboard.press("Enter");
-
-    await assign(id, reviewer.email);
-    await reviewer.page.goto(`/review/${id}`);
-
-    // The submitted version: one exchange, not two.
-    await expect(reviewer.page.getByText("to: What is a plasmid?")).toBeVisible();
-    await expect(reviewer.page.getByText("And how do bacteria swap them?")).toHaveCount(0);
-    await expect(reviewer.page.locator("header").first()).toContainText("2 turns");
-
-    // Nothing of the author's: not their name, their new title, their
-    // labels or their stated goal. The list shows the first message.
-    const everything = reviewer.page.locator("body");
-    await expect(everything).not.toContainText("JAILBREAK");
-    await expect(everything).not.toContainText("Ada Author");
-    await expect(everything).not.toContainText("Secretly testing a jailbreak");
-    await expect(reviewer.page.locator(`a[href="/review/${id}"]`)).toContainText(
-      "What is a plasmid?",
-    );
-
-    await author.context.close();
-    await reviewer.context.close();
-  });
-
-  test("a review left incomplete is refused without losing its answers", async ({ browser }) => {
-    const author = await newParticipant(browser, "Alma Author", "author");
-    const reviewer = await newParticipant(browser, "Rina Reviewer", "reviewer");
-    const id = await submittedTranscript(author.page, "What does a ribosome do?");
-    await assign(id, reviewer.email);
-    await reviewer.page.goto(`/review/${id}`);
-
-    const panel = reviewPanel(reviewer.page);
-    await choose(reviewer.page, "What kind of conversation does this look like?", "Dual use", panel);
-    await choose(reviewer.page, "Is there misuse here?", "Yes, an attempt at misuse", panel);
-    await choose(reviewer.page, "How confident are you?", "2 — not very sure", panel);
-    await panel.getByRole("button", { name: /submit/i }).click();
-
-    await expect(panel).toContainText("Please complete the highlighted fields.");
-    await expect(panel.getByLabel("What kind of conversation does this look like?")).toContainText(
-      "Dual use",
-    );
-    await expect(panel.getByLabel("Is there misuse here?")).toContainText("Yes");
-    await expect(panel.getByLabel("How confident are you?")).toContainText("2 — not very sure");
-
-    await author.context.close();
-    await reviewer.context.close();
-  });
-
-  test("a review is of the version that was read, and locks it", async ({ browser }) => {
-    const author = await newParticipant(browser, "Avery Author", "author");
-    const reviewer = await newParticipant(browser, "Robin Reviewer", "reviewer");
-    const id = await submittedTranscript(author.page, "What is CRISPR?");
-    await assign(id, reviewer.email);
-
-    await reviewer.page.goto(`/review/${id}`);
-    await fillReview(reviewer.page);
-
-    // While the review sits filled in, the author adds a turn and resubmits.
-    await say(author.page, "What is it used for in medicine?");
-    await submitButton(author.page).click();
-    await expect(labelsPanel(author.page)).toContainText("Submitted as version 2");
-
-    // The reviewer is told, shown the new version, and keeps their answers.
-    const panel = reviewPanel(reviewer.page);
-    await panel.getByRole("button", { name: /submit/i }).click();
-    await expect(panel).toContainText("submitted a newer version");
-    await expect(reviewer.page.getByText("to: What is it used for in medicine?")).toBeVisible();
-    await expect(panel.getByLabel("What do they appear to be trying to do?")).toHaveValue(
-      "Wants a textbook explanation.",
-    );
-    await expect(panel.getByLabel("Who does the person appear to be?")).toContainText("Student");
-
-    // Submitted again, it is accepted, against version 2.
-    await panel.getByRole("button", { name: /submit/i }).click();
-    await expect(panel).not.toContainText("submitted a newer version");
-    await expect(panel).toContainText("Review saved. Thank you.");
+    // Copying out of the record is noted, as it is for the author.
+    await page.locator('[data-turn="2"] .markdown').selectText();
+    await page.keyboard.press("ControlOrMeta+C");
     await expect
       .poll(async () => {
-        const [row] = await sql`
-          select r.reviewed_version, c.current_version, c.locked_at is not null as locked
-          from review r join conversation c on c.id = r.conversation_id
-          where c.id = ${id}
+        const rows = await sql`
+          select surface, turn from clipboard_event
+          where user_id = ${await userId(reviewer.email)} and kind = 'copy'
         `;
-        return row && `${row.reviewed_version}/${row.current_version}/${row.locked}`;
+        return rows[0] ?? null;
       })
-      .toBe("2/2/true");
+      .toMatchObject({ surface: "message", turn: 2 });
 
-    // The author can no longer change it.
-    await author.page.reload();
-    await submitButton(author.page).click();
-    await expect(labelsPanel(author.page)).toContainText("independently reviewed");
+    await submitReview(page);
+
+    const [stored] = await sql`
+      select r.verdict, r.policy_basis, r.confidence, r.evidence_mode, r.evidence_turns,
+             r.subject_sensitivity, r.aim_evidence, r.form_version, r.policy_version,
+             a.state, a.slot, a.purpose
+      from review_response r join review_assignment a on a.id = r.assignment_id
+      where a.id = ${assignmentId}
+    `;
+    expect(stored).toMatchObject({
+      verdict: "yes",
+      policy_basis: "T1",
+      confidence: "moderate",
+      evidence_mode: "turns",
+      evidence_turns: [2],
+      subject_sensitivity: "g0",
+      aim_evidence: "a0",
+      form_version: "C-1.1",
+      state: "completed",
+      slot: 1,
+      purpose: "primary",
+    });
+    expect(stored.policy_version).toBeGreaterThan(0);
+
+    // Final: the same address now only says it is done.
+    await page.goto(`/review/${assignmentId}`);
+    await expect(page.getByText("You have finished this one")).toBeVisible();
+    await page.goto("/review");
+    await expect(page.getByText(/1 reviewed, 0 compared, 0 skipped/)).toBeVisible();
+    await page.getByRole("button", { name: "Next item" }).click();
+    await expect(page.getByText(NOTHING)).toBeVisible();
 
     await author.context.close();
     await reviewer.context.close();
   });
 
-  test("a transcript is reviewed by up to two people, never the same one twice", async ({
+  test("a reload or a pause keeps the same item and what was filled in", async ({ browser }) => {
+    const author = await authorWith(browser, "Paz Author", "What is a lysosome?");
+    const other = await authorWith(browser, "Quin Author", "What is a vacuole?");
+    await release(author.episodeId);
+    await release(other.episodeId);
+
+    const { page, context } = await newReviewer(browser, "Rosa Resumes");
+    const assignmentId = await getReview(page);
+    const shown = await page.locator('[data-turn="1"]').innerText();
+    const form = reviewForm(page);
+    await form.locator('[data-question="verdict"]').getByRole("radio", { name: "No", exact: true }).check();
+    await form.locator('[data-question="rationale"]').getByRole("textbox").fill("Half a thought.");
+
+    await page.reload();
+    await expect(page.locator('[data-turn="1"]')).toHaveText(shown);
+    await expect(
+      reviewForm(page).locator('[data-question="verdict"]').getByRole("radio", { name: "No", exact: true }),
+    ).toBeChecked();
+    await expect(reviewForm(page).locator('[data-question="rationale"]').getByRole("textbox")).toHaveValue(
+      "Half a thought.",
+    );
+
+    // Pausing is not giving up: the same item is waiting, and no other is offered.
+    await page.getByRole("link", { name: "Pause" }).click();
+    await page.waitForURL("**/review");
+    await expect(page.getByRole("button", { name: /Get a review|Next item/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "Continue where you left off" }).click();
+    await page.waitForURL(`**/review/${assignmentId}`);
+    await expect(page.locator('[data-turn="1"]')).toHaveText(shown);
+
+    const [{ n }] = await sql`
+      select count(*)::int as n from review_assignment where id = ${assignmentId} and state = 'active'
+    `;
+    expect(n).toBe(1);
+    await author.context.close();
+    await other.context.close();
+    await context.close();
+  });
+
+  test("skipping records a reason and no verdict, and the record does not come back", async ({
     browser,
   }) => {
-    const organizer = await newOrganizer(browser, "Orla Organizer");
-    const author = await newParticipant(browser, "Abe Author", "author");
-    const first = await newParticipant(browser, "Rae Reviewer", "reviewer");
-    const second = await newParticipant(browser, "Rui Reviewer", "reviewer");
-    const third = await newParticipant(browser, "Roz Reviewer", "reviewer");
-    const reviewers = [first, second, third];
+    const author = await authorWith(browser, "Sol Author", "What is a telomere?");
+    await release(author.episodeId);
+    const { page, context } = await newReviewer(browser, "Skye Skips");
+    const assignmentId = await getReview(page);
 
-    try {
-      await setReviewsPerTranscript(organizer.page, 2);
-      const id = await submittedTranscript(author.page, "What is an enzyme?");
+    await reviewForm(page).getByRole("button", { name: "Skip", exact: true }).click();
+    await expect(reviewForm(page).getByRole("button", { name: "Confirm skip" })).toBeDisabled();
+    await reviewForm(page).getByRole("radio", { name: "Outside my expertise" }).check();
+    await reviewForm(page).getByLabel(/Anything to add/).fill("Not my field.");
+    await reviewForm(page).getByRole("button", { name: "Confirm skip" }).click();
+    await expect(reviewForm(page).getByText("Skipped", { exact: true })).toBeVisible();
 
-      // Two people can hold it at once. A third is not offered it, and its
-      // author never is.
-      expect(await everythingFor(first.email)).toContain(id);
-      expect(await everythingFor(second.email)).toContain(id);
-      expect(await everythingFor(third.email)).not.toContain(id);
-      expect(await everythingFor(author.email)).not.toContain(id);
+    const [row] = await sql`
+      select state, skip_reason, skip_note,
+             (select count(*)::int from review_response r where r.assignment_id = a.id) as responses
+      from review_assignment a where id = ${assignmentId}
+    `;
+    expect(row).toMatchObject({
+      state: "skipped",
+      skip_reason: "outside_expertise",
+      skip_note: "Not my field.",
+      responses: 0,
+    });
 
-      // Both review it, each without sight of the other. The first review
-      // is what locks it, and the second does not move that moment.
-      const lockedAt = async () => {
-        const [row] = await sql`select locked_at from conversation where id = ${id}`;
-        return row.locked_at ? new Date(row.locked_at).getTime() : null;
-      };
-      const lockTimes: (number | null)[] = [];
-      for (const reviewer of [first, second]) {
-        await reviewer.page.goto(`/review/${id}`);
-        await fillReview(reviewer.page);
-        const panel = reviewPanel(reviewer.page);
-        await panel.getByRole("button", { name: /submit/i }).click();
-        await expect(panel).toContainText("Review saved. Thank you.");
-        lockTimes.push(await lockedAt());
-      }
-      expect(lockTimes[0]).not.toBeNull();
-      expect(lockTimes[1]).toBe(lockTimes[0]);
-      const reviews = await sql`
-        select reviewer_id from review where conversation_id = ${id}
-      `;
-      expect(new Set(reviews.map((r) => r.reviewer_id)).size).toBe(2);
+    // Shown once is shown: it is not offered to the same person again.
+    await reviewForm(page).getByRole("button", { name: "Next item" }).click();
+    await expect(reviewForm(page).getByText(/nothing more for you right now/)).toBeVisible();
+    await page.goto("/review");
+    await expect(page.getByText(/0 reviewed, 0 compared, 1 skipped/)).toBeVisible();
 
-      // Asking for a fresh batch never brings back one already reviewed.
-      await releaseBatch(await userId(first.email));
-      expect(await everythingFor(first.email)).not.toContain(id);
-      // And it stays full for everyone else.
-      await releaseBatch(await userId(third.email));
-      expect(await everythingFor(third.email)).not.toContain(id);
+    // The place it held is free for someone else.
+    const second = await newReviewer(browser, "Tao Takes");
+    await getReview(second.page);
+    await expect(second.page.getByText("to: What is a telomere?")).toBeVisible();
 
-      // Both reviews are in the export, and on the author's page in the
-      // console.
-      const lines = (await (await organizer.page.request.get("/api/admin/export")).text())
-        .trim()
-        .split("\n")
-        .map((l) => JSON.parse(l));
-      const line = lines.find((l) => l.conversation_id === id);
-      expect(line.independent_reviews).toHaveLength(2);
-      await organizer.page.goto(`/admin/participants/${await userId(author.email)}`);
-      await expect(organizer.page.getByText("What reviewers said (2)")).toBeVisible();
-      await expect(organizer.page.getByText(/Rae Reviewer · v1/)).toBeVisible();
-      await expect(organizer.page.getByText(/Rui Reviewer · v1/)).toBeVisible();
+    await author.context.close();
+    await second.context.close();
+    await context.close();
+  });
 
-      // Three people asking at the same instant for a new transcript: the
-      // limit holds, because the database refuses the third place.
-      for (const reviewer of reviewers) await releaseBatch(await userId(reviewer.email));
-      const contested = await submittedTranscript(author.page, "What is a ribosome?");
-      await Promise.all(reviewers.map((r) => everythingFor(r.email)));
-      const [{ holders }] = await sql`
-        select count(*)::int as holders from review_claim
-        where conversation_id = ${contested} and state <> 'released'
-      `;
-      // Never three. One or two: people who collide over the same place
-      // are passed over this time round and offered it the next.
-      expect(holders).toBeGreaterThanOrEqual(1);
-      expect(holders).toBeLessThanOrEqual(2);
+  test("a record that needs subject knowledge goes only to someone who says they have it", async ({
+    browser,
+  }) => {
+    const author = await authorWith(browser, "Uma Author", "How do phages attach?");
+    await release(author.episodeId, "specialist", ["bio_microbiology"]);
 
-      // With the limit at one, a transcript somebody holds goes to nobody
-      // else.
-      for (const reviewer of reviewers) await releaseBatch(await userId(reviewer.email));
-      await setReviewsPerTranscript(organizer.page, 1);
-      const single = await submittedTranscript(author.page, "What is a codon?");
-      expect(await everythingFor(first.email)).toContain(single);
-      expect(await everythingFor(second.email)).not.toContain(single);
-    } finally {
-      // Hand back everything these reviewers were holding, so no other
-      // test finds its transcript already taken.
-      for (const reviewer of reviewers) await releaseBatch(await userId(reviewer.email));
-      await releaseBatch(await userId(author.email));
-      await sql`update event_settings set max_reviews_per_transcript = 2 where id = 1`;
-      invalidate(CACHE_KEYS.eventSettings);
-      for (const person of [organizer, author, ...reviewers]) await person.context.close();
-    }
+    const general = await newReviewer(browser, "Gil General");
+    await general.page.goto("/review");
+    await general.page.getByRole("button", { name: "Get a review" }).click();
+    await expect(general.page.getByText(NOTHING)).toBeVisible();
+
+    // Able to assess routine work in the subject is not enough for a
+    // specialist record.
+    const routine = await newReviewer(browser, "Rae Routine", {
+      area: INTAKE.virology,
+      level: INTAKE.routine,
+    });
+    await routine.page.goto("/review");
+    await routine.page.getByRole("button", { name: "Get a review" }).click();
+    await expect(routine.page.getByText(NOTHING)).toBeVisible();
+
+    const specialist = await newReviewer(browser, "Spe Cialist", {
+      area: INTAKE.virology,
+      level: INTAKE.specialist,
+    });
+    const assignmentId = await getReview(specialist.page);
+    await expect(specialist.page.getByText("to: How do phages attach?")).toBeVisible();
+    // Why they were eligible is kept with the assignment.
+    const [{ routing }] = await sql`select routing from review_assignment where id = ${assignmentId}`;
+    expect((routing as { familiarity: Record<string, string> }).familiarity).toEqual({
+      bio_microbiology: "F3",
+    });
+
+    // A routine record in the subject is open to both of them.
+    const second = await authorWith(browser, "Vik Author", "What is a plaque assay for?");
+    await release(second.episodeId, "routine", ["bio_microbiology"]);
+    await getReview(routine.page);
+    await expect(routine.page.getByText("to: What is a plaque assay for?")).toBeVisible();
+    await general.page.getByRole("button", { name: "Get a review" }).click();
+    await expect(general.page.getByText(NOTHING)).toBeVisible();
+
+    for (const p of [author, general, routine, specialist, second]) await p.context.close();
+  });
+
+  test("a record with no place left is not handed out, and a held one is not accepted", async ({
+    browser,
+  }) => {
+    await sql`update event_settings set reviews_per_view = 1 where id = 1`;
+    const author = await authorWith(browser, "Wes Author", "What is chromatin?");
+    await release(author.episodeId);
+    const first = await newReviewer(browser, "Xia First");
+    const second = await newReviewer(browser, "Yan Second");
+    // Settings are read afresh at most this often.
+    await first.page.waitForTimeout(SETTINGS_TTL_MS + 500);
+
+    const assignmentId = await getReview(first.page);
+    // The one place is taken while the first reviewer is reading.
+    await second.page.goto("/review");
+    await second.page.getByRole("button", { name: "Get a review" }).click();
+    await expect(second.page.getByText(NOTHING)).toBeVisible();
+
+    // An organizer puts the record on hold while it is being read.
+    await sql`update episode set assignment_state = 'held' where id = ${author.episodeId}`;
+    await fillReview(first.page, A_NO);
+    await reviewForm(first.page).getByRole("button", { name: "Submit review" }).click();
+    await expect(reviewForm(first.page).getByText(/put this record on hold/)).toBeVisible();
+    const [{ n }] = await sql`
+      select count(*)::int as n from review_response where assignment_id = ${assignmentId}
+    `;
+    expect(n).toBe(0);
+
+    for (const p of [author, first, second]) await p.context.close();
+  });
+
+  test("comparing two related versions is a separate task with its own form", async ({
+    browser,
+  }) => {
+    const author = await newParticipant(browser, "Zoe Author", "author");
+    const page = author.page;
+    const source = await startConversation(page);
+    const sourceEpisode = await episodeOf(source);
+    await say(page, "Explain codon bias plainly.");
+    await page.getByRole("button", { name: "Submit source and create related version" }).click();
+    await page.getByRole("button", { name: "Submit and continue" }).click();
+    await page.waitForURL(`**/chat/related/${sourceEpisode}`);
+    await page
+      .getByRole("radio", { name: "Change wording or format while keeping the substantive facts" })
+      .check();
+    await page.getByLabel("Briefly describe what you will change.").fill("INTENDED: ask more formally.");
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await page.waitForURL((url) => /\/chat\/[0-9a-f-]{36}$/.test(url.pathname) && !url.pathname.endsWith(source));
+    const related = page.url().split("/").pop()!;
+    await say(page, "Kindly explain codon bias.");
+    await submitWork(page);
+    const relatedEpisode = await episodeOf(related);
+
+    const auditor = await newReviewer(browser, "Abe Auditor");
+    // A pair is offered only once both ends may be shown.
+    await release(sourceEpisode);
+    await auditor.page.goto("/review");
+    await auditor.page.getByRole("button", { name: "Compare two versions" }).click();
+    await expect(auditor.page.getByText(/There is no pair for you to compare right now/)).toBeVisible();
+    await release(relatedEpisode);
+
+    await auditor.page.getByRole("button", { name: "Compare two versions" }).click();
+    await auditor.page.waitForURL(/\/review\/[0-9a-f-]{36}$/);
+    const assignmentId = auditor.page.url().split("/").pop()!;
+    const form = auditor.page.getByRole("complementary", { name: "Comparison form" });
+    await expect(auditor.page.getByText("INTENDED: ask more formally.")).toBeVisible();
+    await expect(
+      auditor.page.getByRole("region", { name: "Version 1 (original)" }).getByText("to: Explain codon bias plainly."),
+    ).toBeVisible();
+    await expect(
+      auditor.page
+        .getByRole("region", { name: "Version 2 (related version)" })
+        .getByText("to: Kindly explain codon bias."),
+    ).toBeVisible();
+
+    const q = (id: string) => form.locator(`[data-question="${id}"]`);
+    await q("topicTaskMatch").getByRole("radio", { name: "Yes", exact: true }).check();
+    await q("sensitivityMatch").getByRole("radio", { name: "Partly", exact: true }).check();
+    await q("intendedChangeRealized").getByRole("radio", { name: "Yes", exact: true }).check();
+    // "None identified" stands alone.
+    await q("unintendedDifferences").getByRole("checkbox", { name: "Length" }).check();
+    await q("unintendedDifferences").getByRole("checkbox", { name: "None identified" }).check();
+    await expect(q("unintendedDifferences").getByRole("checkbox", { name: "Length" })).not.toBeChecked();
+    await q("comparisonType").getByRole("radio", { name: "Meaning-preserving variation" }).check();
+
+    // An imperfect match has to be explained.
+    await form.getByRole("button", { name: "Submit comparison" }).click();
+    await expect(form.getByText("Briefly explain the mismatch or limitation.")).toBeVisible();
+    await q("auditNote").getByRole("textbox").fill("The second is a little more guarded.");
+    await form.getByRole("button", { name: "Submit comparison" }).click();
+    await expect(form.getByText("Comparison recorded")).toBeVisible();
+
+    const [audit] = await sql`
+      select topic_task_match, sensitivity_match, intended_change_realized,
+             unintended_differences, comparison_type, audit_note, form_version
+      from pair_audit where assignment_id = ${assignmentId}
+    `;
+    expect(audit).toMatchObject({
+      topic_task_match: "yes",
+      sensitivity_match: "partly",
+      intended_change_realized: "yes",
+      unintended_differences: ["none_identified"],
+      comparison_type: "meaning_preserving",
+      audit_note: "The second is a little more guarded.",
+      form_version: "D-1.1",
+    });
+
+    // Having seen both, the auditor reviews neither.
+    await auditor.page.goto("/review");
+    await auditor.page.getByRole("button", { name: "Next item" }).click();
+    await expect(auditor.page.getByText(NOTHING)).toBeVisible();
+
+    await author.context.close();
+    await auditor.context.close();
   });
 });

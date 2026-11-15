@@ -14,6 +14,26 @@ The first section is the only one that actually blocks the event.
 
 ---
 
+## Blocking the event, since specification v1.1
+
+These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
+
+- **The reference policy and its rules.** Nothing is invented; reviewing
+  is closed until you publish one from Organize → Policy.
+- **Who releases submissions during the event.** Each one waits as
+  Pending until someone sets its review level on Organize → Submissions,
+  unless you turn on automatic release in Settings.
+- **Clipboard logging.** The specification says not to; you asked for it
+  earlier. It is still on. Your call.
+- **Prize amounts, deadline and tie rules.** The briefing says the
+  organizers will announce them.
+- **Safe examples for the g and a scales.** The form shows the anchors
+  from the specification with no examples.
+
+Items 5 to 8 further down (intake form, self-labels, reviewer labels,
+scanner rubric) describe the forms as they were before v1.1. The
+specification replaced all four; they are kept only as a record.
+
 ## Blocking the event
 
 ### 1. Terms and conditions — decision

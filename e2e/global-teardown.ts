@@ -1,11 +1,7 @@
-import { removeTestAccounts, sql } from "./db";
+import { removeTestAccounts, resetSettings, sql } from "./db";
 
 export default async function globalTeardown() {
   await removeTestAccounts();
-  await sql`
-    update event_settings
-    set nominations_locked = false, nominations_close_at = null
-    where id = 1
-  `;
+  await resetSettings();
   await sql.end();
 }

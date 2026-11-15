@@ -1,5 +1,11 @@
 # Astral Platform — System Design
 
+> **Superseded in part.** The data collection was redesigned in
+> specification v1.1 (`docs/spec/`). `docs/SPEC-V1.1-STATUS.md` says what
+> the platform does now. What follows describes the platform before that
+> change: accounts, chat, budgets, security and deployment still apply;
+> labels, review batches, scanners for participants and nominations do not.
+
 Companion to `SPEC.md`. This document explains how the system is built and,
 because the team is new to parts of this stack, explains *why* at each step.
 Sections marked **Concept** are short explainers you can skip if you already

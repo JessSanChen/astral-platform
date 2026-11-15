@@ -19,30 +19,30 @@ test.describe("the front page", () => {
     await expect(page).toHaveURL(/\/sign-up$/);
   });
 
-  test("the briefing, with every prize and deadline, is there once signed in", async ({
-    browser,
-  }) => {
+  test("the briefing describes the day as it now runs, once signed in", async ({ browser }) => {
     const { page, context } = await newParticipant(browser, "Gina Guide");
     await page.goto("/guide");
 
     await expect(page.getByRole("heading", { name: "How today works", level: 1 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "What you will be doing" })).toBeVisible();
-
-    // All four prize tracks, each with its deadline.
-    const prizes = page.getByRole("table");
-    for (const track of [
-      "Adversarial use cases",
-      "Dual-use use cases",
-      "Benign transcripts",
-      "Independent reviewer",
+    for (const section of [
+      "Why we are doing this",
+      "What you will be doing",
+      "Prizes",
+      "What happens to what you write",
     ]) {
-      await expect(prizes.getByRole("row").filter({ hasText: track })).toBeVisible();
+      await expect(page.getByRole("heading", { name: section, level: 2 })).toBeVisible();
     }
-    await expect(page.getByText("Four tracks, $1,000 each.")).toBeVisible();
-    await expect(page.getByRole("main").getByText(/collaborat/i)).toHaveCount(0);
-    await expect(prizes.getByRole("row").filter({ hasText: "Benign transcripts" })).toContainText(
-      "16:00",
-    );
+    // The awards are listed; nothing that no longer exists is promised.
+    await expect(page.getByRole("table").getByRole("row")).not.toHaveCount(1);
+    const main = page.getByRole("main");
+    await expect(main.getByText(/collaborat/i)).toHaveCount(0);
+    await expect(main.getByText(/nominat/i)).toHaveCount(0);
+    await expect(main.getByText(/scanner/i)).toHaveCount(0);
+
+    // The way to the prizes page is in the menu, and the old address still works.
+    await page.goto("/nominate");
+    await expect(page).toHaveURL(/\/prizes$/);
+    await expect(page.getByRole("heading", { name: "Prizes", level: 1 })).toBeVisible();
     await context.close();
   });
 

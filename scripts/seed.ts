@@ -9,8 +9,8 @@ This is placeholder text. Replace with the real terms before the event.
 
 By participating you agree that:
 
-1. The transcripts and labels you create during this event may be stored and
-   used by the research team for the purpose of building and evaluating
+1. The conversations and reviews you create during this event may be stored
+   and used by the research team for the purpose of building and evaluating
    biosecurity misuse-detection tools.
 2. You are role-playing scenarios for research. You will not act on any
    information produced during the event, and you will not input real,
@@ -77,7 +77,9 @@ async function main() {
     );
   }
 
-  // Two default judge configs.
+  // Two default scanner configurations. Participants are no longer shown
+  // scanner output (specification v1.1); these remain for organizers, who
+  // can still run them.
   const judges = await db.select().from(judgeConfig);
   if (judges.length === 0) {
     await db.insert(judgeConfig).values([

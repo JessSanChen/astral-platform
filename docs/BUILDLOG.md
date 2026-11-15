@@ -2240,6 +2240,93 @@ counted as guessing; the change form's limit; an over-long label answer.
 
 ---
 
+## Round 21: specification v1.1
+
+The research design was rethought from first principles and written up as
+`docs/spec/ASTRAL_Hackathon_Central_Spec_v1.1.html`. This round rebuilds
+the data collection around it. `docs/SPEC-V1.1-STATUS.md` maps every
+section of the specification to what was built, changed or left out, and
+lists the decisions that need the organizer's eye. This entry is the
+shorter story of the change.
+
+### What a participant now does
+
+- **Joins** by agreeing to the study information (two required
+  agreements, one optional answer about public release) and answering
+  form A: subject areas from a fixed list, role, kinds of work, what they
+  could assess in up to three areas (F0 to F3), biosafety and biosecurity
+  experience, use of AI assistants.
+- **Writes** conversations, or folders of several sessions that belong to
+  one task. The only required answer is whether the task is real or
+  invented. A goal note is optional, private, and never sent to the model.
+  Each session starts from nothing.
+- **Cannot edit or regenerate.** A sent message stays sent and an answer
+  stays the answer. The server refuses the attempt; it is not only missing
+  from the page.
+- **Submits once.** The whole conversation or folder is frozen, and what
+  reviewers will see is written out at that moment: each session, and for
+  a folder all sessions together in the order things happened.
+- **Makes related versions** of submitted work: a fresh conversation on
+  the same model, linked to the original, with what they intend to change
+  said first.
+- **Reviews** one record at a time, chosen for them, after reading the
+  reference policy and answering four questions about how to apply it.
+  One screen, one final answer, or a skip with a reason. Never their own
+  work, never two things from the same family, never something that needs
+  subject knowledge they have not said they have.
+- **Compares** two related versions, as a separate task with its own form.
+- **Enters** up to three pieces of work for a prize, with one click.
+
+Gone: the author's own labels, the evidence-turn selector for authors, the
+scanner tab, review batches, and written nominations.
+
+### What an organizer now does
+
+- **Policy**: publishes the reference policy and the rules reviewers can
+  cite, in versions.
+- **Submissions**: says who can review each submission (General, Routine
+  in named subjects, Specialist) and marks it Ready, Held or Withdrawn.
+  Shows how many reviews each view has and what they add up to.
+- **Settings**: reviews per view, automatic release, how long a reviewer
+  may hold an item, whether related versions are open.
+- **Prize entries**: who entered what; closing entries.
+- The participant page and the export follow the new shape.
+
+### How it was built
+
+A session is a row of the existing `conversation` table, so chat, budgets,
+the message log and clipboard logging are unchanged underneath. New tables
+sit beside it: `episode`, `episode_goal_revision`, `related_version`,
+`review_view`, `review_assignment`, `review_response`, `pair_audit`,
+`review_policy`. Migration 0007 adds them, turns each existing
+conversation into a one-session episode, and asks everyone to answer the
+new background questions. The old label, review and nomination tables are
+left in place and no longer written to.
+
+The rules about who may see what are held by the database as well as the
+code: one active item per reviewer, one look at a family per reviewer, one
+holder per place on a view, one audit per pair. Each is a unique index, so
+two requests at the same instant cannot both win.
+
+### Where this departs from the specification
+
+Listed in full in the status document. In short: the reference policy is
+a placeholder until one is published; new submissions wait for an
+organizer unless automatic release is switched on; clipboard logging was
+kept because it was asked for earlier; participants still choose a model;
+review drafts are kept in the browser rather than on the server; a review
+level applies to a whole submission rather than to one session of it.
+
+### Tests
+
+The browser tests were rewritten for the new flows: `authoring.spec.ts`,
+`review.spec.ts` and `prizes.spec.ts` are new, the onboarding, dropdown,
+front page and organizer tests were adapted, and the tests of labels,
+scanners and nominations went with the features. The status document
+lists which test covers each acceptance test in the specification.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { eventCode, sql } from "./db";
 import {
+  INTAKE,
   PASSWORD,
+  agreeToStudy,
   choose,
+  fillIntake,
   finishOnboarding,
+  skipWorkRows,
   signUp,
   uniqueEmail,
 } from "./helpers";
@@ -106,120 +110,132 @@ test.describe("getting in", () => {
     await expect(page.getByText("Did you mean")).toHaveCount(0);
   });
 
-  test("sign up, answer the profile questions, and land in the chat", async ({ page }) => {
+  const stored = async (email: string) => {
+    const [row] = await sql`
+      select p.intake, p.intake_version, p.participation_agreed_at, p.research_use_agreed_at,
+             p.public_release_permission
+      from profile p join "user" u on u.id = p.user_id where u.email = ${email}
+    `;
+    return row;
+  };
+
+  test("sign up, agree, answer the background questions, and land in the chat", async ({ page }) => {
     const email = uniqueEmail("newcomer");
     await signUp(page, "Nora Newcomer", email);
-    await expect(page.getByRole("heading", { name: "Set up your profile" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Before you start" })).toBeVisible();
 
-    await finishOnboarding(page, { affiliation: "Wyss Institute", role: "Faculty" });
+    await finishOnboarding(page, { area: INTAKE.virology, level: INTAKE.specialist });
     await expect(page.getByRole("heading", { name: "New conversation" })).toBeVisible();
 
-    // What was answered is what the profile page shows.
-    await page.getByRole("link", { name: /Nora Newcomer/ }).click();
-    await expect(page.getByLabel("Affiliation")).toHaveValue("Wyss Institute");
-    await expect(page.getByLabel("Role", { exact: true })).toContainText("Faculty");
-    await expect(page.getByRole("main").getByText(email)).toBeVisible();
+    const row = await stored(email);
+    expect(row.intake).toMatchObject({
+      backgroundResponse: "selected_areas",
+      backgroundDomains: ["bio_microbiology"],
+      familiarityResponse: "rated_areas",
+      familiarity: { bio_microbiology: "F3" },
+      biosafety: "none",
+      biosecurity: "none",
+    });
+    expect(row.intake_version).toBe("A-1.1");
+    expect(row.participation_agreed_at).not.toBeNull();
+    expect(row.research_use_agreed_at).not.toBeNull();
+    // Left unanswered is stored as unanswered, not as No.
+    expect(row.public_release_permission).toBeNull();
   });
 
-  test("leaving a question unanswered names it and keeps the rest", async ({ page }) => {
-    await signUp(page, "Hasty Harriet", uniqueEmail("hasty"));
-    await page.getByLabel("Affiliation").fill("Somewhere");
-    await choose(page, "Role", "Postdoc");
-    await choose(page, "Highest degree", "PhD");
-    // Years of experience deliberately left alone.
-    await choose(page, "Primary background", "Both");
-    await choose(page, "How familiar are you with AI chatbots?", "Casual user");
-    await page.getByRole("checkbox", { name: /I have read and agree/ }).check();
+  test("both agreements are needed; public release is a separate, optional answer", async ({
+    page,
+  }) => {
+    const email = uniqueEmail("agree");
+    await signUp(page, "Agnes Agrees", email);
+    await fillIntake(page);
+    await page.getByRole("checkbox", { name: /I have read the study information/ }).check();
     await page.getByRole("button", { name: "Continue" }).click();
-
-    await expect(page.getByText("Please choose a range.")).toBeVisible();
+    await expect(page.getByText(/This agreement is needed to contribute to the research/)).toBeVisible();
     await expect(page).toHaveURL(/\/onboarding$/);
-    // A screen reader is told which field it is: the dropdown is marked
-    // invalid and described by the complaint, and the others are not.
-    const years = page.getByLabel("Years of experience");
-    await expect(years).toHaveAttribute("aria-invalid", "true");
-    await expect(years).toHaveAttribute("aria-required", "true");
-    await expect(years).toHaveAccessibleDescription("Please choose a range.");
-    await expect(page.getByLabel("Role", { exact: true })).not.toHaveAttribute("aria-invalid");
-    await expect(page.getByLabel("Affiliation")).toHaveValue("Somewhere");
-    await expect(page.getByLabel("Role", { exact: true })).toContainText("Postdoc");
-    await expect(page.getByLabel("Primary background")).toContainText("Both");
-  });
+    // What was already answered is still there.
+    await expect(page.getByRole("checkbox", { name: /I have read the study information/ })).toBeChecked();
+    await expect(page.getByRole("radio", { name: INTAKE.noBackground })).toBeChecked();
 
-  test('choosing "Other" asks what was meant, and keeps the answer', async ({ page }) => {
-    const email = uniqueEmail("other");
-    await signUp(page, "Olive Other", email);
-    await page.getByLabel("Affiliation").fill("Independent");
-
-    // The box is not there until Other is chosen.
-    const roleOther = page.getByLabel("Role: other, please say what");
-    await expect(roleOther).toHaveCount(0);
-    await choose(page, "Role", "Other");
-    await expect(roleOther).toBeVisible();
-    await choose(page, "Highest degree", "PhD");
-    await choose(page, "Years of experience", "2-4");
-    await choose(page, "Primary background", "Life sciences");
-    await page.getByRole("checkbox", { name: "Other", exact: true }).check();
-    await choose(page, "How familiar are you with AI chatbots?", "Casual user");
-    await page.getByRole("checkbox", { name: /I have read and agree/ }).check();
-
-    // "Other" with nothing beside it is refused, for each question.
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Please say what your role is.")).toBeVisible();
-    await expect(page.getByText("Please say which other area.")).toBeVisible();
-    await expect(page).toHaveURL(/\/onboarding$/);
-    await expect(roleOther).toHaveAttribute("aria-invalid", "true");
-
-    await roleOther.fill("Biosafety officer");
-    await page
-      .getByLabel("Life-science subdomains: other, please say what")
-      .fill("Aerobiology");
+    await page.getByRole("checkbox", { name: /may be used for the\s+stated research/ }).check();
+    await page.getByRole("group", { name: "Public release" }).getByRole("radio", { name: "No" }).check();
     await page.getByRole("button", { name: "Continue" }).click();
     await page.waitForURL("**/chat");
+    expect((await stored(email)).public_release_permission).toBe("no");
+  });
 
-    const stored = async () => {
-      const [row] = await sql`
-        select p.role, p.role_other, p.subdomains_other
-        from profile p join "user" u on u.id = p.user_id where u.email = ${email}
-      `;
-      return row;
-    };
-    expect(await stored()).toMatchObject({
-      role: "Other",
-      role_other: "Biosafety officer",
-      subdomains_other: "Aerobiology",
-    });
+  test("leaving a required answer out names it and keeps the rest", async ({ page }) => {
+    await signUp(page, "Hasty Harriet", uniqueEmail("hasty"));
+    await agreeToStudy(page);
+    await page.getByRole("radio", { name: INTAKE.noBackground }).check();
+    await skipWorkRows(page);
+    await choose(page, INTAKE.biosafety, "Formal training/coursework only");
+    // What you could review, and biosecurity, deliberately left alone.
+    await page.getByRole("button", { name: "Continue" }).click();
 
-    // It is there to correct later, and an answer changed to one on the
-    // list does not keep the old explanation attached.
-    await page.goto("/profile");
-    await expect(page.getByLabel("Role: other, please say what")).toHaveValue(
-      "Biosafety officer",
+    await expect(page.getByText("Please complete the highlighted answers.")).toBeVisible();
+    await expect(page.getByText("Choose one of the three answers.")).toBeVisible();
+    await expect(page.getByText("Choose an answer, or prefer not to say.")).toBeVisible();
+    await expect(page).toHaveURL(/\/onboarding$/);
+    // A screen reader is told which field it is.
+    const biosecurity = page.getByLabel(INTAKE.biosecurity, { exact: true });
+    await expect(biosecurity).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByLabel(INTAKE.biosafety, { exact: true })).not.toHaveAttribute("aria-invalid");
+    await expect(page.getByLabel(INTAKE.biosafety, { exact: true })).toContainText(
+      "Formal training/coursework only",
     );
-    await choose(page, "Role", "Faculty");
-    await expect(page.getByLabel("Role: other, please say what")).toHaveCount(0);
-    await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByText("Saved.")).toBeVisible();
-    expect(await stored()).toMatchObject({
-      role: "Faculty",
-      role_other: null,
-      subdomains_other: "Aerobiology",
+    await expect(page.getByRole("radio", { name: INTAKE.noBackground })).toBeChecked();
+  });
+
+  test('ticking "Other" asks which area, and it cannot be rated for review', async ({ page }) => {
+    const email = uniqueEmail("other");
+    await signUp(page, "Olive Other", email);
+    await agreeToStudy(page);
+    await page.getByRole("radio", { name: INTAKE.hasAreas }).check();
+    const which = page.getByLabel("Which other area?");
+    await expect(which).toHaveCount(0);
+    await page.getByRole("checkbox", { name: /^Other/ }).check();
+    await expect(which).toBeVisible();
+    await page.getByRole("radio", { name: INTAKE.nothingToRate }).check();
+    await skipWorkRows(page);
+    await choose(page, INTAKE.biosafety, INTAKE.noTraining);
+    await choose(page, INTAKE.biosecurity, INTAKE.noTraining);
+
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("Please say which other area.")).toBeVisible();
+    await expect(page).toHaveURL(/\/onboarding$/);
+
+    await which.fill("Aerobiology");
+    // An area of one's own naming is recorded, but opens no review to anyone.
+    await page.getByRole("radio", { name: INTAKE.willRate }).check();
+    await expect(page.getByText(/Tick the areas you have studied or worked in/)).toBeVisible();
+    await page.getByRole("radio", { name: INTAKE.nothingToRate }).check();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.waitForURL("**/chat");
+    expect((await stored(email)).intake).toMatchObject({
+      backgroundDomains: ["other"],
+      otherDomainText: "Aerobiology",
+      familiarity: {},
     });
   });
 
-  test("a profile can be corrected afterwards", async ({ page }) => {
-    await signUp(page, "Eddie Editor", uniqueEmail("editor"));
+  test("background answers can be corrected afterwards", async ({ page }) => {
+    const email = uniqueEmail("editor");
+    await signUp(page, "Eddie Editor", email);
     await finishOnboarding(page);
     await page.goto("/profile");
 
     await page.getByLabel("Full name").fill("Edward Editor");
-    await choose(page, "Highest degree", "MD");
+    await choose(page, INTAKE.biosafety, "Practical assessment or review experience");
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByText("Saved.")).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Full name")).toHaveValue("Edward Editor");
-    await expect(page.getByLabel("Highest degree")).toContainText("MD");
+    await expect(page.getByLabel(INTAKE.biosafety, { exact: true })).toContainText(
+      "Practical assessment or review experience",
+    );
+    expect((await stored(email)).intake).toMatchObject({ biosafety: "practical_review" });
     // The name in the sidebar comes from the session, and follows.
     await expect(page.getByRole("link", { name: /Edward Editor/ })).toBeVisible();
   });

@@ -1,5 +1,11 @@
 # Astral Platform — Product Spec (MVP)
 
+> **Superseded in part.** The data collection was redesigned in
+> specification v1.1 (`docs/spec/`). `docs/SPEC-V1.1-STATUS.md` says what
+> the platform does now. What follows describes the platform before that
+> change: accounts, chat, budgets, security and deployment still apply;
+> labels, review batches, scanners for participants and nominations do not.
+
 Status: draft v1, 2026-11-03. Owner: Jess. Audience: the build team (currently Jess + Claude).
 
 Astral is a web platform used during a one-day, in-person transcript-generation

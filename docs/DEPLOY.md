@@ -216,6 +216,36 @@ It prints a temporary password, which works once. If nobody is an
 organizer at all, `npm run prod:seed` makes organizers of the addresses in
 `ADMIN_EMAILS`. Both need the database credentials, which only you hold.
 
+## Moving to specification v1.1 (migration 0007)
+
+This is the one release where the order matters more than usual, because
+the new code reads tables the old database does not have.
+
+1. `npm run prod:migrate` first. It adds the new tables, turns every
+   existing conversation into a one-session episode, and marks every
+   account as needing to answer the new background questions.
+2. Then move `main` to the branch and let it deploy.
+3. Sign in. You will be asked for the background questions like everyone
+   else. Then, in the console:
+   - **Policy**: publish the reference policy and its rules. Reviewing
+     stays closed until you do.
+   - **Settings**: reviews per view (3), whether new submissions are
+     released for review automatically (off), whether related versions
+     are open (on).
+4. During the event someone watches **Submissions**: each new submission
+   waits there as Pending until it is given a review level and marked
+   Ready. "Release all pending" marks everything waiting as General.
+
+Between step 1 and step 2 the old site keeps working, but anyone who
+loads a page is sent to the onboarding form, which on the old code is
+the old profile form. Do the two steps a few minutes apart, not hours.
+
+Going back: `main` at the previous commit still runs against the
+migrated database for chat and sign-in, since nothing was removed. Its
+labels, old review and nomination pages would show old data only.
+
+`docs/SPEC-V1.1-STATUS.md` has the full list of what changed and why.
+
 ## The day before the event
 
 - Change `EVENT_CODE` in the admin console to the code you will read out, and
@@ -224,6 +254,8 @@ organizer at all, `npm run prod:seed` makes organizers of the addresses in
   during the event: removing a model stops conversations already on it.
 - `npm run prod:check-models` and `npm run prod:check-scanners`, so a model
   that has been retired is a thing you find now rather than at 10am.
+- Publish the reference policy, from **Organize → Policy**. Reviewing is
+  closed until there is one.
 - Replace the placeholder terms, from **Organize → Terms**. They are seeded
   as version 1; publishing a version 2 makes everyone accept it again, so do
   this before people sign up.
@@ -237,11 +269,7 @@ organizer at all, `npm run prod:seed` makes organizers of the addresses in
 
   ```sql
   DELETE FROM "user" WHERE email LIKE '%@example.com';
-
-  -- A transcript is locked when it is reviewed. Deleting a reviewer deletes
-  -- their reviews, so unlock whatever they had reviewed, or its author stays
-  -- shut out of a transcript that no longer has a review.
-  UPDATE conversation SET locked_at = NULL
-  WHERE locked_at IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM review r WHERE r.conversation_id = conversation.id);
   ```
+
+  Their conversations, submissions, review assignments and answers go
+  with them.
