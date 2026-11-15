@@ -138,12 +138,12 @@ test.describe("keeping accounts from being walked into", () => {
     const write = await page.request.post("/api/conversations", { data: { modelId: "anything" } });
     expect(write.status()).toBe(403);
     expect((await write.json()).message).toContain("password has to be replaced");
-    for (const path of [
-      `/api/conversations/${conversation}/messages`,
-      "/api/judge",
-      "/api/judge/configs",
-    ]) {
-      expect((await page.request.get(path)).status(), path).toBe(403);
+    expect(
+      (await page.request.get(`/api/conversations/${conversation}/messages`)).status(),
+    ).toBe(403);
+    // The scanners answer organizers only; to anyone else they are not there.
+    for (const path of ["/api/judge", "/api/judge/configs"]) {
+      expect((await page.request.get(path)).status(), path).toBe(404);
     }
     // And the login system's own way of changing a password, which knows
     // none of the rules, is not on offer.
