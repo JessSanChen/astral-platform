@@ -44,6 +44,9 @@ test.describe("the organizer console", () => {
     await mine.getByRole("button", { name: "Manage" }).click();
     const myControls = page.getByRole("group", { name: `Manage ${organizer.name}` });
     await expect(myControls.getByRole("button", { name: "Remove organizer" })).toBeDisabled();
+    // Nor is your own account yours to pause: it would shut you out of the
+    // page you would need to undo it.
+    await expect(myControls.getByRole("button", { name: "Pause this account" })).toBeDisabled();
     // Each control's label fits on one line of its button, and none of
     // them is pushed off the side of the table.
     const table = (await page.getByRole("table").boundingBox())!;
@@ -108,6 +111,14 @@ test.describe("the organizer console", () => {
     await choose(p, "What kind of transcript is this?", "Benign", labelsPanel(p));
     await labelsPanel(p).getByRole("button", { name: "Save" }).click();
     await expect(labelsPanel(p)).toContainText("Progress saved.");
+    // One submitted and then given a different last reply, which the
+    // submission does not include.
+    await submittedTranscript(p, "What is a capsid?");
+    const regenerated = p.locator('[data-turn="2"] .markdown');
+    const asSubmitted = await regenerated.textContent();
+    await p.getByRole("button", { name: "Regenerate" }).click();
+    await expect(regenerated).not.toHaveText(asSubmitted!);
+    const asItIsNow = await regenerated.textContent();
     // And one opened and never typed into, which is not a transcript.
     await startConversation(p);
 
@@ -119,7 +130,7 @@ test.describe("the organizer console", () => {
     // Both conversations, in full: every message, not a preview.
     const one = page.locator("details").filter({ hasText: "What is a prion?" });
     const two = page.locator("details").filter({ hasText: "What is quorum sensing?" });
-    await expect(page.getByRole("link", { name: "All (2)" })).toHaveAttribute(
+    await expect(page.getByRole("link", { name: "All (3)" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -141,9 +152,24 @@ test.describe("the organizer console", () => {
     await expect(two).toContainText("Benign");
     await expect(two).toContainText("to: What is quorum sensing?");
 
+    // What was submitted is what is shown, even where the conversation has
+    // moved on: the reply that was labelled, then the one that replaced it,
+    // said to be exactly that.
+    const three = page.locator("details").filter({ hasText: "What is a capsid?" });
+    await expect(three).toContainText("2 turns");
+    const replies = three.getByRole("listitem").filter({ hasText: "to: What is a capsid?" });
+    await expect(replies).toHaveCount(2);
+    await expect(replies.nth(0)).toContainText(asSubmitted!);
+    await expect(replies.nth(0)).not.toContainText("after submitting");
+    await expect(replies.nth(1)).toContainText(asItIsNow!);
+    await expect(replies.nth(1)).toContainText(
+      "regenerated after submitting: this replaced turn 2 above",
+    );
+
     // Filtered either way.
-    await page.getByRole("link", { name: "Submitted (1)", exact: true }).click();
+    await page.getByRole("link", { name: "Submitted (2)", exact: true }).click();
     await expect(one).toBeVisible();
+    await expect(three).toBeVisible();
     await expect(two).toHaveCount(0);
     await page.getByRole("link", { name: "Not submitted (1)" }).click();
     await expect(two).toBeVisible();
@@ -158,18 +184,16 @@ test.describe("the organizer console", () => {
         .map((l) => JSON.parse(l))
         .filter((l) => l.author?.email === participant.email);
     const everything = await read("/api/admin/export");
-    expect(everything.map((l) => [l.conversation_id, l.status]).sort()).toEqual(
-      [
-        [draft, "draft"],
-        [submitted, "submitted"],
-      ].sort(),
-    );
+    expect(everything.map((l) => l.status).sort()).toEqual(["draft", "submitted", "submitted"]);
+    expect(everything.find((l) => l.conversation_id === submitted).status).toBe("submitted");
     const unsubmitted = everything.find((l) => l.conversation_id === draft);
     expect(unsubmitted.self_labels).toBeNull();
     expect(unsubmitted.draft_labels.type).toBe("benign");
     expect(unsubmitted.messages).toHaveLength(2);
     const onlySubmitted = await read("/api/admin/export?only=submitted");
-    expect(onlySubmitted.map((l) => l.conversation_id)).toEqual([submitted]);
+    expect(onlySubmitted).toHaveLength(2);
+    expect(onlySubmitted.map((l) => l.conversation_id)).toContain(submitted);
+    expect(onlySubmitted.map((l) => l.conversation_id)).not.toContain(draft);
 
     await participant.context.close();
     await organizer.context.close();

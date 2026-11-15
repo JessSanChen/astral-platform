@@ -1,13 +1,16 @@
+import { execFileSync } from "node:child_process";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
-import { MAX_FAILED_SIGN_INS } from "@/lib/auth";
+import { MAX_FAILED_SIGN_INS } from "@/lib/sign-in-guard";
 import { eventCode, sql, userId } from "./db";
 import {
   PASSWORD,
   finishOnboarding,
   newOrganizer,
   newParticipant,
+  say,
   signIn,
+  startConversation,
   uniqueEmail,
 } from "./helpers";
 
@@ -64,17 +67,65 @@ async function expectSignedOut(page: Page) {
 }
 
 test.describe("keeping accounts from being walked into", () => {
-  test("a password that would not be accepted today has to be replaced on signing in", async ({
+  test("a password anyone could guess is refused outright, even when it is right", async ({
     browser,
+    baseURL,
   }) => {
-    const person = await newParticipant(browser, "Wade Weak");
+    const person = await newParticipant(browser, "Gus Guessable");
     const page = person.page;
-    // The password an early account might have: short of nothing the old
-    // form asked for, and the first thing anyone would try.
+    // The password an early account might have: nothing the old form
+    // objected to, and the first thing anyone would try.
     await setStoredPassword(person.email, "astral123");
     await person.context.clearCookies();
 
+    // It is the right password, and it does not open the account. Letting
+    // it work "once, to choose a new one" would let whoever tried it first
+    // do the choosing.
     await signInWith(page, person.email, "astral123");
+    await expect(page.getByText("too easy to guess, so it is no longer accepted here")).toBeVisible();
+    await page.goto("/chat");
+    await expect(page).toHaveURL(/\/sign-in$/);
+    const direct = await page.request.post("/api/auth/sign-in/email", {
+      data: { email: person.email, password: "astral123" },
+      headers: { origin: baseURL! },
+    });
+    expect(direct.status()).toBe(403);
+    // Nothing was counted against the account: it was never a guess at it.
+    const [{ failed_sign_ins: counted }] =
+      await sql`select failed_sign_ins from "user" where email = ${person.email}`;
+    expect(counted).toBe(0);
+
+    // The way back needs someone the guesser cannot be: an organizer, or
+    // whoever holds the database credentials.
+    const output = execFileSync("npx", ["tsx", "scripts/set-password.ts", person.email], {
+      encoding: "utf8",
+      env: process.env,
+    });
+    const temporary = output.match(/Temporary password:\s+(\S+)/)?.[1];
+    expect(temporary).toBeTruthy();
+
+    await signInWith(page, person.email, temporary!);
+    await page.waitForURL("**/change-password");
+    await page.getByLabel("Current password").fill(temporary!);
+    await page.getByLabel("New password").fill("Lantern-Orchard-42");
+    await page.getByRole("button", { name: "Change password" }).click();
+    await page.waitForURL("**/chat");
+    await person.context.close();
+  });
+
+  test("a password built on the owner's own name has to be replaced before anything else", async ({
+    browser,
+    baseURL,
+  }) => {
+    const person = await newParticipant(browser, "Wade Weakly");
+    const page = person.page;
+    const conversation = await startConversation(page);
+    await say(page, "Said before the password was questioned.");
+    // Not one a stranger would try, but not one the form accepts either.
+    await setStoredPassword(person.email, "wade-weakly-2026");
+    await person.context.clearCookies();
+
+    await signInWith(page, person.email, "wade-weakly-2026");
     // Straight to choosing a new one, and nowhere else until it is done.
     await page.waitForURL("**/change-password");
     await expect(page.getByRole("heading", { name: "Choose a new password" })).toBeVisible();
@@ -82,19 +133,33 @@ test.describe("keeping accounts from being walked into", () => {
     await expect(page).toHaveURL(/\/change-password$/);
     await page.goto("/profile");
     await expect(page).toHaveURL(/\/change-password$/);
-    const refused = await page.request.post("/api/conversations", {
-      data: { modelId: "anything" },
-    });
-    expect(refused.status()).toBe(403);
-    expect((await refused.json()).message).toContain("password has to be replaced");
 
-    // It asks for the current one, and holds the new one to the rules.
+    // Not by going round the pages, either: nothing can be written or read.
+    const write = await page.request.post("/api/conversations", { data: { modelId: "anything" } });
+    expect(write.status()).toBe(403);
+    expect((await write.json()).message).toContain("password has to be replaced");
+    for (const path of [
+      `/api/conversations/${conversation}/messages`,
+      "/api/judge",
+      "/api/judge/configs",
+    ]) {
+      expect((await page.request.get(path)).status(), path).toBe(403);
+    }
+    // And the login system's own way of changing a password, which knows
+    // none of the rules, is not on offer.
+    const bypass = await page.request.post("/api/auth/change-password", {
+      data: { currentPassword: "wade-weakly-2026", newPassword: "password1" },
+      headers: { origin: baseURL! },
+    });
+    expect(bypass.status()).toBe(404);
+
+    // The form asks for the current one, and holds the new one to the rules.
     await page.getByLabel("Current password").fill("not-the-password-1");
     await page.getByLabel("New password").fill("Lantern-Orchard-42");
     await page.getByRole("button", { name: "Change password" }).click();
     await expect(page.getByText("That is not your current password.")).toBeVisible();
 
-    await page.getByLabel("Current password").fill("astral123");
+    await page.getByLabel("Current password").fill("wade-weakly-2026");
     await page.getByLabel("New password").fill("astral2026");
     await page.getByRole("button", { name: "Change password" }).click();
     await expect(page.getByText("That password is too easy to guess.")).toBeVisible();
@@ -106,14 +171,17 @@ test.describe("keeping accounts from being walked into", () => {
     // The old one no longer opens the account; the new one does, and is
     // not questioned.
     await person.context.clearCookies();
-    await signInWith(page, person.email, "astral123");
+    await signInWith(page, person.email, "wade-weakly-2026");
     await expect(page.getByText(/invalid email or password/i)).toBeVisible();
     await signInWith(page, person.email, "Lantern-Orchard-42");
     await page.waitForURL("**/chat");
     await person.context.close();
   });
 
-  test("an organizer's password has to be longer than a participant's", async ({ browser }) => {
+  test("an organizer's password has to be longer than a participant's", async ({
+    browser,
+    baseURL,
+  }) => {
     const organizer = await newOrganizer(browser, "Olga Organizer");
     // Ten characters: fine for a participant.
     const person = await participantWithPassword(browser, "Petra Promoted", "Plum-Sky-7");
@@ -128,6 +196,21 @@ test.describe("keeping accounts from being walked into", () => {
       const controls = organizer.page.getByRole("group", { name: "Manage Petra Promoted" });
       await controls.getByRole("button", { name: "Make organizer" }).click();
       await expect(controls).toContainText("They are being signed out");
+
+      // The login system has an administration API of its own. An
+      // organizer's browser gets nothing from it: everything goes through
+      // the console, which checks, limits and records.
+      const target = await userId(person.email);
+      for (const [path, data] of [
+        ["/api/auth/admin/set-user-password", { userId: target, newPassword: "anything-at-all-1" }],
+        ["/api/auth/admin/set-role", { userId: target, role: "admin" }],
+        ["/api/auth/admin/impersonate-user", { userId: target }],
+        ["/api/auth/admin/remove-user", { userId: target }],
+      ] as const) {
+        const res = await organizer.page.request.post(path, { data, headers: { origin: baseURL! } });
+        expect(res.status(), path).toBe(404);
+      }
+      expect((await organizer.page.request.get("/api/auth/admin/list-users")).status()).toBe(404);
 
       // Signed out by the promotion.
       await expectSignedOut(person.page);
@@ -211,7 +294,7 @@ test.describe("keeping accounts from being walked into", () => {
       await organizer.page.goto("/admin/activity");
       await expect(
         activity(organizer.page)
-          .filter({ hasText: "Sign-in was locked after repeated wrong passwords" })
+          .filter({ hasText: "Password attempts ran out, and sign-in was locked" })
           .filter({ hasText: victim.email }),
       ).toBeVisible();
 
@@ -250,6 +333,82 @@ test.describe("keeping accounts from being walked into", () => {
       await organizer.context.close();
       await victim.context.close();
     }
+  });
+
+  test("guesses sent all at once do not get past the limit", async ({ browser, baseURL }) => {
+    const victim = await newParticipant(browser, "Polly Parallel");
+    const guesser = await browser.newContext();
+    // Forty at the same moment, none of them right.
+    const results = await Promise.all(
+      Array.from({ length: 40 }, (_, i) =>
+        guesser.request
+          .post("/api/auth/sign-in/email", {
+            data: { email: victim.email, password: `Parallel-guess-${i}` },
+            headers: { origin: baseURL! },
+          })
+          .then((res) => res.status()),
+      ),
+    );
+    // However close together they arrive, only so many are ever checked.
+    const checked = results.filter((status) => status === 401).length;
+    const refused = results.filter((status) => status === 429).length;
+    expect(checked).toBeLessThanOrEqual(MAX_FAILED_SIGN_INS);
+    expect(checked + refused).toBe(40);
+    await guesser.close();
+    await victim.context.close();
+  });
+
+  test("a paused account using the right password is not counted as guessing", async ({
+    browser,
+    baseURL,
+  }) => {
+    const person = await newParticipant(browser, "Pia Paused");
+    await sql`update "user" set banned = true where email = ${person.email}`;
+    const elsewhere = await browser.newContext();
+    for (let i = 0; i < MAX_FAILED_SIGN_INS + 3; i++) {
+      const res = await elsewhere.request.post("/api/auth/sign-in/email", {
+        data: { email: person.email, password: PASSWORD },
+        headers: { origin: baseURL! },
+      });
+      // Refused for being paused, every time, and never for "too many
+      // wrong passwords": there were none.
+      expect(res.status()).toBe(403);
+    }
+    const [row] = await sql`
+      select failed_sign_ins, locked_until from "user" where email = ${person.email}
+    `;
+    expect(row).toMatchObject({ failed_sign_ins: 0, locked_until: null });
+    await elsewhere.close();
+    await person.context.close();
+  });
+
+  test("the current password cannot be guessed at on the change form", async ({ browser }) => {
+    const person = await newParticipant(browser, "Lena Laptop");
+    const page = person.page;
+    await page.goto("/profile");
+    const attempts = async () => {
+      const [row] = await sql`select failed_sign_ins from "user" where email = ${person.email}`;
+      return row.failed_sign_ins as number;
+    };
+
+    // Somebody at an unattended laptop, trying to make the account theirs.
+    await page.getByLabel("New password").fill("Copper-Lantern-Hill-3");
+    for (let i = 1; i <= MAX_FAILED_SIGN_INS; i++) {
+      await page.getByLabel("Current password").fill(`Wrong-guess-number-${i}`);
+      await page.getByRole("button", { name: "Change password" }).click();
+      await expect.poll(attempts).toBe(i);
+    }
+    await expect(page.getByText("That is not your current password.")).toBeVisible();
+
+    // One more, and the form stops listening, even to the right one.
+    await page.getByLabel("Current password").fill(PASSWORD);
+    await page.getByRole("button", { name: "Change password" }).click();
+    await expect(page.getByText("Too many wrong passwords for this account.")).toBeVisible();
+    // The password was not changed.
+    const [{ must_change_password: flagged }] =
+      await sql`select must_change_password from "user" where email = ${person.email}`;
+    expect(flagged).toBe(false);
+    await person.context.close();
   });
 
   test("changing your password signs out anyone else using the account", async ({ browser }) => {

@@ -189,14 +189,23 @@ test.describe("independent review", () => {
       expect(await everythingFor(third.email)).not.toContain(id);
       expect(await everythingFor(author.email)).not.toContain(id);
 
-      // Both review it, each without sight of the other.
+      // Both review it, each without sight of the other. The first review
+      // is what locks it, and the second does not move that moment.
+      const lockedAt = async () => {
+        const [row] = await sql`select locked_at from conversation where id = ${id}`;
+        return row.locked_at ? new Date(row.locked_at).getTime() : null;
+      };
+      const lockTimes: (number | null)[] = [];
       for (const reviewer of [first, second]) {
         await reviewer.page.goto(`/review/${id}`);
         await fillReview(reviewer.page);
         const panel = reviewPanel(reviewer.page);
         await panel.getByRole("button", { name: /submit/i }).click();
         await expect(panel).toContainText("Review saved. Thank you.");
+        lockTimes.push(await lockedAt());
       }
+      expect(lockTimes[0]).not.toBeNull();
+      expect(lockTimes[1]).toBe(lockTimes[0]);
       const reviews = await sql`
         select reviewer_id from review where conversation_id = ${id}
       `;

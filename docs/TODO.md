@@ -88,9 +88,10 @@ defining first.
 ### 4. Account hygiene — build work, small
 
 - The admin password used for testing was weak, was shared in plain text,
-  and was guessed by a tester. It can no longer be used: signing in with it
-  takes you to a page that asks for a new one, of at least twelve
-  characters for an organizer. See round 19 of the build log.
+  and was guessed by a tester. It can no longer be used by anyone: it is
+  refused at sign-in. If you had not changed it, get a temporary one with
+  `npm run prod:set-password -- your@address`. See rounds 19 and 20 of the
+  build log.
 - **Worth considering: a second factor for organizers.** A code from a
   phone app at sign-in, for organizer accounts only. It is the one thing
   that protects an account whose password is strong but has leaked. About

@@ -179,6 +179,30 @@ test.describe("a conversation, from first message to submitted transcript", () =
     await page.keyboard.press("Escape");
     await expect(page.getByPlaceholder("Send a message...")).toBeVisible();
 
+    // A mark is on a particular reply, not on a position. Marking the last
+    // reply, saving, and then asking for a different one takes the mark
+    // away, on the screen and in what was saved: the new reply is not what
+    // was pointed to.
+    await panel.getByRole("button", { name: "Change selection" }).click();
+    await turn(4).click();
+    await page.keyboard.press("Escape");
+    await panel.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(panel).toContainText("Progress saved.");
+    const saved = async () => {
+      const [row] = await sql`
+        select evidence_turns from transcript_labels where conversation_id = ${id}
+      `;
+      return row.evidence_turns as number[];
+    };
+    expect(await saved()).toEqual([2, 3, 4]);
+    const lastReply = page.locator('[data-turn="4"] .markdown');
+    const before = await lastReply.textContent();
+    await page.getByRole("button", { name: "Regenerate" }).click();
+    await expect(lastReply).not.toHaveText(before!);
+    await expect(page.getByLabel("Marked as evidence", { exact: true })).toHaveCount(2);
+    await expect(panel.getByRole("button", { name: "Unmark turn 4" })).toHaveCount(0);
+    expect(await saved()).toEqual([2, 3]);
+
     // Submitted, the marks are part of the record: on the labels, and on
     // the messages themselves.
     await fillLabels(page, { topic: "Toxins" });
@@ -231,6 +255,46 @@ test.describe("a conversation, from first message to submitted transcript", () =
     await context.close();
   });
 
+  test("an answer that is too long is refused by name, not with an error page", async ({
+    browser,
+  }) => {
+    const { page, context } = await newParticipant(browser, "Lois Long");
+    await startConversation(page);
+    await say(page, "What is a spore?");
+    const panel = labelsPanel(page);
+    await fillLabels(page);
+
+    // The box stops at the limit. A browser that ignores that, or anything
+    // else posting the form, gets as far as the server.
+    const goal = panel.getByLabel("What were you trying to get the model to do?");
+    await expect(goal).toHaveAttribute("maxlength", "4000");
+    await goal.evaluate((el) => el.removeAttribute("maxlength"));
+    await goal.fill("x".repeat(4500));
+    await submitButton(page).click();
+
+    await expect(panel).toContainText("Keep this under 4,000 characters.");
+    await expect(panel).toContainText("Please complete the highlighted fields.");
+    // Still the form, with everything else as it was.
+    await expect(panel.getByLabel("What kind of transcript is this?")).toContainText("Benign");
+
+    // The same for the optional notes, which used to bring the whole
+    // submit down: the box is opened for the reader and says what is wrong.
+    await goal.fill("A sensible length this time.");
+    await panel.getByRole("button", { name: "Optional extras" }).click();
+    const notes = panel.getByLabel("Anything else worth knowing?");
+    await notes.evaluate((el) => el.removeAttribute("maxlength"));
+    await notes.fill("y".repeat(4500));
+    await panel.getByRole("button", { name: "Optional extras" }).click();
+    await submitButton(page).click();
+    await expect(panel).toContainText("Keep this under 4,000 characters.");
+    await expect(notes).toBeVisible();
+
+    await notes.fill("Short enough.");
+    await submitButton(page).click();
+    await expect(panel).toContainText("Submitted as version 1");
+    await context.close();
+  });
+
   test("copying and pasting in a conversation is recorded", async ({ browser }) => {
     const { page, context, email } = await newParticipant(browser, "Petra Paster");
     const id = await startConversation(page);
@@ -268,6 +332,22 @@ test.describe("a conversation, from first message to submitted transcript", () =
     expect(copied).toMatchObject({ kind: "copy", surface: "message", turn: 2, role: "assistant" });
     expect(copied.content).toContain("to: What is a virus?");
 
+    // Text dragged in from another window is a paste by another route.
+    const dragged = "Dragged in from a document open beside the browser.";
+    await composer.evaluate((el, text) => {
+      const data = new DataTransfer();
+      data.setData("text/plain", text);
+      el.dispatchEvent(
+        new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }),
+      );
+    }, dragged);
+    await expect.poll(async () => (await events()).length).toBe(3);
+    expect((await events())[2]).toMatchObject({
+      kind: "drop",
+      surface: "composer",
+      content: dragged,
+    });
+
     // Nobody can file an event against a conversation that is not theirs.
     const stranger = await newParticipant(browser, "Sly Stranger");
     const refused = await stranger.page.request.post("/api/clipboard", {
@@ -280,19 +360,52 @@ test.describe("a conversation, from first message to submitted transcript", () =
       },
     });
     expect(refused.status()).toBe(404);
-    expect((await events()).length).toBe(2);
+    expect((await events()).length).toBe(3);
 
     // It travels with the transcript in the export.
     const organizer = await newOrganizer(browser, "Olwen Organizer");
-    const lines = (await (await organizer.page.request.get("/api/admin/export")).text())
-      .trim()
-      .split("\n")
-      .map((l) => JSON.parse(l));
-    const line = lines.find((l) => l.conversation_id === id);
+    const exported = async () =>
+      (await (await organizer.page.request.get("/api/admin/export")).text())
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+    let lines = await exported();
+    let line = lines.find((l) => l.conversation_id === id);
     // Never submitted, and in the file all the same.
     expect(line.status).toBe("draft");
     expect(line.author.email).toBe(email);
-    expect(line.clipboard_events.map((e: { kind: string }) => e.kind)).toEqual(["paste", "copy"]);
+    expect(line.clipboard_events.map((e: { kind: string }) => e.kind)).toEqual([
+      "paste",
+      "copy",
+      "drop",
+    ]);
+    // The file says where it ends, so one cut short can be told from a
+    // whole one.
+    const last = lines[lines.length - 1];
+    expect(last.record).toBe("end");
+    expect(last.transcripts).toBe(lines.filter((l) => l.record === "transcript").length);
+
+    // Once it is submitted and someone is reviewing it, what the reviewer
+    // copies is recorded as the reviewer's, not passed off as the author's.
+    await fillLabels(page);
+    await submitButton(page).click();
+    await expect(labelsPanel(page)).toContainText("Submitted as version 1");
+    await sql`
+      insert into review_claim (conversation_id, reviewer_id)
+      select ${id}, id from "user" where email = ${stranger.email}
+    `;
+    await stranger.page.goto(`/review/${id}`);
+    await stranger.page.locator('[data-turn="2"] .markdown').selectText();
+    await stranger.page.keyboard.press("ControlOrMeta+C");
+    await expect.poll(async () => (await events()).length).toBe(4);
+    lines = await exported();
+    line = lines.find((l) => l.conversation_id === id);
+    expect(line.clipboard_events.map((e: { by: string }) => e.by)).toEqual([
+      "author",
+      "author",
+      "author",
+      "reviewer",
+    ]);
 
     await stranger.context.close();
     await organizer.context.close();

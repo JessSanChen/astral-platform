@@ -2063,6 +2063,9 @@ current rules. If it fails, the account goes to a page that asks for a new
 one, and nothing else works until it is given: no pages, no messages, no
 console.
 
+(Round 20 changed this: a password anyone could guess is now refused
+outright, and only the less guessable failures get this page.)
+
 **Organizers need twelve characters.** Participants still need eight. An
 organizer account can set passwords, promote people and download every
 transcript, so its password is worth more to guess. Making someone an
@@ -2132,6 +2135,108 @@ in; changing a password signing out another browser; signing everyone out.
    one before anything else.
 2. **Organize → Activity**.
 3. In a private window, try eight wrong passwords for a test account.
+
+---
+
+## Round 20: a third review, mostly of round 19
+
+A review of the last two rounds found fifteen things. Three of them meant
+the sign-in work in round 19 did less than it said. All fifteen are fixed.
+No change to the database this time.
+
+### Three that undid round 19
+
+**The login library had an administration API of its own, wide open.** It
+answers on `/api/auth/admin/...` and can set anyone's password, change
+anyone's role, sign in as anyone and delete anyone, for any organizer's
+session. None of it went through the console's checks or the activity
+record, so someone with an organizer's cookie could have done everything
+the tester did and left no trace. Those addresses, and the library's own
+change-password address, now answer "not found" to a browser. The app's
+own actions are the only way in.
+
+**Making a weak password "work once, to choose a new one" gave the account
+to whoever tried it first.** Round 19 caught a weak password at sign-in and
+asked for a replacement. But the person asked is the person who just typed
+it, and if that is the guesser, they choose the replacement and keep the
+account, console and all.
+
+So a password that anyone could guess is now refused at sign-in without
+being checked, right or wrong: under eight characters, on the list of
+common ones, or built on an obvious word such as the event's name. The
+owner of such an account needs a temporary password from an organizer, or
+from the command line (below). Passwords that fail the rules in ways a
+stranger would not guess (built on the owner's own name, or too short for
+an organizer) still get the replace-it-now page, since the person holding
+one is almost certainly its owner.
+
+**The lock could be outrun.** Wrong guesses were counted after the password
+was checked. A hundred sent at once were all let through before the first
+was counted. Each attempt is now counted before its password is looked at,
+one at a time, so the limit holds however they arrive.
+
+### A way back in without the console
+
+```bash
+npm run prod:set-password -- someone@example.com
+```
+
+Makes up a temporary password, prints it, signs that account out
+everywhere and lifts any lock. It needs the database credentials, so only
+you can run it. This is what to do if an organizer's password is one the
+site now refuses and there is nobody else to ask.
+
+### The other twelve
+
+- **Reading was not blocked where writing was.** A paused account, or one
+  that had to replace its password, could still fetch its conversations and
+  scanner results. Those now refuse in the same states.
+- **A label answer over its length limit crashed the submit** instead of
+  naming the box. The boxes now stop at the limit, and the server says
+  "Keep this under 4,000 characters" beside the right one.
+- **Exported clipboard events did not say whose they were**, so a
+  reviewer copying from a transcript looked like its author doing it. Each
+  now has `by` (`author` or `reviewer`) and `user_id`.
+- **The organizer's history page showed the conversation as it is now, not
+  as submitted.** A reply regenerated after submitting hid the reply that
+  was actually submitted. It now shows what was submitted, then anything
+  added since, and says of a regenerated reply which turn it replaced.
+- **Regenerating a reply that was marked as evidence kept the mark** on
+  whatever came back. The mark now goes with the reply, on screen and in
+  what was saved.
+- **A download cut short looked complete.** The export now ends with a
+  line `{"record": "end", ...}` carrying the number of transcripts, and is
+  given the longest running time the platform allows. No end line means
+  download it again.
+- **The current password could be guessed at without limit** on the
+  change-password form. It now draws on the same eight attempts as signing
+  in. Other failures there are no longer reported as a wrong password.
+- **A paused account signing in with the right password was counted as
+  guessing**, and eventually told "too many wrong passwords". Only a wrong
+  password uses up an attempt now.
+- **An organizer could pause their own account** and be shut out of the
+  console. Refused, like changing your own role.
+- **Organizers promoted by the seed script stayed signed in**, so the
+  twelve-character rule never reached them. The seed now signs them out,
+  as the console does.
+- **Each later review moved the time a transcript was locked.** It is now
+  the time of the first.
+- **Text dragged into the message box was not recorded.** It is, as
+  `drop`.
+
+### What the tests turned up while fixing
+
+- The first version of the lock-time fix could not be sent to the database
+  at all, and every review failed. The existing review tests caught it.
+- The "what were you trying to do" box had no length limit on submit, only
+  on save. It has one now.
+
+### Tests
+
+Five more, 52 in all, and several longer. New: a guessable password
+refused even when right, with the command line as the way back; forty
+guesses at once not getting past the limit; a paused account not being
+counted as guessing; the change form's limit; an over-long label answer.
 
 ---
 
