@@ -240,9 +240,9 @@ export function NewConversation({
               <div>
                 <h2 className="font-serif text-lg font-medium">About the folder</h2>
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  What holds across its sessions. Each session starts from these answers and can
-                  differ from them; you can change them later from the folder&apos;s own page.
-                  Not sent to the assistant, not shown to reviewers.
+                  Each session starts from these answers and can differ from them; you can
+                  change them later from the folder&apos;s own page. Not sent to the assistant,
+                  not shown to reviewers.
                 </p>
               </div>
               <RoleAndTask

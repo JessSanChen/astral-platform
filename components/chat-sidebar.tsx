@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { Folder, GitCompareArrows, Loader2, Plus } from "lucide-react";
+import { ChevronRight, Folder, GitCompareArrows, Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useConversationStore,
@@ -80,28 +80,38 @@ export function ChatSidebar() {
                 session={first}
                 label={first.title}
                 active={pathname === `/chat/${first.id}`}
-                note={first.episodeStatus === "submitted" ? "Submitted" : "Draft"}
+                note={first.episodeStatus === "submitted" ? "Submitted" : "Not submitted"}
               />
             );
           }
           return (
-            <div key={e.id} className="mb-1.5 mt-1">
-              {/* The folder's own page: what holds across its sessions. */}
+            <div key={e.id} className="mb-2 mt-1.5">
+              {/* The folder's own row: plainly something to click, with
+                  whether the folder itself has been submitted. Its page
+                  has the folder's questions and the way to submit it. */}
               <Link
                 href={`/chat/folder/${e.id}`}
                 aria-current={pathname === `/chat/folder/${e.id}` ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-[var(--radius)] px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
-                  pathname === `/chat/folder/${e.id}` && "bg-muted text-foreground",
+                  "flex items-center gap-2 rounded-[var(--radius)] border border-border bg-card px-3 py-2 text-sm font-medium shadow-sm hover:border-accent/60 hover:bg-muted",
+                  pathname === `/chat/folder/${e.id}` && "border-accent/60 bg-muted",
                 )}
               >
-                <Folder className="h-3.5 w-3.5 shrink-0" />
+                <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate">{first.episodeTitle}</span>
-                <span className="shrink-0 font-normal">
-                  {first.episodeStatus === "submitted" ? "Submitted" : "Draft"}
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                    first.episodeStatus === "submitted"
+                      ? "bg-accent/15 text-accent"
+                      : "border border-border text-muted-foreground",
+                  )}
+                >
+                  {first.episodeStatus === "submitted" ? "Submitted" : "Not submitted"}
                 </span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               </Link>
-              <div className="ml-3 border-l border-border pl-1">
+              <div className="ml-3 mt-0.5 border-l border-border pl-1">
                 {e.sessions.map((s) => (
                   <SessionLink
                     key={s.id}
@@ -112,6 +122,12 @@ export function ChatSidebar() {
                         : `${s.sessionOrder}. ${s.title}`
                     }
                     active={pathname === `/chat/${s.id}`}
+                    // A session sent in by itself, ahead of its folder.
+                    note={
+                      s.status === "submitted" && s.episodeStatus !== "submitted"
+                        ? "Submitted by itself"
+                        : undefined
+                    }
                   />
                 ))}
               </div>
@@ -162,7 +178,7 @@ function SessionLink({
             aria-hidden
             className={cn(
               "h-2 w-2 shrink-0 rounded-full",
-              session.episodeStatus === "submitted"
+              session.status === "submitted" || session.episodeStatus === "submitted"
                 ? "bg-accent"
                 : "border border-muted-foreground/40",
             )}
@@ -182,7 +198,7 @@ function SessionLink({
           <span className="mt-0.5 block pl-4 text-xs text-muted-foreground">{note}</span>
         )}
       </Link>
-      {session.episodeStatus === "draft" && (
+      {session.episodeStatus === "draft" && session.status !== "submitted" && (
         <ConversationMenu conversationId={session.id} title={session.title} />
       )}
     </div>

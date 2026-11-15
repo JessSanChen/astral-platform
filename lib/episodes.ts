@@ -279,6 +279,7 @@ export async function saveSessionLabels(conversationId: string, userId: string, 
       .select({
         episodeId: episode.id,
         status: episode.status,
+        sessionStatus: conversation.status,
         stored: conversation.authorLabels,
       })
       .from(conversation)
@@ -289,10 +290,13 @@ export async function saveSessionLabels(conversationId: string, userId: string, 
       // what the first did.
       .for("update", { of: episode });
     if (!row) throw new EpisodeError("That session could not be found.");
-    if (row.status !== "draft") {
+    if (row.status !== "draft" || row.sessionStatus !== "draft") {
       throw new EpisodeError("This has been submitted, so it can no longer be changed.");
     }
     const before = readSessionLabels(row.stored);
+    // Whether the task was real is no longer asked. An answer given while
+    // it was is kept, not wiped by the next save.
+    if (!labels.provenance) labels.provenance = before.provenance;
     const now = new Date();
 
     // A changed goal is kept as a revision, with whether the session had
@@ -426,6 +430,7 @@ type SessionSummary = {
   order: number;
   title: string;
   modelId: string;
+  status: string;
   authorLabels: unknown;
   messages: number;
   userMessages: number;
@@ -441,6 +446,7 @@ export async function listSessions(episodeId: string): Promise<SessionSummary[]>
       order: conversation.sessionOrder,
       title: conversation.title,
       modelId: conversation.modelId,
+      status: conversation.status,
       authorLabels: conversation.authorLabels,
       messages: sql<number>`(
         select count(*)::int from ${message} m
@@ -504,7 +510,7 @@ export type ViewContent = { kind: "session" | "linked"; sessions: string[]; turn
  * with more than one, all of them together in the order things actually
  * happened.
  */
-export async function submitEpisode(episodeId: string, userId: string) {
+export async function submitEpisode(episodeId: string, userId: string, onlySessionId?: string) {
   return db.transaction(async (tx) => {
     const [ep] = await tx
       .select()
@@ -512,7 +518,7 @@ export async function submitEpisode(episodeId: string, userId: string) {
       .where(and(eq(episode.id, episodeId), eq(episode.userId, userId)))
       .for("update");
     if (!ep) throw new EpisodeError("That work could not be found.");
-    if (ep.status === "submitted") return { episode: ep, already: true as const };
+    if (ep.status === "submitted") return { episode: ep, already: true as const, sessions: 0 };
 
     const sessions = await tx
       .select()
@@ -542,36 +548,55 @@ export async function submitEpisode(episodeId: string, userId: string) {
       if (list) list.push(m);
       else bySession.set(m.conversationId, [m]);
     }
-    const included = sessions.filter((s) =>
-      (bySession.get(s.id) ?? []).some((m) => m.role === "user"),
-    );
-    if (included.length === 0) {
+    const hasWork = (s: (typeof sessions)[number]) =>
+      (bySession.get(s.id) ?? []).some((m) => m.role === "user");
+
+    // One session of a folder, by itself. For a conversation that stands
+    // alone the session is the whole of the work, so it is submitted as
+    // such.
+    const only = onlySessionId && ep.isFolder ? sessions.find((s) => s.id === onlySessionId) : undefined;
+    if (onlySessionId && ep.isFolder && !only) {
+      throw new EpisodeError("That session could not be found.");
+    }
+    if (only?.status === "submitted") {
+      return { episode: ep, already: true as const, sessions: 0 };
+    }
+
+    // Everything with work in it, whether or not it went in earlier by
+    // itself; and what is being fixed now.
+    const included = sessions.filter(hasWork);
+    const freezing = only
+      ? included.filter((s) => s.id === only.id)
+      : included.filter((s) => s.status !== "submitted");
+    if ((only ? freezing : included).length === 0) {
       throw new EpisodeError("Send at least one message before submitting.");
     }
     // The author's own account of the work goes in with it, complete. A
     // folder answers a little for itself and the rest for each session.
     if (ep.isFolder) {
-      if (Object.keys(missingFolderLabels(readFolderLabels(ep.authorLabels))).length > 0) {
+      if (!only && Object.keys(missingFolderLabels(readFolderLabels(ep.authorLabels))).length > 0) {
         throw new EpisodeError(
           "Answer the folder's own questions first: open the folder from the list on the left.",
         );
       }
-      const unanswered = included.filter(
+      const unanswered = freezing.filter(
         (s) => !sessionLabelsComplete(readSessionLabels(s.authorLabels)),
       );
       if (unanswered.length > 0) {
         throw new EpisodeError(
-          `Session${unanswered.length === 1 ? "" : "s"} ${unanswered
-            .map((s) => s.sessionOrder)
-            .join(", ")} still ${unanswered.length === 1 ? "has" : "have"} unanswered questions. Open ${unanswered.length === 1 ? "it" : "each"} and answer them, then submit.`,
+          only
+            ? "Answer the questions in the panel about this conversation before submitting. They are marked."
+            : `Session${unanswered.length === 1 ? "" : "s"} ${unanswered
+                .map((s) => s.sessionOrder)
+                .join(", ")} still ${unanswered.length === 1 ? "has" : "have"} unanswered questions. Open ${unanswered.length === 1 ? "it" : "each"} and answer them, then submit.`,
         );
       }
-    } else if (!ep.taskProvenance || !labelsComplete(readLabels(ep.authorLabels))) {
+    } else if (!labelsComplete(readLabels(ep.authorLabels))) {
       throw new EpisodeError(
         "Answer the questions in the panel about this work before submitting. They are marked.",
       );
     }
-    for (const s of included) {
+    for (const s of freezing) {
       const list = bySession.get(s.id)!;
       const last = list[list.length - 1];
       if (
@@ -593,7 +618,7 @@ export async function submitEpisode(episodeId: string, userId: string) {
         ? readSessionLabels(s.authorLabels)
         : standaloneSessionLabels(ep);
     if (!ep.isFolder) {
-      for (const s of included) {
+      for (const s of freezing) {
         await tx
           .update(conversation)
           .set({
@@ -611,8 +636,8 @@ export async function submitEpisode(episodeId: string, userId: string) {
     const [authorProfile] = await tx.select().from(profile).where(eq(profile.userId, userId));
 
     // The frozen record of each session, in the table submissions have
-    // always lived in. One version, because there is only one submission.
-    for (const s of included) {
+    // always lived in. One version, because a session is submitted once.
+    for (const s of freezing) {
       const list = bySession.get(s.id)!;
       await tx.insert(submission).values({
         conversationId: s.id,
@@ -667,22 +692,24 @@ export async function submitEpisode(episodeId: string, userId: string) {
         },
       });
     }
-    await tx
-      .update(conversation)
-      .set({
-        status: "submitted",
-        currentVersion: 1,
-        firstSubmittedAt: now,
-        lastSubmittedAt: now,
-        lockedAt: now,
-        updatedAt: now,
-      })
-      .where(
-        inArray(
-          conversation.id,
-          included.map((s) => s.id),
-        ),
-      );
+    if (freezing.length > 0) {
+      await tx
+        .update(conversation)
+        .set({
+          status: "submitted",
+          currentVersion: 1,
+          firstSubmittedAt: now,
+          lastSubmittedAt: now,
+          lockedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          inArray(
+            conversation.id,
+            freezing.map((s) => s.id),
+          ),
+        );
+    }
 
     // What reviewers see. Titles, the goal note and everything else about
     // the author's intentions are deliberately not in here.
@@ -708,7 +735,8 @@ export async function submitEpisode(episodeId: string, userId: string) {
         contentHash: createHash("sha256").update(JSON.stringify(content)).digest("hex"),
       });
 
-    for (const s of included) {
+    // A session submitted earlier by itself already has its view.
+    for (const s of freezing) {
       addView(
         {
           kind: "session",
@@ -718,7 +746,9 @@ export async function submitEpisode(episodeId: string, userId: string) {
         s.id,
       );
     }
-    if (included.length > 1) {
+    // The folder read as a whole exists once the folder itself is
+    // submitted, and takes in every session with work in it.
+    if (!only && included.length > 1) {
       const ids = new Set(included.map((s) => s.id));
       addView(
         {
@@ -732,7 +762,24 @@ export async function submitEpisode(episodeId: string, userId: string) {
         null,
       );
     }
-    await tx.insert(reviewView).values(views);
+    if (views.length > 0) await tx.insert(reviewView).values(views);
+
+    // Available to every reviewer at once. Nobody decides who is able to
+    // review what: a reviewer who finds it outside their expertise skips
+    // it. An organizer can still hold work back or withdraw it, and work
+    // already held stays held.
+    const assignmentState = ep.assignmentState === "pending" ? "ready" : ep.assignmentState;
+
+    if (only) {
+      // The folder stays open: more can be written in its other sessions,
+      // and it is still to be submitted as a whole.
+      const [open] = await tx
+        .update(episode)
+        .set({ updatedAt: now, assignmentState, reviewLevel: "general" })
+        .where(eq(episode.id, episodeId))
+        .returning();
+      return { episode: open, already: false as const, sessions: 1 };
+    }
 
     const [submitted] = await tx
       .update(episode)
@@ -740,10 +787,7 @@ export async function submitEpisode(episodeId: string, userId: string) {
         status: "submitted",
         submittedAt: now,
         updatedAt: now,
-        // Available to every reviewer at once. Nobody decides who is able
-        // to review what: a reviewer who finds it outside their expertise
-        // skips it. An organizer can still hold one back or withdraw it.
-        assignmentState: "ready",
+        assignmentState,
         reviewLevel: "general",
       })
       .where(eq(episode.id, episodeId))
@@ -754,38 +798,59 @@ export async function submitEpisode(episodeId: string, userId: string) {
 }
 
 /**
- * Starts a related version of a submitted episode: a new, empty episode in
- * the same family, on the same model. None of the source's messages go with
- * it; the link is the only connection.
+ * Submits one conversation: by itself if it is a session in a folder,
+ * leaving the folder open; as the whole of the work if it stands alone.
+ */
+export async function submitSession(conversationId: string, userId: string) {
+  const [row] = await db
+    .select({ episodeId: conversation.episodeId })
+    .from(conversation)
+    .where(and(eq(conversation.id, conversationId), eq(conversation.userId, userId)));
+  if (!row?.episodeId) throw new EpisodeError("That conversation could not be found.");
+  return submitEpisode(row.episodeId, userId, conversationId);
+}
+
+/**
+ * Starts a related version of one submitted conversation: a new, empty
+ * conversation in the same family, on the same model. None of the
+ * source's messages go with it; the link is the only connection.
+ *
+ * The link is between the two conversations. The source may be a session
+ * in a folder, and the new conversation may later be given more sessions
+ * and so become a folder: neither changes what is related to what.
  */
 export async function createRelatedVersion(opts: {
-  sourceEpisodeId: string;
+  sourceConversationId: string;
   userId: string;
   intent: string;
   intendedDifference: string;
 }) {
-  const source = await getOwnedEpisode(opts.sourceEpisodeId, opts.userId);
+  const [source] = await db
+    .select({
+      id: conversation.id,
+      status: conversation.status,
+      modelId: conversation.modelId,
+      episodeId: episode.id,
+      familyId: episode.sourceFamilyId,
+    })
+    .from(conversation)
+    .innerJoin(episode, eq(episode.id, conversation.episodeId))
+    .where(and(eq(conversation.id, opts.sourceConversationId), eq(conversation.userId, opts.userId)));
+  if (!source) throw new EpisodeError("That conversation could not be found.");
   if (source.status !== "submitted") {
     throw new EpisodeError("Submit the original first: a related version is made from a submission.");
   }
   const { episode: created, session } = await createEpisode({
     userId: opts.userId,
     modelId: source.modelId,
-    // Whether the task is real starts as the original's answer and can be
-    // changed in the panel. In a folder each session answers for itself.
-    provenance: source.isFolder ? null : (source.taskProvenance as Provenance | null),
-    // A related version of a folder starts as a folder, ready for more
-    // sessions; of a conversation, as a conversation.
-    folder: source.isFolder,
-    // The answers that held across the original folder are where its
-    // related version starts; they can be changed.
-    folderLabels: source.isFolder ? source.authorLabels : undefined,
-    related: { sourceEpisodeId: source.id, familyId: source.sourceFamilyId },
+    related: { sourceEpisodeId: source.episodeId, familyId: source.familyId },
   });
   await db.insert(relatedVersion).values({
-    sourceEpisodeId: source.id,
+    sourceEpisodeId: source.episodeId,
     targetEpisodeId: created.id,
-    familyId: source.sourceFamilyId,
+    sourceConversationId: source.id,
+    targetConversationId: session.id,
+    familyId: source.familyId,
     comparisonIntent: opts.intent,
     intendedDifference: opts.intendedDifference,
     createdBy: opts.userId,
@@ -809,6 +874,11 @@ export async function listMyWork(userId: string) {
       episodeStatus: episode.status,
       creationMethod: episode.creationMethod,
       episodeCreatedAt: episode.createdAt,
+      // Made with Create related version: this conversation, not
+      // whatever else has since been put in a folder with it.
+      related: sql<boolean>`exists (
+        select 1 from related_version rv where rv.target_conversation_id = ${conversation.id}
+      )`,
     })
     .from(conversation)
     .innerJoin(episode, eq(episode.id, conversation.episodeId))
@@ -817,17 +887,24 @@ export async function listMyWork(userId: string) {
 }
 
 /**
- * Changes what a related version says it set out to change. Allowed while
- * the related version is still a draft: once it is submitted, what it
- * said is part of the record. That it was revised, and when, is kept.
+ * Changes what a related version says it set out to explore. Allowed
+ * while the related conversation is still a draft: once it is submitted,
+ * what it said is part of the record. That it was revised, and when, is
+ * kept.
  */
 export async function reviseRelatedIntent(opts: {
-  targetEpisodeId: string;
+  targetConversationId: string;
   userId: string;
   intent: string;
   intendedDifference: string;
 }) {
-  const target = await getOwnedEpisode(opts.targetEpisodeId, opts.userId);
+  const [target] = await db
+    .select({ status: conversation.status })
+    .from(conversation)
+    .where(
+      and(eq(conversation.id, opts.targetConversationId), eq(conversation.userId, opts.userId)),
+    );
+  if (!target) throw new EpisodeError("That conversation could not be found.");
   if (target.status !== "draft") {
     throw new EpisodeError("This has been submitted, so it can no longer be changed.");
   }
@@ -840,7 +917,7 @@ export async function reviseRelatedIntent(opts: {
     })
     .where(
       and(
-        eq(relatedVersion.targetEpisodeId, target.id),
+        eq(relatedVersion.targetConversationId, opts.targetConversationId),
         // Unchanged answers are not a revision.
         sql`(${relatedVersion.comparisonIntent}, ${relatedVersion.intendedDifference}) is distinct from (${opts.intent}, ${opts.intendedDifference})`,
       ),
@@ -849,21 +926,20 @@ export async function reviseRelatedIntent(opts: {
   return { changed: Boolean(revised) };
 }
 
-/** The related-version links an episode takes part in, either way round. */
-export async function relatedLinks(episodeId: string) {
-  const rows = await db
+/** The related-version links one conversation takes part in, either way round. */
+export async function relatedLinks(conversationId: string) {
+  return db
     .select({
       id: relatedVersion.id,
-      sourceEpisodeId: relatedVersion.sourceEpisodeId,
-      targetEpisodeId: relatedVersion.targetEpisodeId,
+      sourceConversationId: relatedVersion.sourceConversationId,
+      targetConversationId: relatedVersion.targetConversationId,
       comparisonIntent: relatedVersion.comparisonIntent,
       intendedDifference: relatedVersion.intendedDifference,
       createdAt: relatedVersion.createdAt,
     })
     .from(relatedVersion)
     .where(
-      sql`${relatedVersion.sourceEpisodeId} = ${episodeId} or ${relatedVersion.targetEpisodeId} = ${episodeId}`,
+      sql`${relatedVersion.sourceConversationId} = ${conversationId} or ${relatedVersion.targetConversationId} = ${conversationId}`,
     )
     .orderBy(asc(relatedVersion.createdAt));
-  return rows;
 }

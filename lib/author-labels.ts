@@ -13,7 +13,9 @@ import { z } from "zod";
  * One place for the questions, their choices and the check, used by the
  * side panel, by the server, and by the organizer console.
  */
-export const AUTHOR_LABELS_VERSION = "L-1.0";
+// L-1.1: the scenario is asked first, and whether the task was real or
+// invented is no longer asked.
+export const AUTHOR_LABELS_VERSION = "L-1.1";
 
 type Choice = { value: string; label: string };
 const values = (choices: Choice[]) => choices.map((c) => c.value);
@@ -196,11 +198,12 @@ export function readSessionLabels(raw: unknown): SessionLabels {
   };
 }
 
+/**
+ * Whether the task was real or invented is no longer asked (L-1.1), so it
+ * is never missing. Answers given while it was asked are kept.
+ */
 export function missingSessionLabels(labels: SessionLabels) {
-  return {
-    ...(labels.provenance ? {} : { provenance: "Say whether the task is real or was made up for today." }),
-    ...missingLabels(labels),
-  } as Partial<Record<keyof SessionLabels, string>>;
+  return missingLabels(labels) as Partial<Record<keyof SessionLabels, string>>;
 }
 
 export const sessionLabelsComplete = (labels: SessionLabels) =>

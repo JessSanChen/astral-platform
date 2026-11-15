@@ -16,13 +16,12 @@ import {
 } from "@/lib/episode-options";
 
 export function RelatedVersionForm({
-  sourceEpisodeId,
+  sourceConversationId,
   sourceTitle,
-  sourceSessionId,
 }: {
-  sourceEpisodeId: string;
+  /** The one conversation the new one is made from, and linked to. */
+  sourceConversationId: string;
   sourceTitle: string;
-  sourceSessionId: string | null;
 }) {
   const router = useRouter();
   const { addConversation } = useConversationStore();
@@ -34,7 +33,7 @@ export function RelatedVersionForm({
   function create() {
     setError(null);
     start(async () => {
-      const result = await createRelatedAction(sourceEpisodeId, {
+      const result = await createRelatedAction(sourceConversationId, {
         intent,
         intendedDifference: difference,
       });
@@ -58,15 +57,13 @@ export function RelatedVersionForm({
   return (
     <div className="relative h-full overflow-y-auto">
       <div className="mx-auto max-w-xl space-y-7 px-6 py-12">
-        {sourceSessionId && (
-          <Link
-            href={`/chat/${sourceSessionId}`}
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to the original
-          </Link>
-        )}
+        <Link
+          href={`/chat/${sourceConversationId}`}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to the original
+        </Link>
         <div className="space-y-2">
           <h1 className="font-serif text-3xl font-medium tracking-tight">
             Create a related conversation

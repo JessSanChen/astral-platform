@@ -152,8 +152,10 @@ export async function requestAssignment(reviewerId: string, purpose: Purpose) {
               ) as completed
             from ${reviewView} v
             join ${episode} e on e.id = v.episode_id
-            where e.status = 'submitted'
-              and e.assignment_state = 'ready'
+            -- A view exists only for what has been submitted: a whole
+            -- conversation or folder, or one session of a folder that is
+            -- itself still open. Either may be reviewed.
+            where e.assignment_state = 'ready'
               and v.family_id not in ${offLimits}
               and (
                 select count(*) from ${reviewAssignment} held
@@ -175,9 +177,12 @@ export async function requestAssignment(reviewerId: string, purpose: Purpose) {
           from ${relatedVersion} rv
           join ${episode} source on source.id = rv.source_episode_id
           join ${episode} target on target.id = rv.target_episode_id
-          -- A pair is complete once both ends are submitted, and auditable
-          -- once both may be shown. The auditor has to be able to judge both.
-          where source.status = 'submitted' and target.status = 'submitted'
+          join ${conversation} sc on sc.id = rv.source_conversation_id
+          join ${conversation} tc on tc.id = rv.target_conversation_id
+          -- A pair is two single conversations. It is complete once both
+          -- have been submitted, whatever has become of any folder either
+          -- sits in, and auditable once both may be shown.
+          where sc.status = 'submitted' and tc.status = 'submitted'
             and source.assignment_state = 'ready' and target.assignment_state = 'ready'
             and rv.family_id not in ${offLimits}
             and not exists (
@@ -256,24 +261,25 @@ export async function loadAssignment(assignmentId: string, reviewerId: string) {
       .from(relatedVersion)
       .where(eq(relatedVersion.id, assignment.relatedVersionId));
     if (!link) return null;
-    // Each side as its fullest view: all sessions together where there are
-    // several, the single session otherwise.
-    const side = async (episodeId: string) => {
-      const views = await db
-        .select({ kind: reviewView.kind, content: reviewView.content })
+    // Each side is one conversation: the session the related version was
+    // made from, and the conversation that was started. Not the folder
+    // either may be in.
+    const side = async (conversationId: string | null) => {
+      if (!conversationId) return null;
+      const [view] = await db
+        .select({ content: reviewView.content })
         .from(reviewView)
-        .where(eq(reviewView.episodeId, episodeId));
-      const chosen = views.find((v) => v.kind === "linked") ?? views[0];
-      return (chosen?.content as ViewContent | undefined) ?? null;
+        .where(and(eq(reviewView.conversationId, conversationId), eq(reviewView.kind, "session")));
+      return (view?.content as ViewContent | undefined) ?? null;
     };
     const [source, target] = await Promise.all([
-      side(link.sourceEpisodeId),
-      side(link.targetEpisodeId),
+      side(link.sourceConversationId),
+      side(link.targetConversationId),
     ]);
     return {
       assignment,
       kind: "pair_audit" as const,
-      anchorConversationId: await firstSession(link.sourceEpisodeId),
+      anchorConversationId: link.sourceConversationId ?? (await firstSession(link.sourceEpisodeId)),
       pair: {
         // Only what the author said they would change. Not their goal note,
         // not which they thought of as the worrying one.

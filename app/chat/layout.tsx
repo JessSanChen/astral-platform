@@ -24,7 +24,7 @@ export default async function ChatLayout({
         isFolder: c.isFolder,
         sessionOrder: c.sessionOrder,
         episodeStatus: c.episodeStatus,
-        related: c.creationMethod === "related_live",
+        related: c.related,
       }))}
     >
       <div className="flex h-screen overflow-hidden">

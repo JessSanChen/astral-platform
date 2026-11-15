@@ -9,6 +9,7 @@ import {
   saveEpisodeDetails,
   saveSessionLabels,
   submitEpisode,
+  submitSession,
 } from "@/lib/episodes";
 import {
   COMPARISON_INTENT_VALUES,
@@ -52,16 +53,16 @@ export async function saveSessionLabelsAction(conversationId: string, labels: un
   });
 }
 
-/** Changes what a draft related version says it set out to change. */
+/** Changes what a draft related conversation says it set out to explore. */
 export async function reviseRelatedAction(
-  targetEpisodeId: string,
+  targetConversationId: string,
   input: { intent: string; intendedDifference: string },
 ) {
   const parsed = relatedSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false as const, message: parsed.error.issues[0]?.message ?? "Check the form." };
   }
-  return run((userId) => reviseRelatedIntent({ targetEpisodeId, userId, ...parsed.data }));
+  return run((userId) => reviseRelatedIntent({ targetConversationId, userId, ...parsed.data }));
 }
 
 /** The author's answers about their work, saved as they are given. */
@@ -103,6 +104,20 @@ export async function submitEpisodeAction(episodeId: string) {
   });
 }
 
+/**
+ * Submits one conversation by itself. In a folder that leaves the folder
+ * open; a conversation that stands alone is the whole of its work.
+ */
+export async function submitSessionAction(conversationId: string) {
+  return run(async (userId) => {
+    const result = await submitSession(conversationId, userId);
+    return {
+      submittedAt: new Date().toISOString(),
+      episodeSubmitted: result.episode.status === "submitted",
+    };
+  });
+}
+
 const relatedSchema = z.object({
   intent: z.enum(COMPARISON_INTENT_VALUES, { message: "Choose what you would like to explore." }),
   // Optional: the choice above is the answer, and this adds to it.
@@ -110,7 +125,7 @@ const relatedSchema = z.object({
 });
 
 export async function createRelatedAction(
-  sourceEpisodeId: string,
+  sourceConversationId: string,
   input: { intent: string; intendedDifference: string },
 ) {
   const parsed = relatedSchema.safeParse(input);
@@ -123,7 +138,7 @@ export async function createRelatedAction(
   }
   return run(async (userId) => {
     const { episode, session } = await createRelatedVersion({
-      sourceEpisodeId,
+      sourceConversationId,
       userId,
       ...parsed.data,
     });

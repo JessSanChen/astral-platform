@@ -1,10 +1,9 @@
 import { readLabels, readSessionLabels } from "@/lib/author-labels";
-import { outer } from "@/lib/sql";
 import { notFound } from "next/navigation";
 import type { UIMessage } from "ai";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { episode as episodeTable } from "@/db/schema";
+import { conversation as conversationTable, episode as episodeTable } from "@/db/schema";
 import { requireOnboarded } from "@/lib/gate";
 import { getEventSettings, ChatError } from "@/lib/openrouter";
 import {
@@ -39,7 +38,7 @@ export default async function ConversationPage({
     getEventSettings(),
     db.select().from(episodeTable).where(eq(episodeTable.id, convo.episodeId)),
     listSessions(convo.episodeId),
-    relatedLinks(convo.episodeId),
+    relatedLinks(convo.id),
   ]);
   if (!ep) notFound();
 
@@ -64,47 +63,34 @@ export default async function ConversationPage({
         },
       ];
 
-  // The titles of the episodes this one is linked to, for the panel.
-  const linkedIds = links.map((l) =>
-    l.sourceEpisodeId === ep.id ? l.targetEpisodeId : l.sourceEpisodeId,
-  );
+  // The conversations this one is linked to as a related version, either
+  // way round, for the panel. The link is between single conversations.
+  const linkedIds = links
+    .map((l) => (l.sourceConversationId === convo.id ? l.targetConversationId : l.sourceConversationId))
+    .filter((id): id is string => Boolean(id));
   const linked = linkedIds.length
     ? await db
         .select({
-          id: episodeTable.id,
-          title: episodeTable.title,
-          status: episodeTable.status,
-          firstSessionId: sql<string | null>`(
-            select c.id from conversation c
-            where c.episode_id = ${outer(episodeTable.id)} order by c.session_order limit 1
-          )`,
-          firstSessionTitle: sql<string | null>`(
-            select c.title from conversation c
-            where c.episode_id = ${outer(episodeTable.id)} order by c.session_order limit 1
-          )`,
-          isFolder: episodeTable.isFolder,
+          id: conversationTable.id,
+          title: conversationTable.title,
+          status: conversationTable.status,
         })
-        .from(episodeTable)
+        .from(conversationTable)
         .where(
           and(
-            eq(episodeTable.userId, user.id),
-            sql`${episodeTable.id} in (${sql.join(
+            eq(conversationTable.userId, user.id),
+            sql`${conversationTable.id} in (${sql.join(
               linkedIds.map((id) => sql`${id}`),
               sql`, `,
             )})`,
           ),
         )
     : [];
-  const nameOf = (id: string) => {
-    const e = linked.find((x) => x.id === id);
-    if (!e) return null;
-    return {
-      title: e.isFolder ? e.title : (e.firstSessionTitle ?? e.title),
-      sessionId: e.firstSessionId,
-      submitted: e.status === "submitted",
-    };
+  const nameOf = (id: string | null) => {
+    const c = linked.find((x) => x.id === id);
+    if (!c) return null;
+    return { title: c.title, sessionId: c.id, submitted: c.status === "submitted" };
   };
-
 
   const sessionLabels = readSessionLabels(convo.authorLabels);
 
@@ -123,32 +109,35 @@ export default async function ConversationPage({
         isFolder: ep.isFolder,
         status: ep.status,
         submittedAt: ep.submittedAt?.toISOString() ?? null,
+        // This conversation by itself: in a folder it can be submitted,
+        // and so closed, before the folder is.
+        sessionStatus: convo.status === "submitted" ? "submitted" : "draft",
+        sessionSubmittedAt: convo.lastSubmittedAt?.toISOString() ?? null,
         // A session in a folder answers for itself; a conversation that
         // stands alone answers for the work.
-        provenance: ep.isFolder ? sessionLabels.provenance || null : ep.taskProvenance,
         goal: ep.isFolder ? sessionLabels.goal : (ep.goalText ?? ""),
         labels: ep.isFolder ? sessionLabels : readLabels(ep.authorLabels),
-        related: ep.creationMethod === "related_live",
         comparisonOpen: settings.comparisonActivityOpen,
         sessions: sessions.map((s) => ({
           id: s.id,
           order: s.order,
           title: s.title,
           userMessages: s.userMessages,
+          submitted: s.status === "submitted",
         })),
         madeFrom: links
-          .filter((l) => l.targetEpisodeId === ep.id)
+          .filter((l) => l.targetConversationId === convo.id)
           .map((l) => ({
             intent: l.comparisonIntent,
             difference: l.intendedDifference,
-            other: nameOf(l.sourceEpisodeId),
+            other: nameOf(l.sourceConversationId),
           }))[0] ?? null,
         versions: links
-          .filter((l) => l.sourceEpisodeId === ep.id)
+          .filter((l) => l.sourceConversationId === convo.id)
           .map((l) => ({
             intent: l.comparisonIntent,
             difference: l.intendedDifference,
-            other: nameOf(l.targetEpisodeId),
+            other: nameOf(l.targetConversationId),
           })),
       }}
     />

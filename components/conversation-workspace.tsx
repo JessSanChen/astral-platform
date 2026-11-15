@@ -45,8 +45,12 @@ export function ConversationWorkspace(props: {
   // Prefer the client's view of whether it is submitted: it reflects a
   // submit made a moment ago, where the server-rendered copy may predate it.
   const entry = store.conversations.find((c) => c.id === conversationId);
-  const submitted =
+  const episodeSubmitted =
     (entry?.episodeStatus ?? props.episode.status) === "submitted";
+  // This conversation is closed once it is submitted, which in a folder
+  // can be before the folder is.
+  const submitted =
+    episodeSubmitted || (entry?.status ?? props.episode.sessionStatus) === "submitted";
 
   const clipboard = useClipboardLog(conversationId);
 
@@ -104,7 +108,11 @@ export function ConversationWorkspace(props: {
             // A panel per episode: moving between two folders must not
             // carry one's half-typed goal note into the other.
             key={props.episode.isFolder ? conversationId : props.episode.id}
-            episode={{ ...props.episode, status: submitted ? "submitted" : "draft" }}
+            episode={{
+              ...props.episode,
+              status: episodeSubmitted ? "submitted" : "draft",
+              sessionStatus: submitted ? "submitted" : "draft",
+            }}
             currentSessionId={conversationId}
             currentHasMessages={hasMessages}
             busy={busy}

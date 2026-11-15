@@ -50,6 +50,7 @@ export default async function FolderPage({
         model: modelName(s.modelId),
         started: s.userMessages > 0,
         answered: sessionLabelsComplete(readSessionLabels(s.authorLabels)),
+        submitted: s.status === "submitted",
       }))}
     />
   );
