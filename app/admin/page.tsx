@@ -21,9 +21,9 @@ export default async function AdminOverview() {
           hint={`${data.intakeCompleted} finished the intake form`}
         />
         <Stat
-          label="Work submitted"
+          label="Conversations and folders submitted"
           value={episodes.submitted}
-          hint={`${plural(data.sessions.submitted, "session")} in them · ${plural(episodes.draft, "draft")} not submitted`}
+          hint={`${plural(episodes.submitted - episodes.folders, "conversation")} and ${plural(episodes.folders, "folder")}. A folder counts once and holds several sessions: ${plural(data.sessions.submitted, "session")} submitted in all · ${plural(episodes.draft, "draft")} not submitted`}
         />
         <Stat
           label="Transcript reviews completed"

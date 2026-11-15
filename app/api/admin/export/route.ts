@@ -17,6 +17,7 @@ import {
   reviewAssignment,
   reviewPolicy,
   reviewResponse,
+  reviewRevision,
   reviewView,
   submission,
   transcriptLabels,
@@ -429,6 +430,12 @@ export async function GET(req: Request) {
           policy_version: r.policyVersion,
           form_version: r.formVersion,
           submitted_at: r.submittedAt,
+          // These are the answers as they now stand. A reviewer may change
+          // a submitted review; when they have, revised_at says when,
+          // revision_count how often, and each earlier version is a
+          // review_revision record. The first answer is version 1 there.
+          revised_at: r.revisedAt,
+          revision_count: r.revisionCount,
         });
       }
 
@@ -450,6 +457,24 @@ export async function GET(req: Request) {
           audit_note: a.auditNote,
           form_version: a.formVersion,
           submitted_at: a.submittedAt,
+          // As on review_response.
+          revised_at: a.revisedAt,
+          revision_count: a.revisionCount,
+        });
+      }
+
+      // Earlier versions of reviews and comparisons their authors changed.
+      // `previous` is the whole answer as it stood before the change.
+      for (const v of await db.select().from(reviewRevision).orderBy(asc(reviewRevision.replacedAt))) {
+        emit("review_revision", {
+          id: v.id,
+          assignment_id: v.assignmentId,
+          reviewer_id: v.reviewerId,
+          // "primary" for a transcript review, "pair_audit" for a comparison.
+          purpose: v.purpose,
+          version: v.version,
+          previous: v.previous,
+          replaced_at: v.replacedAt,
         });
       }
 

@@ -303,6 +303,20 @@ export function AboutAstral() {
           </Points>
         </Part>
 
+        <Part title="Your list of reviews">
+          <Points>
+            <li>
+              The list beside the Review pages shows what you have in progress and what you
+              have completed.
+            </li>
+            <li>Submitting takes you straight to the next record.</li>
+            <li>
+              Open a completed review or comparison to see your answers. You can change them;
+              the earlier version is kept.
+            </li>
+          </Points>
+        </Part>
+
         <Part title="Skipping, pausing and discussing">
           <Points>
             <li>
@@ -311,8 +325,8 @@ export function AboutAstral() {
               A skip is never counted against you. A guess is worse than no answer.
             </li>
             <li>
-              You can pause and come back. Your answers so far are kept, and the same button
-              opens the record again.
+              You can pause and come back. Your answers so far are kept, and the record is in
+              your list.
             </li>
             <li>You can have one transcript review and one comparison in progress at once.</li>
             <li>You are never given your own work, or two things from the same piece of work.</li>
