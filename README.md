@@ -21,7 +21,7 @@ the OpenRouter provider.
 
 ## Local development
 
-Prerequisites: Node 20+ and a Postgres database (local, Docker, or a Neon
+Prerequisites: Node 22 or newer (`nvm use` picks it up from `.nvmrc`) and a Postgres database (local, Docker, or a Neon
 branch).
 
 ```bash
