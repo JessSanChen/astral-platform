@@ -186,11 +186,9 @@ export function IntakeFields({
               </p>
             </div>
             {rateable.map((id) => (
-              <div
-                key={id}
-                className="grid items-center gap-x-4 gap-y-1 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]"
-              >
-                <p className="text-sm">{domainLabel(id)}</p>
+              // The answers are whole sentences, so each gets the full width.
+              <div key={id} className="space-y-1">
+                <p className="text-sm font-medium">{domainLabel(id)}</p>
                 <Select
                   id={`familiarity-${id}`}
                   aria-label={`${domainLabel(id)}: what you could assess`}
