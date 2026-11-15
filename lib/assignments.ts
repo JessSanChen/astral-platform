@@ -1,9 +1,10 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   conversation,
   episode,
   pairAudit,
+  reviewRevision,
   profile,
   relatedVersion,
   reviewAssignment,
@@ -115,10 +116,12 @@ export async function requestAssignment(reviewerId: string, purpose: Purpose) {
   const routing = { familiarity: rated, policyVersion: standing.policy.version };
 
   // Families this person must not be shown: any they have already been
-  // shown part of, for any purpose and however it ended, and any that
-  // contains work of their own.
+  // shown part of, for any purpose (reviewed, compared, skipped or in
+  // progress), and any that contains work of their own. One that only
+  // ran out of time, with nothing recorded, can come back to them.
   const offLimits = sql`(
-    select a.family_id from ${reviewAssignment} a where a.reviewer_id = ${reviewerId}
+    select a.family_id from ${reviewAssignment} a
+    where a.reviewer_id = ${reviewerId} and a.state <> 'expired'
     union
     select mine.source_family_id from ${episode} mine where mine.user_id = ${reviewerId}
   )`;
@@ -242,9 +245,15 @@ export async function loadAssignment(assignmentId: string, reviewerId: string) {
       .innerJoin(episode, eq(episode.id, reviewView.episodeId))
       .where(eq(reviewView.id, assignment.viewId));
     if (!view) return null;
+    const [answered] =
+      assignment.state === "completed"
+        ? await db.select().from(reviewResponse).where(eq(reviewResponse.assignmentId, assignmentId))
+        : [];
     return {
       assignment,
       kind: "primary" as const,
+      // What was answered, when this is a review being looked at again.
+      answered: answered ?? null,
       anchorConversationId: view.conversationId ?? (await firstSession(view.episodeId)),
       view: {
         id: view.id,
@@ -276,9 +285,14 @@ export async function loadAssignment(assignmentId: string, reviewerId: string) {
       side(link.sourceConversationId),
       side(link.targetConversationId),
     ]);
+    const [answered] =
+      assignment.state === "completed"
+        ? await db.select().from(pairAudit).where(eq(pairAudit.assignmentId, assignmentId))
+        : [];
     return {
       assignment,
       kind: "pair_audit" as const,
+      answered: answered ?? null,
       anchorConversationId: link.sourceConversationId ?? (await firstSession(link.sourceEpisodeId)),
       pair: {
         // Only what the author said they would change. Not their goal note,
@@ -346,7 +360,11 @@ async function claimForFinishing(
   return { assignment, done: false as const };
 }
 
-/** Form C: the one final answer. A second click changes nothing. */
+/**
+ * Form C. The first time, the reviewer's answer. After that, a change to
+ * it: the answers are replaced and the version they replace is kept, so
+ * the first, independent answer is never lost.
+ */
 export async function submitReview(
   assignmentId: string,
   reviewerId: string,
@@ -356,7 +374,6 @@ export async function submitReview(
 
   return db.transaction(async (tx) => {
     const { assignment, done } = await claimForFinishing(tx, assignmentId, reviewerId, "primary");
-    if (done) return { already: true as const };
 
     const [view] = await tx
       .select({ id: reviewView.id, content: reviewView.content, state: episode.assignmentState })
@@ -366,7 +383,7 @@ export async function submitReview(
     if (!view) throw new AssignmentError("This record no longer exists.");
     // Held or withdrawn while it was being read: nothing goes into the
     // panel for it.
-    if (view.state !== "ready") {
+    if (!done && view.state !== "ready") {
       throw new AssignmentError(
         "An organizer has put this record on hold, so a review of it cannot be accepted. Nothing was recorded. Go back for another item.",
       );
@@ -380,23 +397,58 @@ export async function submitReview(
     if (answers.evidenceMode === "turns" && evidenceTurns.length === 0) {
       throw new AssignmentError("Point to at least one of the user's messages in the record.");
     }
+    const given = {
+      verdict: answers.verdict,
+      confidence: answers.confidence,
+      evidenceMode: answers.evidenceMode,
+      evidenceTurns,
+      rationale: answers.rationale,
+      subjectSensitivity: answers.subjectSensitivity,
+      aimEvidence: answers.aimEvidence,
+    };
+
+    if (done) {
+      const [before] = await tx
+        .select()
+        .from(reviewResponse)
+        .where(eq(reviewResponse.assignmentId, assignmentId));
+      if (!before) throw new AssignmentError("That review could not be found.");
+      const same = (Object.keys(given) as (keyof typeof given)[]).every(
+        (k) => JSON.stringify(before[k]) === JSON.stringify(given[k]),
+      );
+      if (same) return { already: true as const, revised: false as const };
+      const now = new Date();
+      await tx.insert(reviewRevision).values({
+        assignmentId,
+        reviewerId,
+        purpose: "primary",
+        version: before.revisionCount + 1,
+        previous: before,
+        replacedAt: now,
+      });
+      await tx
+        .update(reviewResponse)
+        .set({
+          ...given,
+          // A change is made under the instructions and form in force now.
+          policyVersion: policy.version,
+          formVersion: REVIEW_FORM_VERSION,
+          revisedAt: now,
+          revisionCount: before.revisionCount + 1,
+        })
+        .where(eq(reviewResponse.id, before.id));
+      return { already: false as const, revised: true as const };
+    }
 
     await tx.insert(reviewResponse).values({
       assignmentId,
       viewId: view.id,
       reviewerId,
-      verdict: answers.verdict,
+      ...given,
       // Not asked by this form; see BASIS_NOT_ASKED.
       policyBasis: BASIS_NOT_ASKED,
-      confidence: answers.confidence,
-      evidenceMode: answers.evidenceMode,
-      evidenceTurns,
-      rationale: answers.rationale,
-      // Not asked by this form.
       uncertaintyReasons: [],
       uncertaintyOther: null,
-      subjectSensitivity: answers.subjectSensitivity,
-      aimEvidence: answers.aimEvidence,
       policyVersion: policy.version,
       formVersion: REVIEW_FORM_VERSION,
     });
@@ -404,11 +456,11 @@ export async function submitReview(
       .update(reviewAssignment)
       .set({ state: "completed", finishedAt: new Date() })
       .where(eq(reviewAssignment.id, assignmentId));
-    return { already: false as const };
+    return { already: false as const, revised: false as const };
   });
 }
 
-/** Form D. */
+/** Form D. As with a review: the first answer, or a change to it. */
 export async function submitAudit(
   assignmentId: string,
   reviewerId: string,
@@ -421,22 +473,56 @@ export async function submitAudit(
       reviewerId,
       "pair_audit",
     );
-    if (done) return { already: true as const };
-    await tx.insert(pairAudit).values({
-      assignmentId,
-      relatedVersionId: assignment.relatedVersionId!,
-      reviewerId,
+    const given = {
       topicTaskMatch: answers.topicTaskMatch,
       scopeSimilarity: answers.scopeSimilarity,
       mainDifference: answers.mainDifference,
       auditNote: answers.auditNote || null,
+    };
+
+    if (done) {
+      const [before] = await tx
+        .select()
+        .from(pairAudit)
+        .where(eq(pairAudit.assignmentId, assignmentId));
+      if (!before) throw new AssignmentError("That comparison could not be found.");
+      const same = (Object.keys(given) as (keyof typeof given)[]).every(
+        (k) => before[k] === given[k],
+      );
+      if (same) return { already: true as const, revised: false as const };
+      const now = new Date();
+      await tx.insert(reviewRevision).values({
+        assignmentId,
+        reviewerId,
+        purpose: "pair_audit",
+        version: before.revisionCount + 1,
+        previous: before,
+        replacedAt: now,
+      });
+      await tx
+        .update(pairAudit)
+        .set({
+          ...given,
+          formVersion: AUDIT_FORM_VERSION,
+          revisedAt: now,
+          revisionCount: before.revisionCount + 1,
+        })
+        .where(eq(pairAudit.id, before.id));
+      return { already: false as const, revised: true as const };
+    }
+
+    await tx.insert(pairAudit).values({
+      assignmentId,
+      relatedVersionId: assignment.relatedVersionId!,
+      reviewerId,
+      ...given,
       formVersion: AUDIT_FORM_VERSION,
     });
     await tx
       .update(reviewAssignment)
       .set({ state: "completed", finishedAt: new Date() })
       .where(eq(reviewAssignment.id, assignmentId));
-    return { already: false as const };
+    return { already: false as const, revised: false as const };
   });
 }
 
@@ -489,6 +575,124 @@ export async function reviewerSummary(reviewerId: string) {
     policyReady: standing.policyReady,
     active,
   };
+}
+
+/**
+ * Everything a reviewer has in hand or has finished, for the list beside
+ * the review pages: what is in progress first, then what they completed,
+ * newest first. Skipped and timed-out items are not listed: there is
+ * nothing in them to go back to.
+ */
+export async function reviewerWork(reviewerId: string) {
+  const rows = await db
+    .select({
+      id: reviewAssignment.id,
+      purpose: reviewAssignment.purpose,
+      state: reviewAssignment.state,
+      reservedAt: reviewAssignment.reservedAt,
+      finishedAt: reviewAssignment.finishedAt,
+      verdict: reviewResponse.verdict,
+      mainDifference: pairAudit.mainDifference,
+      revisions: sql<number>`coalesce(${reviewResponse.revisionCount}, ${pairAudit.revisionCount}, 0)::int`,
+    })
+    .from(reviewAssignment)
+    .leftJoin(reviewResponse, eq(reviewResponse.assignmentId, reviewAssignment.id))
+    .leftJoin(pairAudit, eq(pairAudit.assignmentId, reviewAssignment.id))
+    .where(
+      and(
+        eq(reviewAssignment.reviewerId, reviewerId),
+        inArray(reviewAssignment.state, ["active", "completed"]),
+      ),
+    )
+    .orderBy(desc(sql`coalesce(${reviewAssignment.finishedAt}, ${reviewAssignment.reservedAt})`));
+  return {
+    inProgress: rows.filter((r) => r.state === "active"),
+    completed: rows.filter((r) => r.state === "completed"),
+  };
+}
+
+/**
+ * Why a reviewer was given nothing, in numbers, so that "nothing right
+ * now" does not have to be taken on trust. Each record is counted once,
+ * under the first reason that applies to it.
+ */
+export async function whyNothing(reviewerId: string, purpose: Purpose) {
+  const settings = await getEventSettings();
+  const mine = sql`(select m.source_family_id from ${episode} m where m.user_id = ${reviewerId})`;
+  const shown = sql`(
+    select a.family_id from ${reviewAssignment} a
+    where a.reviewer_id = ${reviewerId} and a.state <> 'expired')`;
+  type Counts = { total: number; own: number; shown: number; held: number; taken: number };
+  const [counts] = (await (purpose === "primary"
+    ? db.execute<Counts>(sql`
+        select
+          count(*)::int as total,
+          count(*) filter (where own)::int as own,
+          count(*) filter (where not own and shown)::int as shown,
+          count(*) filter (where not own and not shown and not ready)::int as held,
+          count(*) filter (where not own and not shown and ready and taken)::int as taken
+        from (
+          select
+            v.family_id in ${mine} as own,
+            v.family_id in ${shown} as shown,
+            e.assignment_state = 'ready' as ready,
+            (select count(*) from ${reviewAssignment} h
+              where h.view_id = v.id and h.purpose = 'primary'
+                and h.state in ('active', 'completed')) >= ${settings.reviewsPerView}::int as taken
+          from ${reviewView} v join ${episode} e on e.id = v.episode_id
+        ) t
+      `)
+    : db.execute<Counts>(sql`
+        select
+          count(*)::int as total,
+          count(*) filter (where own)::int as own,
+          count(*) filter (where not own and shown)::int as shown,
+          count(*) filter (where not own and not shown and not ready)::int as held,
+          count(*) filter (where not own and not shown and ready and taken)::int as taken
+        from (
+          select
+            rv.family_id in ${mine} as own,
+            rv.family_id in ${shown} as shown,
+            (source.assignment_state = 'ready' and target.assignment_state = 'ready') as ready,
+            exists (select 1 from ${reviewAssignment} h
+              where h.related_version_id = rv.id and h.purpose = 'pair_audit'
+                and h.state in ('active', 'completed')) as taken
+          from ${relatedVersion} rv
+          join ${episode} source on source.id = rv.source_episode_id
+          join ${episode} target on target.id = rv.target_episode_id
+          join ${conversation} sc on sc.id = rv.source_conversation_id
+          join ${conversation} tc on tc.id = rv.target_conversation_id
+          where sc.status = 'submitted' and tc.status = 'submitted'
+        ) t
+      `))) as unknown as Counts[];
+  return counts ?? { total: 0, own: 0, shown: 0, held: 0, taken: 0 };
+}
+
+/** "Nothing for you right now", with what stands in the way of each record. */
+export function nothingMessage(
+  purpose: Purpose,
+  c: { total: number; own: number; shown: number; held: number; taken: number },
+) {
+  const what = purpose === "primary" ? "record" : "pair";
+  const n = (count: number) => `${count} ${what}${count === 1 ? "" : "s"}`;
+  const lead =
+    purpose === "primary"
+      ? "There is nothing for you to review right now."
+      : "There is no pair for you to compare right now.";
+  if (c.total === 0) {
+    return `${lead} ${purpose === "primary" ? "Nothing has been submitted yet." : "No related version has been submitted alongside its original yet."} Try again in a little while.`;
+  }
+  const reasons = [
+    c.own > 0 && `${n(c.own)} ${c.own === 1 ? "is" : "are"} your own work`,
+    c.shown > 0 &&
+      `${n(c.shown)} ${c.shown === 1 ? "belongs" : "belong"} to work you have already been shown (reviewed, compared, skipped or in progress): each piece of work is shown to you once, in one way`,
+    c.taken > 0 &&
+      (purpose === "primary"
+        ? `${n(c.taken)} already ${c.taken === 1 ? "has" : "have"} all the reviews ${c.taken === 1 ? "it needs" : "they need"}`
+        : `${n(c.taken)} ${c.taken === 1 ? "has" : "have"} already been compared or ${c.taken === 1 ? "is" : "are"} being compared`),
+    c.held > 0 && `${n(c.held)} ${c.held === 1 ? "is" : "are"} held back by an organizer`,
+  ].filter(Boolean);
+  return `${lead} ${n(c.total)} ${c.total === 1 ? "has" : "have"} been submitted${reasons.length ? `: ${reasons.join("; ")}` : ""}. More become available as people submit.`;
 }
 
 /** The last few things a reviewer finished, newest first. */

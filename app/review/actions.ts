@@ -10,6 +10,8 @@ import {
   submitAudit,
   submitReview,
   touchAssignment,
+  nothingMessage,
+  whyNothing,
   type Purpose,
 } from "@/lib/assignments";
 import { getCurrentUser, whyBlocked } from "@/lib/gate";
@@ -84,7 +86,9 @@ export async function getNextAssignment(purpose: Purpose) {
   if ("fail" in who) return who.fail;
   return guarded(async () => {
     const assignment = await requestAssignment(who.id, purpose);
-    return { assignmentId: assignment?.id ?? null };
+    if (assignment) return { assignmentId: assignment.id, nothing: null };
+    // Nothing to give: say why, in numbers, so it need not be taken on trust.
+    return { assignmentId: null, nothing: nothingMessage(purpose, await whyNothing(who.id, purpose)) };
   });
 }
 

@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import Link from "next/link";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getNextAssignment, stillHere } from "@/app/review/actions";
-import { Button } from "@/components/ui/button";
 import type { Purpose } from "@/lib/assignments";
 
 /** A form's answers so far, kept in this browser until it is submitted. */
@@ -46,51 +44,20 @@ export function useStillHere(assignmentId: string, active: boolean) {
   }, [assignmentId, active]);
 }
 
-/** What is shown in place of the form once an item is finished. */
-export function ReviewFinished({
-  heading,
-  detail,
-  purpose,
-}: {
-  heading: string;
-  detail: string;
-  purpose: Purpose;
-}) {
+/**
+ * What happens after a record is finished or skipped: straight on to the
+ * next one of the same kind. When there is none, back to the Review page,
+ * which says what was recorded and why nothing more is on offer.
+ */
+export function useNextRecord(purpose: Purpose) {
   const router = useRouter();
-  const [pending, start] = useTransition();
-  const [note, setNote] = useState<string | null>(null);
-
-  return (
-    <div className="space-y-4 p-4" role="status">
-      <div>
-        <h2 className="font-serif text-lg font-medium">{heading}</h2>
-        <p className="text-sm text-muted-foreground">{detail}</p>
-      </div>
-      {note && <p className="rounded-[var(--radius)] bg-muted px-3 py-2 text-sm">{note}</p>}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          disabled={pending}
-          onClick={() =>
-            start(async () => {
-              const result = await getNextAssignment(purpose);
-              if (!result.ok) return setNote(result.message);
-              if (!result.assignmentId) {
-                return setNote(
-                  "There is nothing more for you right now. More becomes available as people submit.",
-                );
-              }
-              router.push(`/review/${result.assignmentId}`);
-            })
-          }
-        >
-          {pending ? "Finding one..." : "Next item"}
-        </Button>
-        <Link href="/review">
-          <Button variant="outline">Stop for now</Button>
-        </Link>
-      </div>
-    </div>
-  );
+  return async (after: "recorded" | "skipped") => {
+    const result = await getNextAssignment(purpose);
+    // The list beside the page is out of date either way.
+    router.refresh();
+    if (result.ok && result.assignmentId) return router.push(`/review/${result.assignmentId}`);
+    router.push(`/review?${after}=${purpose}`);
+  };
 }
 
 /** One question: its text, an optional note, and the control. */

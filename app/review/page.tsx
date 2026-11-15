@@ -1,7 +1,7 @@
 import { ClipboardCheck } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { requireOnboarded } from "@/lib/gate";
-import { reviewerSummary } from "@/lib/assignments";
+import { nothingMessage, reviewerSummary, whyNothing } from "@/lib/assignments";
 import { InstructionCheck } from "@/components/instruction-check";
 import { ReviewStart } from "@/components/review-start";
 
@@ -14,9 +14,28 @@ import { ReviewStart } from "@/components/review-start";
  * list to browse and no way to swap an item for another except by saying
  * why.
  */
-export default async function ReviewHome() {
+export default async function ReviewHome({
+  searchParams,
+}: {
+  searchParams: Promise<{ recorded?: string; skipped?: string }>;
+}) {
   const { user } = await requireOnboarded();
-  const summary = await reviewerSummary(user.id);
+  const [summary, { recorded, skipped }] = await Promise.all([reviewerSummary(user.id), searchParams]);
+
+  // Arrived here from a record just finished or skipped, because there
+  // was no next one to go straight on to: say so, and why.
+  const after = recorded ?? skipped;
+  const purpose = after === "primary" || after === "pair_audit" ? after : null;
+  const done = purpose
+    ? {
+        what: skipped
+          ? "Skipped, with your reason. Nothing else was recorded for it."
+          : purpose === "primary"
+            ? "Your review was recorded. You can open it again from the list on the left."
+            : "Your comparison was recorded. You can open it again from the list on the left.",
+        why: nothingMessage(purpose, await whyNothing(user.id, purpose)),
+      }
+    : null;
 
   return (
     <div
@@ -39,6 +58,16 @@ export default async function ReviewHome() {
           side by side. You can have one of each in progress.
         </p>
       </div>
+
+      {done && (
+        <div
+          role="status"
+          className="space-y-1 rounded-[var(--radius)] border border-accent/40 bg-accent/5 px-4 py-3 text-sm"
+        >
+          <p className="font-medium">{done.what}</p>
+          <p className="text-muted-foreground">{done.why}</p>
+        </div>
+      )}
 
       {summary.policyReady ? (
         <ReviewStart
