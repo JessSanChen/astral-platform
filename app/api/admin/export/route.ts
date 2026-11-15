@@ -12,7 +12,6 @@ import {
   nomination,
   pairAudit,
   profile,
-  profileRevision,
   relatedVersion,
   review,
   reviewAssignment,
@@ -98,22 +97,6 @@ export async function GET(req: Request) {
         counts[record] = (counts[record] ?? 0) + 1;
         controller.enqueue(encoder.encode(JSON.stringify({ record, ...fields }) + "\n"));
       };
-
-      // --- Every set of background answers a person has given ------------
-      // participant_intake below is the latest. These are all of them, in
-      // order, so work done before a correction can be read against the
-      // answers that stood then (a submission also carries its own copy).
-      for (const r of await db.select().from(profileRevision).orderBy(asc(profileRevision.savedAt))) {
-        emit("participant_intake_revision", {
-          user_id: r.userId,
-          name: r.name,
-          intake: r.intake,
-          intake_version: r.intakeVersion,
-          public_release_permission: r.publicReleasePermission,
-          source: r.source,
-          saved_at: r.savedAt,
-        });
-      }
 
       // --- The review instructions, every version -----------------------
       // The record keeps the name it had when this was a rule-based policy.
@@ -275,6 +258,15 @@ export async function GET(req: Request) {
           status: convo.status,
           title: convo.title,
           model_id: convo.modelId,
+          // What the author said about this session: role, kind of task,
+          // scenario, what they expected a reviewer to decide, whether the
+          // task was real, and the optional goal. In a folder each session
+          // has its own; the folder's are on its episode. For a conversation
+          // that stands alone these are a copy, made at submission, of what
+          // its episode holds.
+          author_labels: convo.authorLabels,
+          author_labels_version: convo.authorLabelsVersion,
+          author_labels_updated_at: convo.authorLabelsUpdatedAt,
           scenario: convo.scenario,
           created_at: convo.createdAt,
           submitted_at: convo.lastSubmittedAt,
@@ -430,6 +422,9 @@ export async function GET(req: Request) {
           related_version_id: a.relatedVersionId,
           reviewer_id: a.reviewerId,
           topic_task_match: a.topicTaskMatch,
+          scope_similarity: a.scopeSimilarity,
+          main_difference: a.mainDifference,
+          // The next five were asked by forms before D-2.0.
           sensitivity_match: a.sensitivityMatch,
           intended_change_realized: a.intendedChangeRealized,
           unintended_differences: a.unintendedDifferences,

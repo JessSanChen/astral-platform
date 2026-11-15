@@ -26,7 +26,7 @@ export default async function AdminOverview() {
           hint={`${plural(data.sessions.submitted, "session")} in them · ${plural(episodes.draft, "draft")} not submitted`}
         />
         <Stat
-          label="Reviews completed"
+          label="Transcript reviews completed"
           value={data.reviews}
           hint={`${data.views.full} of ${plural(data.views.total, "view")} have all ${data.reviewsPerView}, ${data.views.started} at least one`}
         />
@@ -44,9 +44,9 @@ export default async function AdminOverview() {
           hint={`For review instructions version ${data.policyVersion}`}
         />
         <Stat
-          label="Being reviewed now"
+          label="In progress now"
           value={data.activeAssignments}
-          hint={`${data.skips} skipped · ${data.expiredAssignments} ran out of time`}
+          hint={`${plural(data.activeAssignments - data.activeAudits, "transcript review")}, ${plural(data.activeAudits, "comparison")} · skipped: ${plural(data.skips - data.auditSkips, "transcript")}, ${plural(data.auditSkips, "comparison")} · ${data.expiredAssignments} ran out of time`}
         />
         <Stat
           label="Comparisons completed"

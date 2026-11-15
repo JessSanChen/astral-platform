@@ -27,12 +27,12 @@ const STEPS = [
   {
     icon: MessagesSquare,
     title: "Start a conversation",
-    body: "Pick a model and start typing, as you would with any assistant. Bring a task of your own, real or made up for today.",
+    body: "Press New, pick a model and start typing, as you would with any assistant. Bring a task of your own, real or made up for today.",
   },
   {
     icon: Folder,
     title: "Or a folder of sessions",
-    body: "When the work has several related parts, use a folder. Each session in it is a fresh conversation: the assistant does not see the other sessions.",
+    body: "When the work has several related parts, use a folder. Each session in it is a fresh conversation, on any model: the assistant does not see the other sessions.",
   },
   {
     icon: Send,
@@ -117,19 +117,23 @@ export function AboutAstral() {
         </h2>
         <div className={prose}>
           <p>
-            Under <span className="text-foreground">My chats</span>, start a
-            conversation or a folder by choosing a model and sending a
-            message. Nothing is asked first. A real task of yours and one
-            made up for today are both wanted; which it was is one of the
-            questions in the panel beside the chat, answered before you
-            submit.
+            Under <span className="text-foreground">My chats</span>, press{" "}
+            <span className="text-foreground">New</span>. Choose a
+            conversation or a folder, choose a model, and send a message. A
+            real task of yours and one made up for today are both wanted;
+            which it was is one of the questions in the panel beside the
+            chat, answered before you submit.
           </p>
           <p>
             A folder holds related sessions. Each session is a fresh
-            conversation without the history of the others. You can start
-            exploring without knowing where it is going, and add a goal or
-            note whenever one becomes useful. That note is private: it is
-            never sent to the assistant and reviewers never see it.
+            conversation without the history of the others, and each can use
+            a different model. Starting a folder asks two things about the
+            folder as a whole: the role you are taking and the kind of task.
+            Each new session starts with those answers and can change them.
+            Click the folder&apos;s name in the list to change the
+            folder&apos;s own answers later. Any goal or note you add is
+            private: it is never sent to the assistant and reviewers never
+            see it.
           </p>
           <p>
             A message that has been sent stays sent, and a reply stays the
@@ -148,7 +152,8 @@ export function AboutAstral() {
             scenario it best fits, and whether you expect a reviewer to
             recommend specialist review. They are required, and they are
             for the research team only. You know what you were doing, and
-            nothing else in the data does.
+            nothing else in the data does. In a folder, each session has its
+            own answers.
           </p>
           <p>
             Submit once, when you reach a natural stopping point. Submitting
@@ -158,13 +163,13 @@ export function AboutAstral() {
             submitting.
           </p>
           <p>
-            To compare another version of something you have submitted, use{" "}
+            To explore a variation of something you have submitted, use{" "}
             <span className="text-foreground">Create related version</span>.
-            Briefly describe what you will change, then start a fresh
-            conversation. Keep the scientific topic and the task as
-            comparable as you can. You do not need to make reviewers label
-            the two differently: a pair that comes out the same is a useful
-            result too.
+            Say what you would like to explore: a different goal or purpose,
+            different circumstances or context, a different way of asking,
+            or something else. Then start a fresh conversation. You can add
+            what you plan to change, and you do not have to. A pair that
+            comes out the same is a useful result too.
           </p>
           <p>
             Work within your experience, or honestly as a novice. Write your
@@ -215,10 +220,14 @@ export function AboutAstral() {
             can pause at any time and come back.
           </p>
           <p>
-            Comparing two versions is a separate task, offered on the same
-            page. It shows two related versions side by side and asks how
-            well they match. It shows different information from a review,
-            which is why you are never given both for the same work.
+            Comparing two versions is the other kind of review, offered
+            beside the first on the same page. It shows two related versions
+            side by side, with what their author set out to explore, and
+            asks three questions about how they compare. Its instructions
+            are under its button. It shows different information from
+            reviewing a conversation, which is why you are never given both
+            for the same work. You can have one of each in progress, and
+            the two are counted separately.
           </p>
           <p>
             Please do not discuss individual records with other participants
@@ -234,10 +243,11 @@ export function AboutAstral() {
           Prizes
         </h2>
         <p className="text-[15px] leading-relaxed text-muted-foreground">
-          Five awards. Two are counted by the platform and need no entry.
-          Three are decided by nomination: you describe what you found, and
-          the entry is the finding, not a single conversation. None of them
-          rewards a dangerous output or getting around a safeguard.
+          The quantitative awards are counted by the platform and need no
+          entry. The qualitative awards are decided by nomination: you
+          describe what you found, and the entry is the finding, not a
+          single conversation. None of them rewards a dangerous output or
+          getting around a safeguard.
         </p>
 
         <div className="overflow-hidden rounded-[var(--radius)] border border-border">
@@ -254,6 +264,11 @@ export function AboutAstral() {
                 <tr key={a.award} className="border-t border-border">
                   <td className="px-4 py-3 align-top font-medium">
                     {i + 1}. {a.award}
+                    {a.note && (
+                      <span className="block text-xs font-normal text-muted-foreground">
+                        {a.note}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 align-top text-muted-foreground">{a.type}</td>
                   <td className="px-4 py-3 align-top leading-relaxed text-muted-foreground">
@@ -267,10 +282,13 @@ export function AboutAstral() {
 
         <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
           <p>
-            The two quantitative awards are counted from what you submit and
-            what you review, and checked by the organizers: what counts is
-            distinct, substantive, usable conversations and careful,
-            evidence-grounded reviews, not a raw total.
+            The quantitative awards are counted from what you submit, the
+            transcript reviews you complete and the comparisons you
+            complete, each on its own, and checked by the organizers: what
+            counts is distinct, substantive, usable conversations and
+            careful, evidence-grounded reviews and comparisons, not a raw
+            total. The comparisons award has a smaller prize pool than the
+            others.
           </p>
           {NOMINATION_TRACKS.map((track) => (
             <p key={track.value}>
@@ -281,10 +299,10 @@ export function AboutAstral() {
             </p>
           ))}
           <p>
-            To enter one of the three, open{" "}
+            To enter a qualitative award, open{" "}
             <span className="text-foreground">Submit</span> in the menu and
-            choose it. An entry is a headline, a write-up of the finding,
-            and, if you have them, a link to slides. There is one entry per
+            choose it. An entry is a headline and a write-up of the
+            finding. There is one entry per
             award, so revise yours rather than writing another: you can
             change it until nominations close.
           </p>

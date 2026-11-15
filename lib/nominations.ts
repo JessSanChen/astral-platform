@@ -4,10 +4,11 @@ import { nomination } from "@/db/schema";
 import { getEventSettings } from "@/lib/openrouter";
 
 /**
- * The awards. Two are counted by the platform and need no entry. Three
- * are decided by nomination: a written entry on the Submit page.
+ * The awards. The quantitative ones are counted by the platform and need
+ * no entry. The qualitative ones are decided by nomination: a written
+ * entry on the Submit page.
  */
-export const AWARDS = [
+export const AWARDS: { award: string; type: "Quantitative" | "Qualitative"; rewarding: string; note?: string }[] = [
   {
     award: "Most Qualified Transcripts",
     type: "Quantitative",
@@ -16,7 +17,13 @@ export const AWARDS = [
   {
     award: "Most Qualified Reviews",
     type: "Quantitative",
-    rewarding: "Completing many careful, evidence-grounded independent reviews",
+    rewarding: "Completing many careful, evidence-grounded independent transcript reviews",
+  },
+  {
+    award: "Most Qualified Comparisons",
+    type: "Quantitative",
+    rewarding: "Completing many careful comparisons of pairs of related conversations",
+    note: "Smaller prize pool",
   },
   {
     award: "Most Interesting AI Risk Finding",
@@ -36,7 +43,7 @@ export const AWARDS = [
     rewarding:
       "Exploring how a larger goal develops across multiple sessions, including decomposition, accumulation of context, or changes in observable evidence",
   },
-] as const;
+];
 
 /** The three qualitative awards, each entered by describing what was found. */
 export const NOMINATION_TRACKS = [

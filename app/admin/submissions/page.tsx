@@ -7,7 +7,7 @@ import {
   provenanceLabel,
 } from "@/lib/episode-options";
 import { getEventSettings } from "@/lib/openrouter";
-import { ASSIGNMENT_STATES, COMPARISON_TYPES, OUTCOME_LABELS } from "@/lib/review-form";
+import { ASSIGNMENT_STATES, MAIN_DIFFERENCE, OUTCOME_LABELS } from "@/lib/review-form";
 import { formatEventDateTime } from "@/lib/time";
 import { SubmissionState } from "@/components/admin-submissions";
 import { cn } from "@/lib/utils";
@@ -136,7 +136,8 @@ function SubmissionCard({ episode: ep, target }: { episode: Submission; target: 
           {ep.relatedTo && (
             <p className="mt-0.5 text-xs text-muted-foreground">
               Related version of &ldquo;{ep.relatedTo.sourceTitle}&rdquo; (
-              {comparisonIntentLabel(ep.relatedTo.comparisonIntent)}): {ep.relatedTo.intendedDifference}
+              {comparisonIntentLabel(ep.relatedTo.comparisonIntent)})
+              {ep.relatedTo.intendedDifference ? `: ${ep.relatedTo.intendedDifference}` : ""}
               {" · "}
               <PairAudit link={ep.relatedTo} />
             </p>
@@ -191,16 +192,16 @@ function SubmissionCard({ episode: ep, target }: { episode: Submission; target: 
 function PairAudit({
   link,
 }: {
-  link: { targetStatus: string; auditComparisonType: string | null; auditInProgress: boolean };
+  link: {
+    targetStatus: string;
+    auditMainDifference: string | null;
+    auditDone: boolean;
+    auditInProgress: boolean;
+  };
 }) {
-  if (link.auditComparisonType) {
-    return (
-      <span>
-        compared:{" "}
-        {COMPARISON_TYPES.find((c) => c.value === link.auditComparisonType)?.label ??
-          link.auditComparisonType}
-      </span>
-    );
+  if (link.auditDone) {
+    const found = MAIN_DIFFERENCE.find((c) => c.value === link.auditMainDifference)?.label;
+    return <span>compared{found ? `, main difference: ${found}` : ""}</span>;
   }
   if (link.auditInProgress) return <span>comparison in progress</span>;
   if (link.targetStatus !== "submitted") return <span>no comparison until both are submitted</span>;

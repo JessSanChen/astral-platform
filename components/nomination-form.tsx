@@ -127,21 +127,6 @@ export function NominationForm({
           />
         </Field>
 
-        <Field
-          label="Link to slides (optional)"
-          htmlFor="slidesUrl"
-          hint="A Google Slides link, or anything else you want to present from."
-          error={e.slidesUrl}
-        >
-          <Input
-            id="slidesUrl"
-            name="slidesUrl"
-            value={values.slidesUrl}
-            onChange={(ev) => set("slidesUrl", ev.target.value)}
-            placeholder="https://docs.google.com/presentation/..."
-          />
-        </Field>
-
         {state.message && <p className="text-sm text-danger">{state.message}</p>}
         {state.submissionCount !== undefined && !state.message && (
           <p className="flex items-center gap-1.5 text-sm text-accent">
@@ -208,20 +193,6 @@ function ClosedEntry({
         <dl className="space-y-5 rounded-[var(--radius)] border border-border bg-card px-5 py-5">
           <ReadOnly label="Headline finding">{existing.headline}</ReadOnly>
           <ReadOnly label="The finding in detail">{existing.details}</ReadOnly>
-          <ReadOnly label="Link to slides">
-            {existing.slidesUrl ? (
-              <a
-                href={existing.slidesUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="break-all text-accent underline"
-              >
-                {existing.slidesUrl}
-              </a>
-            ) : (
-              "None given."
-            )}
-          </ReadOnly>
           <p className="border-t border-border pt-4 text-xs text-muted-foreground">
             Last saved {formatEventTime(existing.updatedAt)}.
           </p>

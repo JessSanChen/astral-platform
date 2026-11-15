@@ -6,11 +6,12 @@ import { ParticipantRow } from "@/components/admin-controls";
 import { ROLES, domainLabel, type IntakeDraft } from "@/lib/intake";
 import { cn } from "@/lib/utils";
 
-type Sort = "submitted" | "reviews" | "drafts" | "name";
+type Sort = "submitted" | "reviews" | "audits" | "drafts" | "name";
 
 const SORTS: { key: Sort; label: string }[] = [
   { key: "submitted", label: "Work submitted" },
-  { key: "reviews", label: "Reviews completed" },
+  { key: "reviews", label: "Transcript reviews" },
+  { key: "audits", label: "Comparisons" },
   { key: "drafts", label: "Drafts" },
   { key: "name", label: "Name" },
 ];
@@ -83,7 +84,7 @@ export default async function Participants({
               <Th>Participant</Th>
               <Th right>Submitted</Th>
               <Th right>Drafts</Th>
-              <Th right>Reviews</Th>
+              <Th right>Transcript reviews</Th>
               <Th right>Comparisons</Th>
               <Th right>Skips</Th>
               <Th right>Nominations</Th>
@@ -121,7 +122,7 @@ export default async function Participants({
                   <Td right strong={by === "submitted"}>{row.submitted}</Td>
                   <Td right strong={by === "drafts"}>{row.drafts}</Td>
                   <Td right strong={by === "reviews"}>{row.reviews}</Td>
-                  <Td right>{row.audits}</Td>
+                  <Td right strong={by === "audits"}>{row.audits}</Td>
                   <Td right>{row.skips}</Td>
                   <Td right>{row.nominations}</Td>
                   <Td right>{Number(row.tokens).toLocaleString()}</Td>

@@ -23,7 +23,7 @@ import {
 import {
   AIM_EVIDENCE,
   ASSIGNMENT_STATES,
-  COMPARISON_TYPES,
+  MAIN_DIFFERENCE,
   CONFIDENCE,
   MATCH,
   OUTCOME_LABELS,
@@ -31,7 +31,7 @@ import {
   SKIP_REASONS,
   SUBJECT_SENSITIVITY,
   UNCERTAINTY_REASONS,
-  UNINTENDED,
+  SCOPE_SIMILARITY,
   VERDICTS,
 } from "@/lib/review-form";
 import {
@@ -41,6 +41,8 @@ import {
   SCENARIOS,
   TASK_KINDS,
   readLabels,
+  readSessionLabels,
+  type SessionLabels,
 } from "@/lib/author-labels";
 import { formatEventDateTime } from "@/lib/time";
 import { ExpandAll, MessageText } from "@/components/admin-history";
@@ -166,7 +168,7 @@ export default async function ParticipantDetail({
       </section>
 
       <Panel
-        title={`Reviews they completed (${reviews.length})`}
+        title={`Transcript reviews they completed (${reviews.length})`}
         description="Their answers about other people's work. Thin or repetitive reasons are what to look for."
       >
         {reviews.length === 0 ? (
@@ -188,20 +190,18 @@ export default async function ParticipantDetail({
           <ul className="divide-y divide-border">
             {audits.map((a) => (
               <li key={a.id} className="space-y-0.5 py-2.5 text-sm">
-                <p className="font-medium">{labelOf(COMPARISON_TYPES, a.comparisonType)}</p>
-                <p className="text-muted-foreground">
-                  Topic and task comparable: {labelOf(MATCH, a.topicTaskMatch)} · sensitivity held
-                  constant: {labelOf(MATCH, a.sensitivityMatch)} · intended change visible:{" "}
-                  {labelOf(MATCH, a.intendedChangeRealized)}
+                <p className="font-medium">
+                  Main difference:{" "}
+                  {a.mainDifference ? labelOf(MAIN_DIFFERENCE, a.mainDifference) : "not asked"}
                 </p>
                 <p className="text-muted-foreground">
-                  Unintended differences:{" "}
-                  {a.unintendedDifferences.map((d) => labelOf(UNINTENDED, d)).join(", ")}
-                  {a.unintendedOther && ` (${a.unintendedOther})`}
+                  Same topic or task: {labelOf(MATCH, a.topicTaskMatch)} · technical scope:{" "}
+                  {a.scopeSimilarity ? labelOf(SCOPE_SIMILARITY, a.scopeSimilarity) : "not asked"}
                 </p>
                 {a.auditNote && <p>{a.auditNote}</p>}
                 <p className="text-xs text-muted-foreground">
-                  The author meant to change: {a.intendedDifference} · {when(a.submittedAt)}
+                  The author set out to explore: {comparisonIntentLabel(a.comparisonIntent)}
+                  {a.intendedDifference ? ` (${a.intendedDifference})` : ""} · {when(a.submittedAt)}
                 </p>
               </li>
             ))}
@@ -408,8 +408,11 @@ function Episode({ episode: e }: { episode: History[number] }) {
                   {e.submitted && s.status !== "submitted" && (
                     <span className="normal-case tracking-normal"> · not part of the submission</span>
                   )}
+                  <span className="normal-case tracking-normal"> · {s.modelId}</span>
                 </h3>
               )}
+              {/* In a folder each session is described by itself. */}
+              {e.isFolder && <SessionAnswers labels={readSessionLabels(s.authorLabels)} />}
               <ol className="space-y-3">
                 {s.scenario && (
                   <li className="rounded-[var(--radius)] bg-muted/60 px-3 py-2 text-sm">
@@ -504,7 +507,9 @@ function Episode({ episode: e }: { episode: History[number] }) {
                   <span className="block text-muted-foreground">
                     {comparisonIntentLabel(e.relatedTo.comparisonIntent)}
                   </span>
-                  <span className="block">Meant to change: {e.relatedTo.intendedDifference}</span>
+                  {e.relatedTo.intendedDifference && (
+                    <span className="block">Planned change: {e.relatedTo.intendedDifference}</span>
+                  )}
                 </Row>
               )}
               {e.relatedVersions.length > 0 && (
@@ -579,5 +584,32 @@ function Row({ term, children }: { term: string; children: React.ReactNode }) {
       <dt className="text-xs text-muted-foreground">{term}</dt>
       <dd className="whitespace-pre-wrap break-words">{children}</dd>
     </div>
+  );
+}
+
+/** What the author said about one session of a folder. */
+function SessionAnswers({ labels }: { labels: SessionLabels }) {
+  const said = [
+    labels.provenance && provenanceLabel(labels.provenance),
+    labels.role && `Role: ${labelOf(AUTHOR_ROLES, labels.role)}`,
+    labels.taskKinds.length > 0 &&
+      `Task: ${labels.taskKinds
+        .map((k) => (k === "other" && labels.taskOther ? labels.taskOther : labelOf(TASK_KINDS, k)))
+        .join("; ")}`,
+    labels.scenario && `Scenario: ${labelOf(SCENARIOS, labels.scenario)}`,
+    labels.expectReferral &&
+      `Expected a reviewer to refer: ${labelOf(EXPECT_REFERRAL, labels.expectReferral)}${
+        labels.expectConfidence
+          ? ` (confidence: ${labelOf(EXPECT_CONFIDENCE, labels.expectConfidence).toLowerCase()})`
+          : ""
+      }`,
+    labels.goal && `Goal: ${labels.goal}`,
+  ].filter(Boolean);
+  if (said.length === 0) return null;
+  return (
+    <p className="mb-2 rounded-[var(--radius)] bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+      <span className="font-medium text-foreground">What the author said about this session.</span>{" "}
+      {said.join(" · ")}
+    </p>
   );
 }

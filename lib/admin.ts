@@ -88,6 +88,8 @@ export async function overview() {
           reviews: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'completed' and ${reviewAssignment.purpose} = 'primary')::int`,
           skips: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'skipped')::int`,
           active: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'active')::int`,
+          activeAudits: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'active' and ${reviewAssignment.purpose} = 'pair_audit')::int`,
+          auditSkips: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'skipped' and ${reviewAssignment.purpose} = 'pair_audit')::int`,
           expired: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'expired')::int`,
         })
         .from(reviewAssignment),
@@ -131,6 +133,8 @@ export async function overview() {
     reviews: assignments[0]?.reviews ?? 0,
     skips: assignments[0]?.skips ?? 0,
     activeAssignments: assignments[0]?.active ?? 0,
+    activeAudits: assignments[0]?.activeAudits ?? 0,
+    auditSkips: assignments[0]?.auditSkips ?? 0,
     expiredAssignments: assignments[0]?.expired ?? 0,
     pairAudits: audits[0]?.n ?? 0,
     nominations,
@@ -261,13 +265,11 @@ export async function participantDetail(userId: string) {
       .select({
         id: pairAudit.id,
         topicTaskMatch: pairAudit.topicTaskMatch,
-        sensitivityMatch: pairAudit.sensitivityMatch,
-        intendedChangeRealized: pairAudit.intendedChangeRealized,
-        unintendedDifferences: pairAudit.unintendedDifferences,
-        unintendedOther: pairAudit.unintendedOther,
-        comparisonType: pairAudit.comparisonType,
+        scopeSimilarity: pairAudit.scopeSimilarity,
+        mainDifference: pairAudit.mainDifference,
         auditNote: pairAudit.auditNote,
         submittedAt: pairAudit.submittedAt,
+        comparisonIntent: relatedVersion.comparisonIntent,
         intendedDifference: relatedVersion.intendedDifference,
       })
       .from(pairAudit)
@@ -336,6 +338,7 @@ export async function participantHistory(userId: string) {
           sessionOrder: conversation.sessionOrder,
           createdAt: conversation.createdAt,
           lockedAt: conversation.lockedAt,
+          authorLabels: conversation.authorLabels,
         })
         .from(conversation)
         .where(eq(conversation.userId, userId))
@@ -562,7 +565,8 @@ export async function submissionsList(state?: SubmissionState) {
         sourceTitle: sql<string>`(select title from episode s where s.id = ${outer(relatedVersion.sourceEpisodeId)})`,
         targetTitle: sql<string>`(select title from episode t where t.id = ${outer(relatedVersion.targetEpisodeId)})`,
         targetStatus: sql<string>`(select status from episode t where t.id = ${outer(relatedVersion.targetEpisodeId)})`,
-        auditComparisonType: pairAudit.comparisonType,
+        auditMainDifference: pairAudit.mainDifference,
+        auditDone: sql<boolean>`${pairAudit.id} is not null`,
         auditInProgress: sql<boolean>`exists (
           select 1 from review_assignment a
           where a.related_version_id = ${outer(relatedVersion.id)}
