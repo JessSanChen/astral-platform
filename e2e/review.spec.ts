@@ -61,6 +61,8 @@ test.describe("independent review", () => {
       }),
     ).toBeVisible();
     await expect(page.getByRole("main").getByText(/reference policy/i)).toHaveCount(0);
+    // Participants are not shown which version of the instructions this is.
+    await expect(page.getByRole("main").getByText(/version \d/i)).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Review a transcript" })).toHaveCount(0);
 
     await page.getByRole("radio", { name: "Whether visible user activity warrants specialist review" }).check();
@@ -501,7 +503,7 @@ test.describe("independent review", () => {
     const source = await startConversation(page);
     await say(page, "Explain codon bias plainly.");
     await fillLabels(page);
-    await page.getByRole("button", { name: "Submit source and create related version" }).click();
+    await page.getByRole("button", { name: "Submit source and create related conversation" }).click();
     await page.getByRole("button", { name: "Submit and continue" }).click();
     await page.waitForURL(`**/chat/related/${source}`);
     await page
@@ -544,11 +546,11 @@ test.describe("independent review", () => {
     const form = auditor.page.getByRole("complementary", { name: "Comparison form" });
     await expect(auditor.page.getByText("INTENDED: ask more formally.")).toBeVisible();
     await expect(
-      auditor.page.getByRole("region", { name: "Version 1 (original)" }).getByText("to: Explain codon bias plainly."),
+      auditor.page.getByRole("region", { name: "Original conversation" }).getByText("to: Explain codon bias plainly."),
     ).toBeVisible();
     await expect(
       auditor.page
-        .getByRole("region", { name: "Version 2 (related version)" })
+        .getByRole("region", { name: "Related conversation" })
         .getByText("to: Kindly explain codon bias."),
     ).toBeVisible();
 

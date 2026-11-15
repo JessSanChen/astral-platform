@@ -40,10 +40,6 @@ These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
 - **The comparisons prize pool.** You asked for it to be smaller and
   then for the tag to come off the table, so the platform now says
   nothing about its size. Announce it with the other amounts.
-- **The buttons still say "related version"** ("Create related
-  version", "Submit source and create related version") while the form
-  is titled "Create a related conversation". Say which word you want
-  and I will make them agree.
 - **Six smaller points from the review of rounds 29 and 30** are listed
   at the end of round 31 in the build log, not fixed. None loses data.
 - **Reviews can now be changed after submitting** (round 33). The

@@ -249,7 +249,7 @@ test.describe("writing conversations", () => {
     // A related version is of one conversation, not of the folder: made
     // from this session, it is a single conversation linked to this
     // session.
-    await page.getByRole("link", { name: "Create related version" }).click();
+    await page.getByRole("link", { name: "Create related conversation" }).click();
     await page.waitForURL(`**/chat/related/${first}`);
     // Saying what will change is optional: the choice is enough.
     await page.getByRole("radio", { name: "Something else" }).check();
@@ -287,12 +287,12 @@ test.describe("writing conversations", () => {
       target_conversation_id: relatedId,
       is_folder: true,
     });
-    await expect(page.getByText("A related version", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("A related conversation", { exact: true })).toHaveCount(0);
     expect(
       (await sql`select count(*)::int as n from related_version where target_conversation_id = ${joined}`)[0].n,
     ).toBe(0);
     await page.goto(`/chat/${relatedId}`);
-    await expect(page.getByText("A related version", { exact: true })).toBeVisible();
+    await expect(page.getByText("A related conversation", { exact: true })).toBeVisible();
     await context.close();
   });
 
@@ -568,7 +568,7 @@ test.describe("writing conversations", () => {
     await page.waitForURL(`**/chat/${source}`);
 
     await fillLabels(page);
-    await page.getByRole("button", { name: "Submit source and create related version" }).click();
+    await page.getByRole("button", { name: "Submit source and create related conversation" }).click();
     await page.getByRole("button", { name: "Submit and continue" }).click();
     await page.waitForURL(`**/chat/related/${source}`);
 
@@ -592,7 +592,7 @@ test.describe("writing conversations", () => {
     const related = page.url().split("/").pop()!;
     const relatedEpisode = await episodeOf(related);
 
-    await expect(page.getByText("A related version", { exact: true })).toBeVisible();
+    await expect(page.getByText("A related conversation", { exact: true })).toBeVisible();
     await say(page, "Kindly explain codon usage.");
     const [reply] = await sql`
       select raw_request from message

@@ -297,7 +297,10 @@ test.describe("the organizer console", () => {
       await sql`update episode set assignment_state = 'held' where assignment_state = 'ready'`;
       await release(episodeId);
       const assignmentId = await getReview(reviewer.page);
-      await expect(reviewForm(reviewer.page).getByText(`Review instructions (version ${next})`)).toBeVisible();
+      // The form carries the instructions, with no version number on show:
+      // which version it was made under is recorded, not displayed.
+      await expect(reviewForm(reviewer.page).getByText("Review instructions", { exact: true })).toBeVisible();
+      await expect(reviewForm(reviewer.page).getByText(/version \d/i)).toHaveCount(0);
       await fillReview(reviewer.page, {
         verdict: "No",
         confidence: "High",
