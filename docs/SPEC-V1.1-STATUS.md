@@ -130,7 +130,7 @@ sessions. Existing conversations each became a one-session episode.
 | --- | --- | --- |
 | A. Intake (A01 to A07) | Changed at the organizer's request; see "Intake form, as revised" below | `lib/intake.ts`, `components/intake-fields.tsx`, `app/onboarding` |
 | A01 two required agreements, optional public release | Built | `components/onboarding-form.tsx` |
-| B1 provenance: real or invented | Changed: not asked before starting; asked in the side panel and required to submit | `components/episode-panel.tsx` |
+| B1 provenance: real or invented | Removed at the organizer's request (round 32): no longer asked. Answers given earlier are kept | columns `episode.task_provenance` and the session's labels still exist |
 | B2 optional activity template, optional goal note | Changed: the templates are gone at the organizer's request; the goal note is in the side panel, with whether work had begun kept in `episode_goal_revision` | `components/episode-panel.tsx` |
 | B3 related version: intent and intended difference | Built | `app/chat/related/[episodeId]`, `components/related-version-form.tsx` |
 | R. Instruction check | Changed by the revision: its five questions, R01 to R05 | `components/instruction-check.tsx`, `lib/review-form.ts` |
@@ -207,7 +207,7 @@ that renames them. They mean the review instructions.
 | No silent model fallback | Built (already so) | setting stays off |
 | A new session starts with no history and no notes | Built | each session is its own conversation |
 | A standalone conversation becomes a folder when a session is added | Built | `lib/episodes.ts` (`addSession`) |
-| One final submission freezes the whole episode | Built | `submitEpisode`; empty sessions are left out |
+| One final submission freezes the whole episode | Changed at the organizer's request (round 32): a session of a folder can also be submitted by itself, which closes that session and leaves the folder open; the folder is still submitted once, as a whole | `submitEpisode`, `submitSession`; empty sessions are left out |
 | Linked view: all sessions in the order things happened, sessions named A, B, C | Built | `review_view` rows written at submission |
 | Technical retry recorded as a retry | Not built | there is no retry button; a failed reply is followed by a new message |
 
@@ -215,8 +215,8 @@ that renames them. They mean the review instructions.
 
 | Item | Status | Where |
 | --- | --- | --- |
-| Related version only from a submitted source | Built | button reads "Submit source and create related version" on a draft |
-| New empty episode, starting on the source's model, linked to the exact source | Built | `related_version`, `episode.source_family_id` |
+| Related version only from a submitted source | Built; the source is one conversation, which may be a session of a folder | button reads "Submit source and create related version" on a draft |
+| New empty episode, starting on the source's model, linked to the exact source | Built; always a single conversation, and the link is between the two conversations whatever folders they are in (round 32) | `related_version.source_conversation_id` / `target_conversation_id`, `episode.source_family_id` |
 | Source cannot change afterwards | Built | submitted work is locked |
 | Same verdict on both versions is kept | Built | nothing deletes or scores pairs |
 | One audit per pair as the event minimum | Built | unique index on the pair |
@@ -275,7 +275,7 @@ written nominations in place of a mark on submitted work.
 | Most Qualified Reviews | Quantitative | No entry. Counted from completed transcript reviews, on the same page (sort by Transcript reviews); quality is the organizers' call |
 | Most Qualified Comparisons | Quantitative, smaller prize pool | No entry. Counted from completed comparisons of related conversations, on the same page (sort by Comparisons) |
 | Most Interesting AI Risk Finding | Qualitative | A written entry on the Submit page |
-| Best Comparative Investigation | Qualitative | A written entry on the Submit page |
+| Best Matched Set Investigation | Qualitative | A written entry on the Submit page |
 | Best Multi-Session Investigation | Qualitative | A written entry on the Submit page |
 
 An entry is a headline and the finding in detail (the optional link to

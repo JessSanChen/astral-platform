@@ -2782,6 +2782,118 @@ its author's latest answers.
 
 ---
 
+## Round 32: submit one session of a folder, related versions between single conversations, a plainer form and briefing
+
+From the organizer, after reading through the branch.
+
+### Submitting
+
+- **A session of a folder can be submitted by itself.** In a folder the
+  panel has two buttons. "Submit conversation" submits the session on
+  screen: it is closed, fixed, and can be reviewed at once, and the
+  folder stays open. "Submit folder" submits every session with
+  something in it, adds the folder read as a whole for reviewers, and
+  closes the folder. Before, a folder could only be submitted whole, so
+  one finished session waited on the rest.
+- **What is checked.** Submitting one session needs that session's
+  questions answered. Submitting the folder needs the folder's two
+  questions and the questions of every session not yet submitted.
+- **The folder's page has "Submit folder"** too, with what is still in
+  the way if it cannot go yet.
+- **The folder in the list** is now a bordered row with a tag,
+  "Submitted" or "Not submitted", and an arrow, so that it reads as
+  something to click and as something that is itself submitted. A
+  session sent in ahead of its folder says "Submitted by itself".
+- **For reviewers and organizers.** A session submitted by itself is
+  handed out like any other record. The Submissions page lists a folder
+  as soon as one of its sessions is submitted, marked as still open, so
+  it can be held back or withdrawn. Work an organizer has held stays
+  held when more of it is submitted. The export's submitted-only file
+  includes such a folder with its submitted sessions.
+
+One function does both kinds of submission (`submitEpisode` in
+`lib/episodes.ts`, with the session to submit by itself as an optional
+argument), so the two cannot drift apart.
+
+### Related versions
+
+**Before this round the link was between two pieces of work**, and a
+related version of a folder was itself a folder. The organizer's model
+is the other one, and is what is built now:
+
+- A related version is made from **one submitted conversation**: one
+  that stands alone, or one session of a folder (which, with the change
+  above, can be submitted before its folder).
+- It is always **a single new conversation**.
+- **The link is between the two conversations.** If the new one is
+  later given more sessions and so becomes a folder, it is still that
+  one conversation that is related. The folder is not, and the sessions
+  that join it are not.
+- **A comparison shows the two conversations**, not the folders either
+  sits in. A pair can be compared once both conversations are
+  submitted.
+
+In the database `related_version` gains `source_conversation_id` and
+`target_conversation_id` (migration 0019, which fills them in for
+existing links from each side's first session). The episode columns are
+kept: they say which conversation or folder each side belongs to, and
+the rule that a reviewer sees a piece of work once still goes by them,
+so someone who reviews or compares one side is not given the other, or
+the rest of a folder it is in. The address of the form is now
+`/chat/related/<conversation>`.
+
+### The author's questions (form L-1.1)
+
+- **"Real or invented?" is no longer asked**, anywhere. Answers given
+  while it was asked are kept and still shown to organizers; nothing
+  requires one.
+- **The scenario question comes first**: "Which best describes the
+  scenario you're constructing?"
+- **No headings or descriptions between the questions.** "Conversation
+  setup" and "Your assessment", with their notes, are gone. The order
+  is scenario, role, kind of task, goal (optional), what a reviewer is
+  expected to decide, confidence.
+- "What holds across its sessions." is removed from the folder's
+  description on the New page and on the folder's page.
+
+### Wording
+
+- Review page buttons: **"Review a transcript"** and **"Compare two
+  related transcripts"**.
+- **"Best Comparative Investigation" is now "Best Matched Set
+  Investigation"** wherever it is shown. Its stored value and its
+  address stay `comparative`, so existing entries are untouched.
+- "Smaller prize pool" is no longer on the prizes table.
+
+### How it works
+
+Rewritten to be skimmed. Each section is a few short parts with a
+heading and a list. Writing has parts for starting, folders, the panel,
+submitting, related versions and the ground rules. Reviewing has a part
+for each kind of review, numbered and named as on its button, and one
+for skipping and pausing. Prizes has the table, then a part each for
+the counted awards and the ones entered by write-up. The content was
+brought in line with everything above.
+
+### A question answered, not a change
+
+"Why are we not using more updated models?" The models on offer are
+kept in the database, so that an organizer can change them during the
+event. The code carries a list (chosen 11 November) that is used only
+where the database has none, and offered in Organize → Settings when it
+differs from the one in use. A database set up before that date still
+shows the older list until someone takes the new one there. The
+deployed site had that done; a local database has not unless it was
+done there too.
+
+Tests: one session submitted by itself, closed to further messages and
+reviewed while its folder is open; the folder then submitted with all
+its sessions; a related version made from a session of a folder, and
+that conversation later put into a folder; the form's order and what is
+no longer in it; the new names.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge
