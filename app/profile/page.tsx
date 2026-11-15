@@ -90,7 +90,7 @@ export default async function ProfilePage() {
           value={account?.role === "admin" ? "Organizer" : "Participant"}
         />
         <Row
-          label="Study information agreed"
+          label="Terms and Conditions agreed"
           value={
             account?.termsAcceptedAt
               ? `Agreed ${formatEventDateTime(account.termsAcceptedAt)}`

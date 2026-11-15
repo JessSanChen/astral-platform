@@ -41,18 +41,16 @@ export async function completeOnboarding(
     }
   }
 
-  // --- Study information and the two agreements (A01) ---
+  // --- The terms, and the one agreement to them ---
+  // Agreeing covers taking part and the use of contributions (the terms'
+  // sections 5 and 12), so both are recorded from the one tick.
   const version = Number(formData.get("termsVersion"));
   const release = formData.get("publicRelease");
   if (cu.needsTerms) {
     if (formData.get("acceptTerms") !== "on") {
-      errors.acceptTerms = "You need to agree to take part in order to continue.";
+      errors.acceptTerms = "You need to agree to the terms in order to continue.";
     } else if (!Number.isInteger(version) || version !== cu.latestTermsVersion) {
-      errors.acceptTerms = "The study information changed while you were reading. Please reload.";
-    }
-    if (formData.get("researchUse") !== "on") {
-      errors.researchUse =
-        "This agreement is needed to contribute to the research. Without it there is nothing here to do.";
+      errors.acceptTerms = "The terms changed while you were reading. Please reload.";
     }
   }
 

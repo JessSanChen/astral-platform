@@ -23,16 +23,16 @@ export default async function OnboardingPage() {
   const heading = cu.needsProfile
     ? {
         title: "Before you start",
-        note: "The study information, then a few questions about your background. About three minutes.",
+        note: "The terms and conditions, then a few questions about your background. About three minutes.",
       }
     : cu.user.termsAcceptedAt
       ? {
-          title: "Updated study information",
-          note: "The study information has been updated since you last agreed to it.",
+          title: "Updated terms and conditions",
+          note: "The terms and conditions have been updated since you last agreed to them.",
         }
       : {
           title: "One more thing",
-          note: "Your answers are saved. Read and agree to the study information to start.",
+          note: "Your answers are saved. Read and agree to the terms and conditions to start.",
         };
 
   return (

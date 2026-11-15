@@ -1,24 +1,8 @@
 import { db } from "@/db";
 import { eventSettings, termsVersion, judgeConfig, user, session } from "@/db/schema";
 import { DEFAULT_MODELS } from "@/lib/models";
+import { DEFAULT_TERMS } from "@/lib/default-terms";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
-
-const PLACEHOLDER_TERMS = `# Astral Event — Participation Terms (PLACEHOLDER)
-
-This is placeholder text. Replace with the real terms before the event.
-
-By participating you agree that:
-
-1. The conversations and reviews you create during this event may be stored
-   and used by the research team for the purpose of building and evaluating
-   biosecurity misuse-detection tools.
-2. You are role-playing scenarios for research. You will not act on any
-   information produced during the event, and you will not input real,
-   sensitive, or proprietary data from your own work.
-3. You are over 18 and participating voluntarily.
-4. Prizes are awarded at the organizers' discretion.
-
-(Full legal terms to follow.)`;
 
 // Defaults agreed in docs/SPEC.md section 6.
 const LIMITS = { dailyTokens: 5_000_000, judgeRunsPerHour: 40, chatPerMinute: 20 };
@@ -32,7 +16,7 @@ async function main() {
   // Terms version 1.
   await db
     .insert(termsVersion)
-    .values({ version: 1, body: PLACEHOLDER_TERMS })
+    .values({ version: 1, body: DEFAULT_TERMS })
     .onConflictDoNothing();
 
   // Singleton settings row.

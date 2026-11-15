@@ -21,6 +21,7 @@ import { recordAudit } from "@/lib/audit";
 import { getEventSettings } from "@/lib/openrouter";
 import { passwordProblem } from "@/lib/credentials";
 import { DEFAULT_MODELS } from "@/lib/models";
+import { DEFAULT_TERMS_UNFINISHED } from "@/lib/terms-agreement";
 import { requireAdmin } from "@/lib/gate";
 import { CACHE_KEYS, invalidate } from "@/lib/cache";
 import { DOMAIN_IDS } from "@/lib/intake";
@@ -433,6 +434,12 @@ export async function publishTerms(body: string) {
   const text = body.replace(/\r\n/g, "\n").trim();
   if (text.length < 20) {
     return { message: "That is too short to be the terms. Nothing was published." };
+  }
+  if (text.includes(DEFAULT_TERMS_UNFINISHED)) {
+    return {
+      message:
+        "This text still has a note marked [ORGANIZER: ...] where something is missing. Finish that part and remove the note. Nothing was published.",
+    };
   }
 
   const [latest] = await db

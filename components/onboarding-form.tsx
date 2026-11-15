@@ -7,6 +7,7 @@ import { ActionForm } from "@/components/action-form";
 import { Button } from "@/components/ui/button";
 import { IntakeFields, Radios } from "@/components/intake-fields";
 import { EMPTY_INTAKE, type IntakeDraft } from "@/lib/intake";
+import { TERMS_AGREEMENT } from "@/lib/terms-agreement";
 
 type Props = {
   needsProfile: boolean;
@@ -25,7 +26,6 @@ export function OnboardingForm({ needsProfile, needsTerms, terms }: Props) {
   // complaint is cleared by the browser, and unticking someone's agreement
   // for them because another answer was missing would be a poor reward.
   const [agreed, setAgreed] = useState(false);
-  const [researchUse, setResearchUse] = useState(false);
   const [publicRelease, setPublicRelease] = useState("");
 
   return (
@@ -33,7 +33,7 @@ export function OnboardingForm({ needsProfile, needsTerms, terms }: Props) {
       {needsTerms && terms && (
         <section className="space-y-4">
           <div>
-            <h2 className="font-serif text-xl font-medium">Study information</h2>
+            <h2 className="font-serif text-xl font-medium">Participant Terms and Conditions</h2>
             <p className="text-sm text-muted-foreground">
               Please read before continuing.
             </p>
@@ -43,6 +43,8 @@ export function OnboardingForm({ needsProfile, needsTerms, terms }: Props) {
           </div>
           <input type="hidden" name="termsVersion" value={terms.version} />
 
+          {/* One agreement, worded as the terms word it (their section 12):
+              agreeing covers taking part and the use of contributions. */}
           <label className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"
@@ -51,25 +53,9 @@ export function OnboardingForm({ needsProfile, needsTerms, terms }: Props) {
               checked={agreed}
               onChange={(ev) => setAgreed(ev.target.checked)}
             />
-            <span>I have read the study information and agree to take part.</span>
+            <span>{TERMS_AGREEMENT}</span>
           </label>
           {e.acceptTerms && <p className="text-xs text-danger">{e.acceptTerms}</p>}
-
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              name="researchUse"
-              className="mt-0.5 h-4 w-4"
-              checked={researchUse}
-              onChange={(ev) => setResearchUse(ev.target.checked)}
-            />
-            <span>
-              I agree that my submitted conversations, study responses, and
-              activity records described in the notice may be used for the
-              stated research under restricted access.
-            </span>
-          </label>
-          {e.researchUse && <p className="text-xs text-danger">{e.researchUse}</p>}
 
           <div className="space-y-1.5 rounded-[var(--radius)] border border-border bg-card p-4">
             <p className="text-sm">

@@ -3,6 +3,7 @@ import { listTermsVersions, termsAcceptance } from "@/lib/terms";
 import { formatEventDateTime } from "@/lib/time";
 import { Panel } from "@/components/admin-ui";
 import { TermsEditor } from "@/components/admin-terms";
+import { DEFAULT_TERMS } from "@/lib/default-terms";
 
 export const metadata = { title: "Terms" };
 
@@ -28,6 +29,7 @@ export default async function AdminTerms() {
           key={current?.version ?? 0}
           currentVersion={current?.version ?? 0}
           currentBody={current?.body ?? ""}
+          defaultBody={DEFAULT_TERMS}
           accounts={acceptance.total}
         />
       </Panel>

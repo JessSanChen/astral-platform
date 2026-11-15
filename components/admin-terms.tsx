@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import { publishTerms } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { DEFAULT_TERMS_UNFINISHED } from "@/lib/terms-agreement";
 
 /**
  * Writing and publishing the next version of the terms.
@@ -21,10 +22,13 @@ import { Textarea } from "@/components/ui/textarea";
 export function TermsEditor({
   currentVersion,
   currentBody,
+  defaultBody,
   accounts,
 }: {
   currentVersion: number;
   currentBody: string;
+  /** The terms the platform comes with, to load into the box. */
+  defaultBody: string;
   accounts: number;
 }) {
   const router = useRouter();
@@ -35,7 +39,10 @@ export function TermsEditor({
 
   const next = currentVersion + 1;
   const changed = body.trim() !== currentBody.trim();
-  const usable = changed && body.trim().length >= 20;
+  // The default text has a note to the organizer where something is still
+  // missing. It is not for participants, so it has to go before publishing.
+  const unfinished = body.includes(DEFAULT_TERMS_UNFINISHED);
+  const usable = changed && body.trim().length >= 20 && !unfinished;
 
   function publish() {
     start(async () => {
@@ -72,6 +79,30 @@ export function TermsEditor({
             Plain text works. For structure: a line starting with # is a
             heading, a line starting with - is a bullet, and **bold** is bold.
           </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={pending || body.trim() === defaultBody.trim()}
+              onClick={() => {
+                setBody(defaultBody);
+                setConfirming(false);
+                setNote(null);
+              }}
+            >
+              Load the default terms
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Replaces what is in the box with the terms the platform comes with. Nothing is
+              published until you publish.
+            </span>
+          </div>
+          {unfinished && (
+            <p role="alert" className="text-xs text-danger">
+              This text still has a note marked [ORGANIZER: ...] where something is missing.
+              Finish that part and remove the note before publishing.
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">
