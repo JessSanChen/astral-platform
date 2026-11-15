@@ -1,7 +1,13 @@
 import { z } from "zod";
-import { and, eq, gte, ne, sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { clipboardEvent, conversation, reviewClaim } from "@/db/schema";
+import {
+  clipboardEvent,
+  conversation,
+  relatedVersion,
+  reviewAssignment,
+  reviewView,
+} from "@/db/schema";
 import { getCurrentUser, whyBlocked } from "@/lib/gate";
 import { CLIPBOARD_KINDS, CLIPBOARD_SURFACES, CLIPBOARD_TEXT_LIMIT } from "@/lib/clipboard";
 
@@ -36,22 +42,30 @@ export async function POST(req: Request) {
   const event = parsed.data;
 
   // Only for a conversation this person is entitled to be looking at: their
-  // own, or one they are holding for review.
+  // own, or one belonging to a record they have been given to review or to
+  // compare.
   const [[convo], [claim], [recent]] = await Promise.all([
     db
       .select({ userId: conversation.userId })
       .from(conversation)
       .where(eq(conversation.id, event.conversationId)),
     db
-      .select({ id: reviewClaim.id })
-      .from(reviewClaim)
+      .select({ id: reviewAssignment.id })
+      .from(reviewAssignment)
+      .leftJoin(reviewView, eq(reviewView.id, reviewAssignment.viewId))
+      .leftJoin(relatedVersion, eq(relatedVersion.id, reviewAssignment.relatedVersionId))
+      .innerJoin(
+        conversation,
+        sql`${conversation.episodeId} in (${reviewView.episodeId}, ${relatedVersion.sourceEpisodeId}, ${relatedVersion.targetEpisodeId})`,
+      )
       .where(
         and(
-          eq(reviewClaim.conversationId, event.conversationId),
-          eq(reviewClaim.reviewerId, cu.user.id),
-          ne(reviewClaim.state, "released"),
+          eq(conversation.id, event.conversationId),
+          eq(reviewAssignment.reviewerId, cu.user.id),
+          sql`${reviewAssignment.state} in ('active', 'completed')`,
         ),
-      ),
+      )
+      .limit(1),
     db
       .select({ n: sql<number>`count(*)::int` })
       .from(clipboardEvent)

@@ -54,4 +54,5 @@ export function invalidate(key: string) {
 export const CACHE_KEYS = {
   eventSettings: "event-settings",
   latestTermsVersion: "latest-terms-version",
+  reviewPolicy: "review-policy",
 } as const;

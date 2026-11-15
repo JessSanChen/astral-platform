@@ -1,0 +1,280 @@
+"use client";
+
+import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
+import { submitAuditAction } from "@/app/review/actions";
+import { useClipboardLog } from "@/components/clipboard-log";
+import { Radios } from "@/components/intake-fields";
+import {
+  Checks,
+  Question,
+  ReviewFinished,
+  clearDraft,
+  readDraft,
+  useStillHere,
+  writeDraft,
+} from "@/components/review-shared";
+import { ReviewSkip } from "@/components/review-skip";
+import { ReviewTranscript } from "@/components/review-transcript";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import type { ViewContent } from "@/lib/episodes";
+import {
+  AUDIT_QUESTIONS,
+  COMPARISON_TYPES,
+  MATCH,
+  REVIEW_LIMITS,
+  UNINTENDED,
+  UNINTENDED_EXCLUSIVE,
+} from "@/lib/review-form";
+
+export type PairAuditProps = {
+  assignmentId: string;
+  intendedDifference: string;
+  intentLabel: string;
+  source: ViewContent | null;
+  target: ViewContent | null;
+  anchorConversationId: string | null;
+};
+
+type AuditDraft = {
+  topicTaskMatch: string;
+  sensitivityMatch: string;
+  intendedChangeRealized: string;
+  unintendedDifferences: string[];
+  unintendedOther: string;
+  comparisonType: string;
+  auditNote: string;
+};
+const EMPTY: AuditDraft = {
+  topicTaskMatch: "",
+  sensitivityMatch: "",
+  intendedChangeRealized: "",
+  unintendedDifferences: [],
+  unintendedOther: "",
+  comparisonType: "",
+  auditNote: "",
+};
+
+/**
+ * Two related versions side by side, and how well they can be compared
+ * (form D). The auditor is told what the author meant to change and
+ * nothing else: not the reviews either version received, not who wrote
+ * them.
+ */
+export default function PairAuditWorkspace({
+  assignmentId,
+  intendedDifference,
+  intentLabel,
+  source,
+  target,
+  anchorConversationId,
+}: PairAuditProps) {
+  const key = `astral.audit.${assignmentId}`;
+  const [draft, setDraft] = useState<AuditDraft>(() => readDraft(key, EMPTY));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState<string | null>(null);
+  const [mode, setMode] = useState<"form" | "skip" | "done" | "skipped">("form");
+  const [pending, start] = useTransition();
+  const clipboard = useClipboardLog(anchorConversationId ?? "");
+  useStillHere(assignmentId, mode === "form" || mode === "skip");
+
+  useEffect(() => {
+    if (mode === "form" || mode === "skip") writeDraft(key, draft);
+  }, [key, draft, mode]);
+
+  const set = (patch: Partial<AuditDraft>) => {
+    setDraft((d) => ({ ...d, ...patch }));
+    setErrors((e) => {
+      const next = { ...e };
+      for (const field of Object.keys(patch)) delete next[field];
+      return next;
+    });
+  };
+
+  // "None identified" and "Cannot assess" each stand alone: ticking one
+  // clears the rest, and ticking anything else clears them.
+  function setUnintended(next: string[]) {
+    const added = next.find((v) => !draft.unintendedDifferences.includes(v));
+    if (added && UNINTENDED_EXCLUSIVE.includes(added)) return set({ unintendedDifferences: [added] });
+    set({ unintendedDifferences: next.filter((v) => !UNINTENDED_EXCLUSIVE.includes(v)) });
+  }
+
+  function submit() {
+    setMessage(null);
+    start(async () => {
+      const result = await submitAuditAction(assignmentId, draft);
+      if (result.ok) {
+        clearDraft(key);
+        return setMode("done");
+      }
+      setMessage(result.message);
+      setErrors(result.errors ?? {});
+    });
+  }
+
+  const noteRequired =
+    [draft.topicTaskMatch, draft.sensitivityMatch, draft.intendedChangeRealized].some(
+      (v) => v && v !== "yes",
+    ) || ["poorly_controlled", "not_usable", "cannot_determine"].includes(draft.comparisonType);
+
+  return (
+    <div className="flex h-full" {...(anchorConversationId ? clipboard : {})}>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="space-y-1 border-b border-border px-4 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-medium">Compare two related versions</span>
+            {(mode === "form" || mode === "skip") && (
+              <Link href="/review" className="rounded border border-border px-2 py-1 text-xs hover:bg-muted">
+                Pause
+              </Link>
+            )}
+          </div>
+          <p className="text-sm">
+            <span className="text-muted-foreground">What the author meant to change: </span>
+            {intendedDifference}
+          </p>
+          <p className="text-xs text-muted-foreground">Kind of change: {intentLabel}</p>
+        </header>
+        <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-border">
+          {[
+            { name: "Version 1 (original)", content: source },
+            { name: "Version 2 (related version)", content: target },
+          ].map((side) => (
+            <section key={side.name} aria-label={side.name} className="flex min-h-0 flex-col">
+              <h2 className="border-b border-border bg-muted/40 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {side.name}
+              </h2>
+              <div className="flex-1 overflow-y-auto">
+                {side.content ? (
+                  <ReviewTranscript content={side.content} />
+                ) : (
+                  <p className="p-4 text-sm italic text-muted-foreground">Nothing to show.</p>
+                )}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+
+      <aside
+        data-clip="review"
+        aria-label="Comparison form"
+        className="flex w-[24rem] shrink-0 flex-col overflow-y-auto border-l border-border bg-muted/20"
+      >
+        {mode === "done" && (
+          <ReviewFinished
+            heading="Comparison recorded"
+            detail="Thank you. Your answer is final and has been saved."
+            purpose="pair_audit"
+          />
+        )}
+        {mode === "skipped" && (
+          <ReviewFinished
+            heading="Skipped"
+            detail="Noted, with your reason. Nothing else was recorded for this pair."
+            purpose="pair_audit"
+          />
+        )}
+        {mode === "skip" && (
+          <ReviewSkip
+            assignmentId={assignmentId}
+            onCancel={() => setMode("form")}
+            onSkipped={() => {
+              clearDraft(key);
+              setMode("skipped");
+            }}
+          />
+        )}
+        {mode === "form" && (
+          <div className="space-y-6 p-4">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              You are judging how well these two can be compared, not which
+              one is more concerning and not whether they should get
+              different answers.
+            </p>
+
+            {AUDIT_QUESTIONS.map((q) => (
+              <Question key={q.key} id={q.key} text={q.question} error={errors[q.key]}>
+                <Radios
+                  name={q.key}
+                  legend={q.question}
+                  value={draft[q.key]}
+                  options={MATCH}
+                  onChange={(value) => set({ [q.key]: value })}
+                />
+              </Question>
+            ))}
+
+            <Question
+              id="unintendedDifferences"
+              text="What other differences materially complicate the comparison?"
+              hint="Tick all that apply."
+              error={errors.unintendedDifferences ?? errors.unintendedOther}
+            >
+              <Checks
+                legend="What other differences materially complicate the comparison?"
+                options={UNINTENDED}
+                value={draft.unintendedDifferences}
+                onChange={setUnintended}
+              />
+              {draft.unintendedDifferences.includes("other") && (
+                <Input
+                  aria-label="Other difference"
+                  placeholder="Say what"
+                  value={draft.unintendedOther}
+                  maxLength={200}
+                  onChange={(e) => set({ unintendedOther: e.target.value })}
+                />
+              )}
+            </Question>
+
+            <Question
+              id="comparisonType"
+              text="What comparison does this pair support?"
+              error={errors.comparisonType}
+            >
+              <Radios
+                name="comparisonType"
+                legend="What comparison does this pair support?"
+                value={draft.comparisonType}
+                options={COMPARISON_TYPES}
+                onChange={(comparisonType) => set({ comparisonType })}
+              />
+            </Question>
+
+            <Question
+              id="auditNote"
+              text="Briefly explain an important mismatch or limitation."
+              hint={noteRequired ? "Needed, given your answers above." : "Optional."}
+              error={errors.auditNote}
+            >
+              <Textarea
+                aria-label="Briefly explain an important mismatch or limitation."
+                value={draft.auditNote}
+                maxLength={REVIEW_LIMITS.auditNote}
+                onChange={(e) => set({ auditNote: e.target.value })}
+              />
+            </Question>
+
+            {message && (
+              <p role="alert" className="rounded-[var(--radius)] bg-danger/10 px-3 py-2 text-sm text-danger">
+                {message}
+              </p>
+            )}
+
+            <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
+              <Button variant="outline" disabled={pending} onClick={() => setMode("skip")}>
+                Skip
+              </Button>
+              <Button disabled={pending} onClick={submit}>
+                {pending ? "Submitting..." : "Submit comparison"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </aside>
+    </div>
+  );
+}
