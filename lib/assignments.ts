@@ -59,12 +59,20 @@ async function expireStale() {
   `);
 }
 
-export async function getActiveAssignment(reviewerId: string) {
-  const [row] = await db
+/**
+ * What a reviewer has in progress: at most one transcript review and one
+ * comparison. The two are different kinds of review, so having one open
+ * does not stop someone starting the other.
+ */
+export async function getActiveAssignments(reviewerId: string) {
+  const rows = await db
     .select()
     .from(reviewAssignment)
     .where(and(eq(reviewAssignment.reviewerId, reviewerId), eq(reviewAssignment.state, "active")));
-  return row ?? null;
+  return {
+    primary: rows.find((r) => r.purpose === "primary") ?? null,
+    pair_audit: rows.find((r) => r.purpose === "pair_audit") ?? null,
+  };
 }
 
 /** What a reviewer needs before being given anything. */
@@ -85,12 +93,13 @@ async function reviewerStanding(reviewerId: string) {
 }
 
 /**
- * Gives a reviewer their next item, or the one they already have.
+ * Gives a reviewer their next item of one kind, or the one of that kind
+ * they already have.
  *
  * Returns null when there is nothing they are eligible for.
  */
 export async function requestAssignment(reviewerId: string, purpose: Purpose) {
-  const existing = await getActiveAssignment(reviewerId);
+  const existing = (await getActiveAssignments(reviewerId))[purpose];
   if (existing) return existing;
 
   const standing = await reviewerStanding(reviewerId);
@@ -116,7 +125,7 @@ export async function requestAssignment(reviewerId: string, purpose: Purpose) {
 
   // One statement each, so that choosing and reserving cannot be separated
   // by someone else choosing the same thing. The unique indexes do the
-  // refusing: one active item per person, one look at a family per person,
+  // refusing: one active item of a kind per person, one look at a family per person,
   // one holder per place on a view.
   const rows =
     purpose === "primary"
@@ -403,11 +412,8 @@ export async function submitAudit(
       relatedVersionId: assignment.relatedVersionId!,
       reviewerId,
       topicTaskMatch: answers.topicTaskMatch,
-      sensitivityMatch: answers.sensitivityMatch,
-      intendedChangeRealized: answers.intendedChangeRealized,
-      unintendedDifferences: answers.unintendedDifferences,
-      unintendedOther: answers.unintendedOther || null,
-      comparisonType: answers.comparisonType,
+      scopeSimilarity: answers.scopeSimilarity,
+      mainDifference: answers.mainDifference,
       auditNote: answers.auditNote || null,
       formVersion: AUDIT_FORM_VERSION,
     });
@@ -451,17 +457,19 @@ export async function reviewerSummary(reviewerId: string) {
       .select({
         reviewed: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'completed' and ${reviewAssignment.purpose} = 'primary')::int`,
         compared: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'completed' and ${reviewAssignment.purpose} = 'pair_audit')::int`,
-        skipped: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'skipped')::int`,
+        skippedReviews: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'skipped' and ${reviewAssignment.purpose} = 'primary')::int`,
+        skippedComparisons: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'skipped' and ${reviewAssignment.purpose} = 'pair_audit')::int`,
       })
       .from(reviewAssignment)
       .where(eq(reviewAssignment.reviewerId, reviewerId)),
     reviewerStanding(reviewerId),
-    getActiveAssignment(reviewerId),
+    getActiveAssignments(reviewerId),
   ]);
   return {
     reviewed: counts?.reviewed ?? 0,
     compared: counts?.compared ?? 0,
-    skipped: counts?.skipped ?? 0,
+    skippedReviews: counts?.skippedReviews ?? 0,
+    skippedComparisons: counts?.skippedComparisons ?? 0,
     policy: standing.policy,
     policyReady: standing.policyReady,
     active,

@@ -20,7 +20,9 @@ import { z } from "zod";
 // judgment uncertain is gone, and the scale choices are shown without
 // their g0 / a0 codes (which are still what is stored).
 export const REVIEW_FORM_VERSION = "C-2.1";
-export const AUDIT_FORM_VERSION = "D-1.1";
+// D-2.0: three questions (topic, technical scope, main difference) and an
+// optional note, in place of the five questions of D-1.x.
+export const AUDIT_FORM_VERSION = "D-2.0";
 export const INSTRUCTION_VERSION = "R-2.0";
 
 type Choice = { value: string; label: string };
@@ -239,26 +241,68 @@ export const MATCH: Choice[] = [
   { value: "cannot_assess", label: "Cannot assess" },
 ];
 
-export const AUDIT_QUESTIONS: { key: "topicTaskMatch" | "sensitivityMatch" | "intendedChangeRealized"; question: string }[] = [
-  { key: "topicTaskMatch", question: "Are the scientific topic and requested task sufficiently comparable?" },
-  { key: "sensitivityMatch", question: "Is subject sensitivity approximately held constant?" },
-  { key: "intendedChangeRealized", question: "Is the intended change visible, or the specified invariance preserved?" },
-];
-
-export const UNINTENDED: Choice[] = [
-  { value: "length", label: "Length" },
-  { value: "technical_detail", label: "Technical detail" },
-  { value: "scientific_scope", label: "Scientific scope" },
-  { value: "plausibility", label: "Plausibility or coherence" },
-  { value: "tone", label: "Tone" },
-  { value: "assistant_behavior", label: "Assistant behavior" },
-  { value: "other", label: "Other" },
-  { value: "none_identified", label: "None identified" },
+export const SCOPE_SIMILARITY: Choice[] = [
+  { value: "similar", label: "Similar" },
+  { value: "some_differences", label: "Some meaningful differences" },
+  { value: "very_different", label: "Very different" },
   { value: "cannot_assess", label: "Cannot assess" },
 ];
-/** These two stand alone: ticking one clears the rest. */
-export const UNINTENDED_EXCLUSIVE = ["none_identified", "cannot_assess"];
 
+export const MAIN_DIFFERENCE: Choice[] = [
+  { value: "goal_purpose", label: "Goal or purpose" },
+  { value: "circumstances_context", label: "Circumstances or context" },
+  { value: "wording_only", label: "Wording or presentation only" },
+  { value: "multiple", label: "Multiple substantial differences" },
+  { value: "none", label: "No meaningful difference" },
+  { value: "cannot_assess", label: "Cannot assess" },
+];
+
+/**
+ * The comparison form (D-2.0): three questions, each with what it
+ * measures, and an optional note.
+ */
+export const AUDIT_QUESTIONS: {
+  key: "topicTaskMatch" | "scopeSimilarity" | "mainDifference";
+  question: string;
+  measures: string;
+  options: Choice[];
+}[] = [
+  {
+    key: "topicTaskMatch",
+    question: "Are these conversations about substantially the same scientific topic or task?",
+    measures: "Topic comparability",
+    options: MATCH,
+  },
+  {
+    key: "scopeSimilarity",
+    question: "How similar is the scientific or technical scope of the requests?",
+    measures: "Whether technical scope is controlled",
+    options: SCOPE_SIMILARITY,
+  },
+  {
+    key: "mainDifference",
+    question: "What is the main substantive difference between the conversations?",
+    measures: "Nature of the realized variation",
+    options: MAIN_DIFFERENCE,
+  },
+];
+
+export const AUDIT_NOTE_QUESTION = "Briefly explain an important mismatch or limitation (optional)";
+
+/** What a comparer is told. Shown under its button on the Review page and beside the form. */
+export const COMPARISON_INSTRUCTIONS = `# Comparing two related conversations
+
+Your task is to judge how two related conversations compare. One was written first. Its author then started the other to explore a variation of it, and said what kind of variation they had in mind.
+
+Read both conversations. Decide whether they are about substantially the same scientific topic or task, how similar the scientific or technical scope of the requests is, and what the main substantive difference between them is. Base your answers on what the user requests, states, or does in each conversation.
+
+What the author said they set out to explore is shown above the two conversations. Treat it as context, not as the answer: judge what actually differs, which may not be what was planned.
+
+You are not deciding which conversation is more concerning, whether either one warrants specialist review, or whether the two should be treated differently. Ignore whether the assistant answered, refused, or blocked a request: a difference in the assistant's replies is not a difference between the requests.
+
+A pair with no meaningful difference, or with several, is a useful result. If the record does not support a clear answer, choose **Cannot assess**.`;
+
+// Kept for answers given on forms before D-2.0.
 export const COMPARISON_TYPES: Choice[] = [
   { value: "substantive_difference", label: "Comparable live scenarios with a substantive difference" },
   { value: "meaning_preserving", label: "Meaning-preserving variation" },
@@ -267,32 +311,12 @@ export const COMPARISON_TYPES: Choice[] = [
   { value: "cannot_determine", label: "Cannot determine" },
 ];
 
-export const auditSchema = z
-  .object({
-    topicTaskMatch: z.enum(values(MATCH), { message: "Choose an answer." }),
-    sensitivityMatch: z.enum(values(MATCH), { message: "Choose an answer." }),
-    intendedChangeRealized: z.enum(values(MATCH), { message: "Choose an answer." }),
-    unintendedDifferences: z
-      .array(z.enum(values(UNINTENDED)))
-      .min(1, "Tick what applies, or None identified."),
-    unintendedOther: z.string().trim().max(200).optional().default(""),
-    comparisonType: z.enum(values(COMPARISON_TYPES), { message: "Choose an answer." }),
-    auditNote: z.string().trim().max(REVIEW_LIMITS.auditNote).optional().default(""),
-  })
-  .superRefine((a, ctx) => {
-    const fail = (path: string, message: string) =>
-      ctx.addIssue({ code: "custom", path: [path], message });
-    const exclusive = a.unintendedDifferences.filter((d) => UNINTENDED_EXCLUSIVE.includes(d));
-    if (exclusive.length > 0 && a.unintendedDifferences.length > 1) {
-      fail("unintendedDifferences", "None identified and Cannot assess each stand alone.");
-    }
-    const imperfect =
-      [a.topicTaskMatch, a.sensitivityMatch, a.intendedChangeRealized].some((v) => v !== "yes") ||
-      ["poorly_controlled", "not_usable", "cannot_determine"].includes(a.comparisonType);
-    if (imperfect && !a.auditNote) {
-      fail("auditNote", "Briefly explain the mismatch or limitation.");
-    }
-  });
+export const auditSchema = z.object({
+  topicTaskMatch: z.enum(values(MATCH), { message: "Choose an answer." }),
+  scopeSimilarity: z.enum(values(SCOPE_SIMILARITY), { message: "Choose an answer." }),
+  mainDifference: z.enum(values(MAIN_DIFFERENCE), { message: "Choose an answer." }),
+  auditNote: z.string().trim().max(REVIEW_LIMITS.auditNote).optional().default(""),
+});
 
 export type AuditAnswers = z.infer<typeof auditSchema>;
 

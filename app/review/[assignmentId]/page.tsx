@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { PairAuditLoader, ReviewLoader } from "@/components/review-loader";
 import { Button } from "@/components/ui/button";
 import { loadAssignment, reviewerSummary, touchAssignment } from "@/lib/assignments";
-import { comparisonIntentLabel } from "@/lib/episode-options";
+import { comparisonIntentHelp, comparisonIntentLabel } from "@/lib/episode-options";
 import { requireOnboarded } from "@/lib/gate";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -62,6 +62,7 @@ export default async function AssignmentPage({
         assignmentId={assignmentId}
         intendedDifference={loaded.pair.intendedDifference}
         intentLabel={comparisonIntentLabel(loaded.pair.comparisonIntent)}
+        intentHelp={comparisonIntentHelp(loaded.pair.comparisonIntent)}
         source={loaded.pair.source}
         target={loaded.pair.target}
         anchorConversationId={loaded.anchorConversationId}

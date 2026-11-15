@@ -4,9 +4,9 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { submitAuditAction } from "@/app/review/actions";
 import { useClipboardLog } from "@/components/clipboard-log";
+import ReactMarkdown from "react-markdown";
 import { Radios } from "@/components/intake-fields";
 import {
-  Checks,
   Question,
   ReviewFinished,
   clearDraft,
@@ -17,22 +17,20 @@ import {
 import { ReviewSkip } from "@/components/review-skip";
 import { ReviewTranscript } from "@/components/review-transcript";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { ViewContent } from "@/lib/episodes";
 import {
+  AUDIT_NOTE_QUESTION,
   AUDIT_QUESTIONS,
-  COMPARISON_TYPES,
-  MATCH,
+  COMPARISON_INSTRUCTIONS,
   REVIEW_LIMITS,
-  UNINTENDED,
-  UNINTENDED_EXCLUSIVE,
 } from "@/lib/review-form";
 
 export type PairAuditProps = {
   assignmentId: string;
   intendedDifference: string;
   intentLabel: string;
+  intentHelp: string;
   source: ViewContent | null;
   target: ViewContent | null;
   anchorConversationId: string | null;
@@ -40,26 +38,20 @@ export type PairAuditProps = {
 
 type AuditDraft = {
   topicTaskMatch: string;
-  sensitivityMatch: string;
-  intendedChangeRealized: string;
-  unintendedDifferences: string[];
-  unintendedOther: string;
-  comparisonType: string;
+  scopeSimilarity: string;
+  mainDifference: string;
   auditNote: string;
 };
 const EMPTY: AuditDraft = {
   topicTaskMatch: "",
-  sensitivityMatch: "",
-  intendedChangeRealized: "",
-  unintendedDifferences: [],
-  unintendedOther: "",
-  comparisonType: "",
+  scopeSimilarity: "",
+  mainDifference: "",
   auditNote: "",
 };
 
 /**
  * Two related versions side by side, and how well they can be compared
- * (form D). The auditor is told what the author meant to change and
+ * (form D). The auditor is told what the author set out to explore and
  * nothing else: not the reviews either version received, not who wrote
  * them.
  */
@@ -67,6 +59,7 @@ export default function PairAuditWorkspace({
   assignmentId,
   intendedDifference,
   intentLabel,
+  intentHelp,
   source,
   target,
   anchorConversationId,
@@ -93,14 +86,6 @@ export default function PairAuditWorkspace({
     });
   };
 
-  // "None identified" and "Cannot assess" each stand alone: ticking one
-  // clears the rest, and ticking anything else clears them.
-  function setUnintended(next: string[]) {
-    const added = next.find((v) => !draft.unintendedDifferences.includes(v));
-    if (added && UNINTENDED_EXCLUSIVE.includes(added)) return set({ unintendedDifferences: [added] });
-    set({ unintendedDifferences: next.filter((v) => !UNINTENDED_EXCLUSIVE.includes(v)) });
-  }
-
   function submit() {
     setMessage(null);
     start(async () => {
@@ -114,15 +99,10 @@ export default function PairAuditWorkspace({
     });
   }
 
-  const noteRequired =
-    [draft.topicTaskMatch, draft.sensitivityMatch, draft.intendedChangeRealized].some(
-      (v) => v && v !== "yes",
-    ) || ["poorly_controlled", "not_usable", "cannot_determine"].includes(draft.comparisonType);
-
   return (
     <div className="flex h-full" {...(anchorConversationId ? clipboard : {})}>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="space-y-1 border-b border-border px-4 py-2">
+        <header className="border-b border-border px-4 py-2">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-medium">Compare two related versions</span>
             {(mode === "form" || mode === "skip") && (
@@ -131,12 +111,25 @@ export default function PairAuditWorkspace({
               </Link>
             )}
           </div>
-          <p className="text-sm">
-            <span className="text-muted-foreground">What the author meant to change: </span>
-            {intendedDifference}
-          </p>
-          <p className="text-xs text-muted-foreground">Kind of change: {intentLabel}</p>
         </header>
+        {/* What the author said, set apart from everything else on the
+            screen: it is the thing the two versions are being held up to. */}
+        <section
+          aria-label="What the author set out to explore"
+          className="border-b border-accent/40 bg-accent/10 px-4 py-3"
+        >
+          <p className="text-xs font-medium uppercase tracking-wide text-accent">
+            What the author set out to explore
+          </p>
+          <p className="mt-1 font-serif text-xl leading-snug">{intentLabel}</p>
+          {intentHelp && <p className="text-sm text-muted-foreground">{intentHelp}</p>}
+          {intendedDifference && (
+            <p className="mt-1.5 text-sm">
+              <span className="text-muted-foreground">In their words: </span>
+              <span className="font-medium">{intendedDifference}</span>
+            </p>
+          )}
+        </section>
         <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-border">
           {[
             { name: "Version 1 (original)", content: source },
@@ -189,10 +182,15 @@ export default function PairAuditWorkspace({
         )}
         {mode === "form" && (
           <div className="space-y-6 p-4">
+            <details className="rounded-[var(--radius)] border border-border bg-card px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium">Comparison instructions</summary>
+              <div className="markdown mt-2 text-sm leading-relaxed">
+                <ReactMarkdown>{COMPARISON_INSTRUCTIONS}</ReactMarkdown>
+              </div>
+            </details>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              You are judging how well these two can be compared, not which
-              one is more concerning and not whether they should get
-              different answers.
+              You are judging how these two compare, not which one is more
+              concerning and not whether they should get different answers.
             </p>
 
             {AUDIT_QUESTIONS.map((q) => (
@@ -201,57 +199,15 @@ export default function PairAuditWorkspace({
                   name={q.key}
                   legend={q.question}
                   value={draft[q.key]}
-                  options={MATCH}
+                  options={q.options}
                   onChange={(value) => set({ [q.key]: value })}
                 />
               </Question>
             ))}
 
-            <Question
-              id="unintendedDifferences"
-              text="What other differences materially complicate the comparison?"
-              hint="Tick all that apply."
-              error={errors.unintendedDifferences ?? errors.unintendedOther}
-            >
-              <Checks
-                legend="What other differences materially complicate the comparison?"
-                options={UNINTENDED}
-                value={draft.unintendedDifferences}
-                onChange={setUnintended}
-              />
-              {draft.unintendedDifferences.includes("other") && (
-                <Input
-                  aria-label="Other difference"
-                  placeholder="Say what"
-                  value={draft.unintendedOther}
-                  maxLength={200}
-                  onChange={(e) => set({ unintendedOther: e.target.value })}
-                />
-              )}
-            </Question>
-
-            <Question
-              id="comparisonType"
-              text="What comparison does this pair support?"
-              error={errors.comparisonType}
-            >
-              <Radios
-                name="comparisonType"
-                legend="What comparison does this pair support?"
-                value={draft.comparisonType}
-                options={COMPARISON_TYPES}
-                onChange={(comparisonType) => set({ comparisonType })}
-              />
-            </Question>
-
-            <Question
-              id="auditNote"
-              text="Briefly explain an important mismatch or limitation."
-              hint={noteRequired ? "Needed, given your answers above." : "Optional."}
-              error={errors.auditNote}
-            >
+            <Question id="auditNote" text={AUDIT_NOTE_QUESTION} error={errors.auditNote}>
               <Textarea
-                aria-label="Briefly explain an important mismatch or limitation."
+                aria-label={AUDIT_NOTE_QUESTION}
                 value={draft.auditNote}
                 maxLength={REVIEW_LIMITS.auditNote}
                 onChange={(e) => set({ auditNote: e.target.value })}
