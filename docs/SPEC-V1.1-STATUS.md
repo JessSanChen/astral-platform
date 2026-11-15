@@ -275,9 +275,9 @@ written nominations in place of a mark on submitted work.
 | Most Qualified Transcripts | Quantitative | No entry. Counted from submitted work; Organize → Participants sorts by it. Whether a conversation is distinct, substantive and usable is the organizers' call |
 | Most Qualified Reviews | Quantitative | No entry. Counted from completed transcript reviews, on the same page (sort by Transcript reviews); quality is the organizers' call |
 | Most Qualified Comparisons | Quantitative, smaller prize pool | No entry. Counted from completed comparisons of related conversations, on the same page (sort by Comparisons) |
-| Most Interesting AI Risk Finding | Qualitative | A written entry on the Submit page |
-| Best Matched Set Investigation | Qualitative | A written entry on the Submit page |
-| Best Multi-Session Investigation | Qualitative | A written entry on the Submit page |
+| Best Investigation: Matched Set | Qualitative | A written entry on the Submit page |
+| Best Investigation: Multi-Session | Qualitative | A written entry on the Submit page |
+| Best Investigation: General | Qualitative | A written entry on the Submit page. A catch-all: any investigation, benign use included |
 
 An entry is a headline and the finding in detail (the optional link to
 slides was removed in round 30), one per award, editable until nominations are closed from

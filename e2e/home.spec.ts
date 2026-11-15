@@ -44,15 +44,19 @@ test.describe("the front page", () => {
       "Most Qualified Transcripts",
       "Most Qualified Reviews",
       "Most Qualified Comparisons",
-      "Most Interesting AI Risk Finding",
-      "Best Matched Set Investigation",
-      "Best Multi-Session Investigation",
+      "Best Investigation: Matched Set",
+      "Best Investigation: Multi-Session",
+      "Best Investigation: General",
     ]) {
       await expect(awards.getByRole("row").filter({ hasText: award })).toBeVisible();
     }
     await expect(main.getByText(/Adversarial use cases|Dual-use use cases/)).toHaveCount(0);
     await expect(main.getByText("What changes the result?", { exact: false })).toBeVisible();
-    await expect(main.getByText(/Comparative Investigation/)).toHaveCount(0);
+    await expect(main.getByText(/Comparative Investigation|AI Risk Finding/)).toHaveCount(0);
+    // The general award is a catch-all, and says benign work is welcome.
+    await expect(
+      awards.getByRole("row").filter({ hasText: "Best Investigation: General" }),
+    ).toContainText(/benign use is as welcome as anything else/);
     // Each kind of review has a part of its own, by the name on its button.
     for (const part of ["1. Transcript review", "2. Comparison"]) {
       await expect(main.getByRole("heading", { name: part, level: 3 })).toBeVisible();

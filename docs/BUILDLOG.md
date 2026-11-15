@@ -3137,6 +3137,43 @@ the folder is submitted; "New session" is above the folder's questions.
 
 ---
 
+## Round 37: the three qualitative awards renamed, with a general one
+
+The awards entered by write-up are now, in this order:
+
+| Award | Before | Changed |
+| --- | --- | --- |
+| Best Investigation: Matched Set | Best Matched Set Investigation | name only |
+| Best Investigation: Multi-Session | Best Multi-Session Investigation | name only |
+| Best Investigation: General | Most Interesting AI Risk Finding | name and description |
+
+**General is a catch-all.** Its predecessor asked for "an important
+limitation, ambiguity, or potential risk of AI assistance in dual-use or
+fictional adversarial scenarios", which steers people toward adversarial
+work. The new wording asks for any well-evidenced investigation that is
+neither a matched set nor a multi-session study, says that ordinary,
+benign use is as welcome as dual-use or adversarial work, and that an
+entry does not have to be about a risk or a failure. Its question is
+"What did you find?".
+
+The names are used everywhere they appear: the prizes table and the
+write-up in How it works, the Submit page and each entry form, and the
+organizer's Nominations page.
+
+**What is stored did not change.** Each award has a stored value that
+stays put when it is renamed (`comparative`, `multi_session`,
+`ai_risk_finding`), so entries already made are still under their
+award, and no migration is needed. What a participant sees in the
+address follows the new names: `/nominate/matched_set`,
+`/nominate/multi_session`, `/nominate/general`. The old addresses lead
+to the new ones.
+
+Tests: the three names, in order, on the Submit page and in the prizes
+table; nothing about AI risk on either; the general award's description
+and address; the old address leading to the new one.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

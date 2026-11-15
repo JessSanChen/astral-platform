@@ -10,19 +10,41 @@ test.describe("putting work forward", () => {
     await page.goto("/nominate");
     // The page does not say how many there are, since that changes.
     await expect(page.getByText(/prize tracks are decided by nomination/)).toHaveCount(0);
-    for (const award of [
-      /Most Interesting AI Risk Finding/,
-      /Best Matched Set Investigation/,
-      /Best Multi-Session Investigation/,
-    ]) {
+    const awards = [
+      /Best Investigation: Matched Set/,
+      /Best Investigation: Multi-Session/,
+      /Best Investigation: General/,
+    ];
+    for (const award of awards) {
       await expect(page.getByRole("link", { name: award })).toBeVisible();
     }
+    // In that order, with the catch-all last, and nothing about AI risk.
+    expect(
+      (await page.getByRole("main").getByRole("heading", { level: 2 }).allInnerTexts()).map((t) => t.trim()),
+    ).toEqual([
+      "Best Investigation: Matched Set",
+      "Best Investigation: Multi-Session",
+      "Best Investigation: General",
+    ]);
+    await expect(page.getByRole("main").getByText(/AI Risk/i)).toHaveCount(0);
+
+    // The general award is a catch-all: it does not ask for a risk or a
+    // failure, and says ordinary use is welcome. Its address says general,
+    // and the address it had under its old name leads there.
+    await page.getByRole("link", { name: /Best Investigation: General/ }).click();
+    await page.waitForURL("**/nominate/general");
+    await expect(page.getByText(/What did you find\?/)).toBeVisible();
+    await expect(page.getByText(/ordinary, benign use of an assistant is as welcome/)).toBeVisible();
+    await page.goto("/nominate/ai_risk_finding");
+    await page.waitForURL("**/nominate/general");
+    await page.goto("/nominate");
     await expect(page.getByText(/collaborat|Adversarial use cases|Dual-use use cases/i)).toHaveCount(0);
     for (const retired of ["collaborative", "adversarial", "dual_use"]) {
       expect((await page.request.get(`/nominate/${retired}`)).status(), retired).toBe(404);
     }
 
-    await page.goto("/nominate/comparative");
+    await page.getByRole("link", { name: /Best Investigation: Matched Set/ }).click();
+    await page.waitForURL("**/nominate/matched_set");
     // The award's own question is at the top of its form.
     await expect(page.getByText(/What changes the result\? The focus is a meaningful comparison/)).toBeVisible();
     await page.getByLabel("Headline finding").fill("Two scanners disagree in a useful way");
@@ -62,7 +84,7 @@ test.describe("putting work forward", () => {
 
     // And the track list shows it as entered.
     await page.goto("/nominate");
-    await expect(page.getByRole("link", { name: /Best Matched Set Investigation/ })).toContainText(
+    await expect(page.getByRole("link", { name: /Best Investigation: Matched Set/ })).toContainText(
       "Submitted",
     );
     await context.close();
@@ -70,7 +92,7 @@ test.describe("putting work forward", () => {
 
   test("an entry with nothing in it is refused", async ({ browser }) => {
     const { page, context } = await newParticipant(browser, "Blank Bella", "nominator");
-    await page.goto("/nominate/ai_risk_finding");
+    await page.goto("/nominate/general");
     await page.getByLabel("Headline finding").fill("   ");
     await page.getByLabel("The finding in detail").fill("   ");
     await page.getByRole("button", { name: "Submit nomination" }).click();
