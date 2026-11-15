@@ -7,11 +7,7 @@ import { db } from "@/db";
 import { profile, user as userTable } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { requireOnboarded } from "@/lib/gate";
-import {
-  profileColumns,
-  profileFromForm,
-  profileSchema,
-} from "@/lib/onboarding-schema";
+import { INTAKE_VERSION, intakeSchema } from "@/lib/intake";
 
 export type ProfileState = {
   errors?: Record<string, string>;
@@ -32,27 +28,43 @@ export async function updateProfile(
 ): Promise<ProfileState> {
   const { user } = await requireOnboarded();
 
-  const parsed = profileSchema.safeParse(profileFromForm(formData));
+  const errors: Record<string, string> = {};
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) errors.name = "Please enter your name.";
+  else if (name.length > 120) errors.name = "Keep your name under 120 characters.";
 
+  let raw: unknown = {};
+  try {
+    raw = JSON.parse(String(formData.get("intake") ?? "{}"));
+  } catch {
+    // Left as nothing, which the checks below turn into the usual messages.
+  }
+  const parsed = intakeSchema.safeParse(raw);
   if (!parsed.success) {
-    const errors: Record<string, string> = {};
     for (const issue of parsed.error.issues) {
       const key = String(issue.path[0] ?? "form");
       if (!errors[key]) errors[key] = issue.message;
     }
-    return { errors, message: "Please fix the highlighted fields." };
+  }
+  if (Object.keys(errors).length > 0 || !parsed.success) {
+    return { errors, message: "Please complete the highlighted answers." };
   }
 
-  const p = parsed.data;
+  const release = formData.get("publicRelease");
   const now = new Date();
   await db.transaction(async (tx) => {
     await tx
       .update(profile)
-      .set({ ...profileColumns(p), updatedAt: now })
+      .set({
+        intake: parsed.data,
+        intakeVersion: INTAKE_VERSION,
+        publicReleasePermission: release === "yes" || release === "no" ? release : null,
+        updatedAt: now,
+      })
       .where(eq(profile.userId, user.id));
     await tx
       .update(userTable)
-      .set({ name: p.name, updatedAt: now })
+      .set({ name, updatedAt: now })
       .where(eq(userTable.id, user.id));
   });
 

@@ -21,15 +21,18 @@ export default async function OnboardingPage() {
   // who forgot the checkbox has never accepted anything, so telling them
   // the terms "have been updated" is simply wrong.
   const heading = cu.needsProfile
-    ? { title: "Set up your profile", note: "Two minutes, then you can start chatting." }
+    ? {
+        title: "Before you start",
+        note: "The study information, then a few questions about your background. About three minutes.",
+      }
     : cu.user.termsAcceptedAt
       ? {
-          title: "Updated terms",
-          note: "The terms have been updated since you last accepted them.",
+          title: "Updated study information",
+          note: "The study information has been updated since you last agreed to it.",
         }
       : {
           title: "One more thing",
-          note: "Your profile is saved. Accept the terms to start chatting.",
+          note: "Your answers are saved. Read and agree to the study information to start.",
         };
 
   return (
@@ -44,7 +47,6 @@ export default async function OnboardingPage() {
       <OnboardingForm
         needsProfile={cu.needsProfile}
         needsTerms={cu.needsTerms}
-        defaultName={cu.user.name}
         terms={terms ? { version: terms.version, body: terms.body } : null}
       />
     </main>

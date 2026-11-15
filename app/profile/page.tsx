@@ -2,9 +2,9 @@ import Link from "next/link";
 import { FileText, ListChecks, Trophy, UserRound } from "lucide-react";
 import { requireOnboarded } from "@/lib/gate";
 import { getMyProfile } from "@/lib/profile";
-import { trackLabel } from "@/lib/nominations";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { ProfileForm } from "@/components/profile-form";
+import { intakeDraft } from "@/lib/intake";
 import { formatEventDateTime } from "@/lib/time";
 
 export const metadata = { title: "Your profile" };
@@ -46,9 +46,9 @@ export default async function ProfilePage() {
           Your profile
         </h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          What you tell us here is attached to every transcript you submit, so
-          the research team knows the expertise behind it. It is never shown to
-          other participants, and you can change it at any point today.
+          Your answers are kept with what you submit, so the research team
+          knows the background behind it. They are never shown to other
+          participants, and you can change them at any point today.
         </p>
       </div>
 
@@ -57,9 +57,9 @@ export default async function ProfilePage() {
         <Stat
           icon={<FileText className="h-5 w-5" />}
           value={counts.submitted}
-          label={`transcripts submitted${
+          label={`submitted${
             counts.started > counts.submitted
-              ? ` · ${counts.started - counts.submitted} draft`
+              ? ` · ${counts.started - counts.submitted} in progress`
               : ""
           }`}
           href="/chat"
@@ -72,13 +72,9 @@ export default async function ProfilePage() {
         />
         <Stat
           icon={<Trophy className="h-5 w-5" />}
-          value={counts.nominations.length}
-          label={
-            counts.nominations.length
-              ? counts.nominations.map((t) => trackLabel(t)).join(", ")
-              : "nominations entered"
-          }
-          href="/nominate"
+          value={counts.prizeEntries}
+          label="entered for a prize"
+          href="/chat"
         />
       </section>
 
@@ -89,36 +85,21 @@ export default async function ProfilePage() {
           value={account?.role === "admin" ? "Organizer" : "Participant"}
         />
         <Row
-          label="Terms accepted"
+          label="Study information agreed"
           value={
             account?.termsAcceptedAt
               ? `Version ${account.termsVersion} on ${formatEventDateTime(
                   account.termsAcceptedAt,
                 )}`
-              : "Not yet accepted"
+              : "Not yet"
           }
         />
       </section>
 
       <ProfileForm
         defaultName={account?.name ?? ""}
-        details={
-          details && {
-            name: account?.name ?? "",
-            affiliation: details.affiliation,
-            role: details.role,
-            highestDegree: details.highestDegree,
-            yearsExperience: details.yearsExperience,
-            primaryBackground: details.primaryBackground,
-            subdomains: details.subdomains ?? [],
-            aiFamiliarity: details.aiFamiliarity,
-            expertiseNote: details.expertiseNote ?? "",
-            roleOther: details.roleOther ?? "",
-            highestDegreeOther: details.highestDegreeOther ?? "",
-            primaryBackgroundOther: details.primaryBackgroundOther ?? "",
-            subdomainsOther: details.subdomainsOther ?? "",
-          }
-        }
+        intake={intakeDraft(details?.intake)}
+        publicRelease={details?.publicReleasePermission ?? ""}
       />
 
       <section className="space-y-4 border-t border-border pt-8">
