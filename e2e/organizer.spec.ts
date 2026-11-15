@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { SETTINGS_TTL_MS } from "@/lib/cache";
+import { INTAKE_VERSION } from "@/lib/intake";
 import { formatEventDateTime, fromEventInputValue } from "@/lib/time";
 import { episodeOf, passInstructionCheck, release, resetSettings, sql } from "./db";
 import {
@@ -114,7 +115,7 @@ test.describe("the organizer console", () => {
     const view = lines.find((l) => l.record === "review_view" && l.episode_id === submitted.episodeId)!;
     expect(JSON.stringify(view)).toContain("to: What is a virus?");
     const intake = lines.find((l) => l.record === "participant_intake" && l.email === participant.email)!;
-    expect(intake.intake_version).toBe("A-1.2");
+    expect(intake.intake_version).toBe(INTAKE_VERSION);
     expect(lines.some((l) => l.record === "review_policy")).toBe(true);
 
     // Asked for submitted work only, the draft is left out.
