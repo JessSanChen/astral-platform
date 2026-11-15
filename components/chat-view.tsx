@@ -344,7 +344,7 @@ export function ChatView({
         ref={scrollRef}
         onScroll={onScroll}
         data-chat-scroll
-        className="flex-1 overflow-y-auto"
+        className="relative flex-1 overflow-y-auto"
       >
         <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
           {visibleMessages.length === 0 && !waiting && (

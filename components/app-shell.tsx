@@ -9,13 +9,13 @@ import { MasterNav } from "@/components/master-nav";
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const { user, isAdmin } = await requireOnboarded();
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen overflow-hidden">
       <MasterNav
         userName={user.name}
         userEmail={user.email}
         isAdmin={isAdmin}
       />
-      <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+      <main className="relative min-w-0 flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }

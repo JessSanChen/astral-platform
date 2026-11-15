@@ -2,68 +2,58 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowUp, Folder } from "lucide-react";
 import { useConversationStore } from "@/components/conversation-store";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { ModelPicker } from "@/components/model-picker";
-import { ACTIVITY_TEMPLATES, LIMITS, PROVENANCE } from "@/lib/episode-options";
 import type { ModelOption } from "@/lib/models";
-import { cn } from "@/lib/utils";
 
 /**
- * Starting a conversation or a folder (specification B1 and B2).
+ * Starting a conversation, or a folder: pick a model and type.
  *
- * One thing is asked: whether the task is real or invented. Everything else
- * is optional. Nothing typed here is sent to the model.
+ * Nothing is asked first. The conversation is created when the first
+ * message is sent, and that message goes with it. What the author says
+ * about the work (whether the task is real, what they were doing) is
+ * asked in the panel beside the chat, before submitting.
  */
 export function NewConversation({
   models,
   folder,
 }: {
   models: ModelOption[];
-  /** Arrived by "New folder": that button is offered first. */
+  /** Arrived by "+ Folder": the first message opens a folder's first session. */
   folder: boolean;
 }) {
   const router = useRouter();
-  const { addConversation } = useConversationStore();
+  const store = useConversationStore();
   const [modelId, setModelId] = useState(models[0]?.id ?? "");
-  const [provenance, setProvenance] = useState("");
-  const [template, setTemplate] = useState<string | null>(null);
-  const [goal, setGoal] = useState("");
+  const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  async function start(asFolder: boolean) {
-    if (!provenance) {
-      setError("First say whether this is based on a real task or invented for this exercise.");
-      return;
-    }
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || creating || !modelId) return;
     setCreating(true);
     setError(null);
     const res = await fetch("/api/conversations", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        modelId,
-        provenance,
-        template,
-        goal: goal.trim() || null,
-        folder: asFolder,
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setError(body.message ?? "Could not start. Try again.");
+      body: JSON.stringify({ modelId, folder }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      const body = await res?.json().catch(() => ({}));
+      setError(body?.message ?? "Could not start. Try again.");
       setCreating(false);
       return;
     }
     const created = await res.json();
-    // Put it in the list immediately. Waiting for the next server render
-    // meant it took seconds to appear, which looked like nothing happened.
-    addConversation({
+    const clean = text.replace(/\s+/g, " ").trim();
+    // In the list at once, named after its first message, as it will be.
+    store.addConversation({
       id: created.id,
-      title: "New conversation",
+      title: clean.length <= 60 ? clean : clean.slice(0, 57) + "...",
       status: "draft",
       createdAt: new Date().toISOString(),
       episodeId: created.episodeId,
@@ -73,133 +63,56 @@ export function NewConversation({
       episodeStatus: "draft",
       related: false,
     });
+    // Sent from here, so the reply is already on its way when the
+    // conversation's own page opens: it picks up this same chat.
+    void store.getChat(created.id, []).sendMessage({ text });
     router.push(`/chat/${created.id}`);
   }
 
-  const chosen = ACTIVITY_TEMPLATES.find((t) => t.id === template);
-
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto flex min-h-full max-w-xl flex-col justify-center gap-7 px-6 py-12">
-        <div className="space-y-1">
-          <h1 className="font-serif text-3xl font-medium tracking-tight">
-            {folder ? "New folder" : "New conversation"}
-          </h1>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {folder
-              ? "A folder holds several sessions that belong to one task. Each session is a fresh conversation: it does not see the others."
-              : "One conversation with the assistant. You can add more sessions later, which turns it into a folder."}
-          </p>
-        </div>
+    <div className="flex h-full flex-col">
+      <header className="flex items-center gap-3 border-b border-border px-4 py-2">
+        <h1 className="flex min-w-0 flex-1 items-center gap-2 truncate text-sm font-medium">
+          {folder && <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />}
+          {folder ? "New folder" : "New conversation"}
+        </h1>
+        <ModelPicker models={models} value={modelId} onChange={setModelId} />
+      </header>
 
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">
-            Is this based on a real task, or invented for this exercise?
-          </legend>
-          {PROVENANCE.map((p) => (
-            <label
-              key={p.value}
-              className={cn(
-                "flex cursor-pointer items-start gap-3 rounded-[var(--radius)] border bg-card px-4 py-3",
-                provenance === p.value ? "border-accent ring-1 ring-accent" : "border-border",
-              )}
-            >
-              <input
-                type="radio"
-                name="provenance"
-                className="mt-0.5 h-4 w-4 shrink-0"
-                checked={provenance === p.value}
-                onChange={() => {
-                  setProvenance(p.value);
-                  setError(null);
-                }}
-              />
-              <span>
-                <span className="block text-sm font-medium">{p.label}</span>
-                <span className="block text-xs text-muted-foreground">{p.help}</span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Need a starting point? (optional)</p>
-          <div className="flex flex-wrap gap-1.5">
-            {ACTIVITY_TEMPLATES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                aria-pressed={template === t.id}
-                onClick={() => setTemplate(template === t.id ? null : t.id)}
-                className={cn(
-                  "rounded-full border px-3 py-1 text-sm transition-colors",
-                  template === t.id
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-border bg-card hover:bg-muted",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          {chosen && <p className="text-xs text-muted-foreground">{chosen.help}</p>}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label>Model</Label>
-          <div className="rounded-[var(--radius)] border border-border bg-card px-1 py-1">
-            <ModelPicker models={models} value={modelId} onChange={setModelId} />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Fixed for the whole {folder ? "folder" : "conversation"}, and for
-            any related version made from it. The assistant starts as it
-            normally would, with nothing added on our side.
-          </p>
-        </div>
-
-        <details className="rounded-[var(--radius)] border border-border bg-card px-4 py-3">
-          <summary className="cursor-pointer text-sm font-medium">
-            Add a goal or notes (optional)
-          </summary>
-          <div className="mt-3 space-y-1.5">
-            <Label htmlFor="goal">
-              What are you exploring or trying to accomplish?
-            </Label>
-            <Textarea
-              id="goal"
-              rows={3}
-              maxLength={LIMITS.goal}
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Private. It is not sent to the assistant and reviewers do not see
-              it. You can leave it empty, and add or change it while you work.
-            </p>
-          </div>
-        </details>
-
-        {error && <p className="text-sm text-danger">{error}</p>}
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="lg"
-            variant={folder ? "outline" : "default"}
-            onClick={() => start(false)}
-            disabled={creating || !modelId}
-          >
-            Start conversation
-          </Button>
-          <Button
-            size="lg"
-            variant={folder ? "default" : "outline"}
-            onClick={() => start(true)}
-            disabled={creating || !modelId}
-          >
-            Start folder
-          </Button>
-        </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+        <p className="font-serif text-2xl font-medium tracking-tight">
+          {folder ? "Start the first session" : "What would you like to ask?"}
+        </p>
+        <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
+          {folder
+            ? "A folder holds several sessions that belong to one task. Each session is a fresh conversation: it does not see the others. You can add more once this one has started."
+            : "Choose a model above and send a message. The model is fixed once the conversation has started."}
+        </p>
       </div>
+
+      <form onSubmit={send} className="border-t border-border px-4 py-3">
+        {error && <p className="mx-auto mb-2 max-w-3xl text-sm text-danger">{error}</p>}
+        <div className="mx-auto flex max-w-3xl items-end gap-2">
+          <textarea
+            value={input}
+            autoFocus
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) send(e);
+            }}
+            rows={1}
+            placeholder="Send a message..."
+            className="max-h-48 min-h-[44px] flex-1 resize-y rounded-[var(--radius)] border border-border bg-card px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+          />
+          <Button type="submit" disabled={!input.trim() || creating || !modelId} className="h-11 w-11 p-0">
+            <ArrowUp className="h-4 w-4" />
+            <span className="sr-only">Send</span>
+          </Button>
+        </div>
+        <p className="mx-auto mt-1.5 max-w-3xl text-xs text-muted-foreground">
+          Enter sends, Shift+Enter adds a line.
+        </p>
+      </form>
     </div>
   );
 }

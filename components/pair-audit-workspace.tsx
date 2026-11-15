@@ -146,7 +146,7 @@ export default function PairAuditWorkspace({
               <h2 className="border-b border-border bg-muted/40 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {side.name}
               </h2>
-              <div className="flex-1 overflow-y-auto">
+              <div className="relative flex-1 overflow-y-auto">
                 {side.content ? (
                   <ReviewTranscript content={side.content} />
                 ) : (
@@ -161,7 +161,7 @@ export default function PairAuditWorkspace({
       <aside
         data-clip="review"
         aria-label="Comparison form"
-        className="flex w-[24rem] shrink-0 flex-col overflow-y-auto border-l border-border bg-muted/20"
+        className="relative flex w-[24rem] shrink-0 flex-col overflow-y-auto border-l border-border bg-muted/20"
       >
         {mode === "done" && (
           <ReviewFinished

@@ -62,7 +62,7 @@ export function RelatedVersionForm({
   }
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="relative h-full overflow-y-auto">
       <div className="mx-auto max-w-xl space-y-7 px-6 py-12">
         {sourceSessionId && (
           <Link

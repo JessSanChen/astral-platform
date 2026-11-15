@@ -27,7 +27,7 @@ export default async function ChatLayout({
         related: c.creationMethod === "related_live",
       }))}
     >
-      <div className="flex h-screen">
+      <div className="flex h-screen overflow-hidden">
         <MasterNav
           userName={user.name}
           userEmail={user.email}

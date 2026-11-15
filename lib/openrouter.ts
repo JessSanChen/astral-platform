@@ -65,7 +65,7 @@ async function loadEventSettings(): Promise<EventSettings> {
     reviewBatchSize: row?.reviewBatchSize ?? 5,
     maxReviewsPerTranscript: row?.maxReviewsPerTranscript ?? 2,
     reviewsPerView: row?.reviewsPerView ?? 3,
-    autoReleaseSubmissions: row?.autoReleaseSubmissions ?? false,
+    autoReleaseSubmissions: row?.autoReleaseSubmissions ?? true,
     reviewReservationMinutes: row?.reviewReservationMinutes ?? 45,
     comparisonActivityOpen: row?.comparisonActivityOpen ?? true,
     nominationsCloseAt: row?.nominationsCloseAt ?? null,

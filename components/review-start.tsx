@@ -36,7 +36,7 @@ export function ReviewStart({
       if (!result.assignmentId) {
         return setNote(
           purpose === "primary"
-            ? "There is nothing for you to review right now. Records become available as people submit them and the organizers release them; some need subject knowledge you have not said you have. Try again in a little while."
+            ? "There is nothing for you to review right now. Records become available as people submit them, and you are never given your own work or two things from the same piece of work. Try again in a little while."
             : "There is no pair for you to compare right now. Try again in a little while.",
         );
       }

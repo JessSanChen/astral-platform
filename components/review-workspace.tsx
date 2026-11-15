@@ -138,7 +138,7 @@ export default function ReviewWorkspace({
             )}
           </span>
         </header>
-        <div className="flex-1 overflow-y-auto">
+        <div className="relative flex-1 overflow-y-auto">
           <ReviewTranscript
             content={content}
             selected={draft.evidenceTurns}
@@ -150,7 +150,7 @@ export default function ReviewWorkspace({
       <aside
         data-clip="review"
         aria-label="Review form"
-        className="flex w-[27rem] shrink-0 flex-col overflow-y-auto border-l border-border bg-muted/20"
+        className="relative flex w-[27rem] shrink-0 flex-col overflow-y-auto border-l border-border bg-muted/20"
       >
         {mode === "done" && (
           <ReviewFinished

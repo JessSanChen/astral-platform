@@ -18,17 +18,14 @@ The first section is the only one that actually blocks the event.
 
 These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
 
-- **Who releases submissions during the event.** Each one waits as
-  Pending until someone sets its review level on Organize → Submissions,
-  unless you turn on automatic release in Settings.
 - **Clipboard logging.** The specification says not to; you asked for it
   earlier. It is still on. Your call.
 - **Prizes.** Nominations are back, with the two tracks from before
   (adversarial, dual use). Amounts, deadlines and any other awards are
   not stated anywhere; the briefing says the organizers will announce
   them. The tracks are one list in `lib/nominations.ts`.
-- **"Real or invented".** Still asked when starting. It was raised as a
-  question and left as it is.
+- **The scanner panel.** Hidden from participants since round 21. Bring
+  it back, or show it only after submitting?
 - **Safe examples for the g and a scales.** The form shows the anchors
   from the specification with no examples.
 

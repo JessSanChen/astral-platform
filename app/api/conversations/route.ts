@@ -10,10 +10,10 @@ import { assertModelAllowed, getEventSettings, ChatError } from "@/lib/openroute
 
 const createSchema = z.object({
   modelId: z.string().min(1),
-  // Real or invented: the one thing asked before starting.
-  provenance: z.enum(PROVENANCE_VALUES, {
-    message: "Say whether this is based on a real task or invented for this exercise.",
-  }),
+  // Nothing is asked before starting. Whether the task is real or invented
+  // is answered in the side panel, and has to be by the time it is
+  // submitted. It may still be sent here.
+  provenance: z.enum(PROVENANCE_VALUES).nullish(),
   template: z.enum(ACTIVITY_TEMPLATE_IDS).nullish(),
   goal: z.string().trim().max(LIMITS.goal).nullish(),
   folder: z.boolean().optional(),

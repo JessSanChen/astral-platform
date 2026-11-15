@@ -1,4 +1,5 @@
 import { expect, type Browser, type Locator, type Page } from "@playwright/test";
+import { DEFAULT_MODELS } from "@/lib/models";
 import { TEST_DOMAIN, episodeOf, eventCode, passInstructionCheck, promoteToOrganizer } from "./db";
 
 export const PASSWORD = "Correct-Horse-9";
@@ -139,22 +140,36 @@ export const PROVENANCE = {
   invented: "Created for this exercise",
 } as const;
 
-/** Starts a conversation, or a folder. Returns the first session's id. */
+/**
+ * Opens a new, empty conversation (or a folder's first session) and returns
+ * its id.
+ *
+ * Created directly, so that a test decides what its first message is. The
+ * way a person starts one, by typing on the New conversation screen, has a
+ * test of its own in authoring.spec.ts. Whether the task is real or
+ * invented is answered here unless a test asks to leave it for the panel.
+ */
 export async function startConversation(
   page: Page,
-  options: { folder?: boolean; provenance?: keyof typeof PROVENANCE; goal?: string } = {},
+  options: {
+    folder?: boolean;
+    provenance?: keyof typeof PROVENANCE | null;
+    goal?: string;
+  } = {},
 ): Promise<string> {
-  await page.goto(options.folder ? "/chat?folder=1" : "/chat");
-  await page.getByRole("radio", { name: new RegExp(PROVENANCE[options.provenance ?? "invented"]) }).check();
-  if (options.goal) {
-    await page.getByText("Add a goal or notes (optional)").click();
-    await page.getByLabel("What are you exploring or trying to accomplish?").fill(options.goal);
-  }
-  await page
-    .getByRole("button", { name: options.folder ? "Start folder" : "Start conversation" })
-    .click();
-  await page.waitForURL(/\/chat\/[0-9a-f-]{36}$/);
-  return page.url().split("/").pop()!;
+  const response = await page.request.post("/api/conversations", {
+    data: {
+      modelId: DEFAULT_MODELS[0].id,
+      folder: Boolean(options.folder),
+      provenance: options.provenance === undefined ? "invented" : options.provenance,
+      goal: options.goal ?? null,
+    },
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  const { id } = (await response.json()) as { id: string };
+  await page.goto(`/chat/${id}`);
+  await expect(page.getByPlaceholder("Send a message...")).toBeVisible();
+  return id;
 }
 
 /** Sends a message and waits for the stand-in model's reply to it. */

@@ -31,13 +31,16 @@ settle, or went against it. Each is a small change to reverse.
    Review instructions**, with a warning that it is meant to stay fixed.
    See "The shared review definition" below.
 
-2. **New submissions wait for an organizer.** A submission starts as
-   *Pending* with no review level, and nobody is offered it until someone
-   sets a level and marks it *Ready* on **Organize → Submissions**
-   (specification 5.3). That is real work during the event. If you would
-   rather everything went out at once as a *General* item, there is a
-   switch on **Organize → Settings**, off by default, and a "release all
-   pending" button on the Submissions page.
+2. **Anyone can review anything, unless an organizer restricts it.**
+   The specification has every submission wait as *Pending* until an
+   organizer sets who is able to review it (5.3). The organizer found
+   that too restrictive for a day with about sixty people, so a new
+   submission is now released at once as a *General* item (migration
+   0012). **Organize → Submissions** can still mark one *Routine* or
+   *Specialist* for people who rated themselves in a subject, or hold it;
+   **Organize → Settings** can turn automatic release off. Two rules are
+   unchanged: nobody reviews their own work, and nobody is shown two
+   things from the same piece of work and its related versions.
 
 3. **Copying and pasting is still recorded.** The specification says "No
    clipboard-history" (6.2). You asked for this logging two rounds ago, so
@@ -114,8 +117,8 @@ sessions. Existing conversations each became a one-session episode.
 | --- | --- | --- |
 | A. Intake (A01 to A07) | Changed at the organizer's request; see "Intake form, as revised" below | `lib/intake.ts`, `components/intake-fields.tsx`, `app/onboarding` |
 | A01 two required agreements, optional public release | Built | `components/onboarding-form.tsx` |
-| B1 provenance: real or invented | Built | `components/new-conversation.tsx` |
-| B2 optional activity template, optional goal note | Built | same; goal edits kept in `episode_goal_revision` with whether work had begun |
+| B1 provenance: real or invented | Changed: not asked before starting; asked in the side panel and required to submit | `components/episode-panel.tsx` |
+| B2 optional activity template, optional goal note | Changed: the templates are gone at the organizer's request; the goal note is in the side panel, with whether work had begun kept in `episode_goal_revision` | `components/episode-panel.tsx` |
 | B3 related version: intent and intended difference | Built | `app/chat/related/[episodeId]`, `components/related-version-form.tsx` |
 | R. Instruction check | Changed by the revision: its five questions, R01 to R05 | `components/instruction-check.tsx`, `lib/review-form.ts` |
 | C. Independent review (C04 to C13) | Built | `components/review-workspace.tsx`, `lib/review-form.ts` |

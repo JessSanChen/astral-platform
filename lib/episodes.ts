@@ -44,7 +44,7 @@ export async function getOwnedEpisode(id: string, userId: string) {
 export async function createEpisode(opts: {
   userId: string;
   modelId: string;
-  provenance: Provenance;
+  provenance?: Provenance | null;
   template?: string | null;
   goal?: string | null;
   folder?: boolean;
@@ -73,7 +73,7 @@ export async function createEpisode(opts: {
         title,
         isFolder: Boolean(opts.folder),
         modelId: opts.modelId,
-        taskProvenance: opts.provenance,
+        taskProvenance: opts.provenance ?? null,
         activityTemplate: opts.template || null,
         goalText: goal,
         goalUpdatedAt: goal ? now : null,
@@ -343,7 +343,7 @@ export async function submitEpisode(episodeId: string, userId: string) {
       throw new EpisodeError("Send at least one message before submitting.");
     }
     // The author's own account of the work goes in with it, complete.
-    if (!labelsComplete(readLabels(ep.authorLabels))) {
+    if (!ep.taskProvenance || !labelsComplete(readLabels(ep.authorLabels))) {
       throw new EpisodeError(
         "Answer the questions in the panel about this work before submitting. They are marked.",
       );

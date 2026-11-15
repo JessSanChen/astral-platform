@@ -232,9 +232,11 @@ export const eventSettings = pgTable("event_settings", {
     .default(2),
   // v1.1. How many completed primary reviews each view is aiming for.
   reviewsPerView: integer("reviews_per_view").notNull().default(3),
-  // Whether a new submission can be reviewed straight away, as a General
-  // item, or waits for an organizer to say who is able to review it.
-  autoReleaseSubmissions: boolean("auto_release_submissions").notNull().default(false),
+  // Whether a new submission can be reviewed straight away by anyone, as a
+  // General item, or waits for an organizer to say who is able to review
+  // it. On by default: restricting who may review something is the
+  // exception, done per submission from the console.
+  autoReleaseSubmissions: boolean("auto_release_submissions").notNull().default(true),
   // How long a reviewer may sit on an item before someone else can be
   // given it.
   reviewReservationMinutes: integer("review_reservation_minutes").notNull().default(45),

@@ -2472,6 +2472,34 @@ them the night before; `lib/policy.ts` says what they now mean.
 
 ---
 
+## Round 26: start by typing; simpler review eligibility; the page stays in its frame
+
+- **A conversation starts by typing.** The New conversation screen is a
+  model picker and a message box, like any assistant. The conversation
+  (or a folder's first session) is created when the first message is
+  sent. The question about a real or invented task, the suggested
+  starting points and the goal box are gone from that screen. Real or
+  invented is asked in the side panel with the other author questions,
+  and has to be answered to submit; the server refuses otherwise.
+- **Anyone can review anything, by default.** A new submission is
+  released at once as a General item, so any reviewer who has passed the
+  instruction check can be given it. Migration 0012 turns this on and
+  releases what was already waiting. An organizer can still restrict one
+  submission to people with subject knowledge, or hold it, from
+  Submissions, and can turn automatic release off in Settings. Still in
+  force: never your own work, and never two things from the same piece
+  of work and its related versions.
+- **The page no longer scrolls past its frame.** Labels meant only for
+  screen readers sat outside their scrolling panels and stretched the
+  page. The panels now contain them, and the frame is clipped.
+
+Asked about and not changed: the scanner panel (Llama Guard and the
+judge) was hidden from participants in round 21 because a verdict shown
+to an author steers what they write and how they label it. The scanners
+still exist and answer organizers.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

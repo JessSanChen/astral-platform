@@ -27,7 +27,7 @@ const STEPS = [
   {
     icon: MessagesSquare,
     title: "Start a conversation",
-    body: "Say whether the task is based on real work or made up for today, pick a model, and start chatting. Use one of the suggested activities or bring a task of your own.",
+    body: "Pick a model and start typing, as you would with any assistant. Bring a task of your own, real or made up for today.",
   },
   {
     icon: Folder,
@@ -118,12 +118,11 @@ export function AboutAstral() {
         <div className={prose}>
           <p>
             Under <span className="text-foreground">My chats</span>, start a
-            conversation or a folder. You are asked one thing first: whether
-            the task is based on a real task of yours or created for this
-            exercise. Both are wanted, and the answer is only there so the
-            record says which it was. Then choose a model and write. The
-            suggested activities are places to start, not categories, and
-            using your own task is fine.
+            conversation or a folder by choosing a model and sending a
+            message. Nothing is asked first. A real task of yours and one
+            made up for today are both wanted; which it was is one of the
+            questions in the panel beside the chat, answered before you
+            submit.
           </p>
           <p>
             A folder holds related sessions. Each session is a fresh

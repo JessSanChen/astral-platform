@@ -15,15 +15,67 @@ async function submitWorkExpectingRefusal(page: import("@playwright/test").Page)
 }
 
 test.describe("writing conversations", () => {
+  test("a conversation starts by typing, like any chat, and nothing is asked first", async ({
+    browser,
+  }) => {
+    const { page, context } = await newParticipant(browser, "Tia Types");
+    await page.goto("/chat");
+    // A model to pick and a box to type in. No questions, no starting points.
+    await expect(page.getByRole("radio")).toHaveCount(0);
+    await expect(page.getByRole("main").getByText(/real task|invented|starting point/i)).toHaveCount(0);
+
+    await say(page, "What is a nucleosome?");
+    await page.waitForURL(/\/chat\/[0-9a-f-]{36}$/);
+    const id = page.url().split("/").pop()!;
+    // The message that started it is its first message, sent once.
+    const rows = await sql`select role, content from message where conversation_id = ${id} order by seq`;
+    expect(rows.map((r) => r.role)).toEqual(["user", "assistant"]);
+    expect(rows[0].content).toBe("What is a nucleosome?");
+    await expect(
+      page.getByRole("navigation", { name: "My work" }).getByText("What is a nucleosome?"),
+    ).toBeVisible();
+    await say(page, "And a histone?");
+
+    // With the panel's questions on screen, the page still fits its frame:
+    // only the panels scroll, never the page itself.
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollHeight - window.innerHeight,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+
+    // Whether the task is real is asked in the panel, and only has to be
+    // answered by the time the work is submitted.
+    const episodeId = await episodeOf(id);
+    const provenance = async () =>
+      (await sql`select task_provenance from episode where id = ${episodeId}`)[0].task_provenance;
+    expect(await provenance()).toBeNull();
+    await fillLabels(page);
+    await page.getByRole("button", { name: "Submit conversation" }).click();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Say whether the task is real or was made up for today." }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Yes, submit" })).toHaveCount(0);
+    await page.getByRole("radio", { name: "Based on a real task", exact: true }).check();
+    await submitWork(page);
+    expect(await provenance()).toBe("real");
+
+    // A folder starts the same way: its first message opens its first session.
+    await page.goto("/chat?folder=1");
+    await expect(page.getByRole("heading", { name: "New folder" })).toBeVisible();
+    await say(page, "The first session of a folder.");
+    await page.waitForURL((url) => /\/chat\/[0-9a-f-]{36}$/.test(url.pathname) && !url.pathname.endsWith(id));
+    await expect(page.getByRole("button", { name: "New session" })).toBeVisible();
+    const [folder] = await sql`
+      select is_folder from episode where id = ${await episodeOf(page.url().split("/").pop()!)}
+    `;
+    expect(folder.is_folder).toBe(true);
+    await context.close();
+  });
+
   test("a conversation says where its task came from, is submitted once, and is then fixed", async ({
     browser,
   }) => {
     const { page, context } = await newParticipant(browser, "Ada Author");
-
-    // The one thing that has to be answered before starting.
-    await page.goto("/chat");
-    await page.getByRole("button", { name: "Start conversation" }).click();
-    await expect(page.getByText(/First say whether this is based on a real task/)).toBeVisible();
 
     const goal = "PRIVATE-GOAL: seeing how the assistant explains capsids.";
     const sessionId = await startConversation(page, { provenance: "real", goal });

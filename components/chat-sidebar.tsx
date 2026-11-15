@@ -71,7 +71,7 @@ export function ChatSidebar() {
         </Link>
       </div>
 
-      <nav aria-label="My work" className="flex-1 overflow-y-auto px-2 pb-2">
+      <nav aria-label="My work" className="relative flex-1 overflow-y-auto px-2 pb-2">
         {episodes.length === 0 && (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
             Nothing yet. Start a conversation, or a folder for several related

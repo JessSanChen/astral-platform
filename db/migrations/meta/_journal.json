@@ -85,6 +85,13 @@
       "when": 1794726467462,
       "tag": "0011_shared_review_definition",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794727417424,
+      "tag": "0012_open_review_by_default",
+      "breakpoints": true
     }
   ]
 }

@@ -123,6 +123,7 @@ export function EpisodePanel({
   }
 
   const [labels, setLabels] = useState<AuthorLabels>(episode.labels);
+  const [provenanceMissing, setProvenanceMissing] = useState(false);
   // Shown once someone has tried to submit, not while they are still
   // working their way down the panel.
   const [labelErrors, setLabelErrors] = useState<Partial<Record<keyof AuthorLabels, string>>>({});
@@ -143,7 +144,8 @@ export function EpisodePanel({
   /** Opens the confirmation, unless a question is still unanswered. */
   function attempt(kind: "submit" | "submit-then-related") {
     const missing = missingLabels(labels);
-    const first = Object.keys(missing)[0];
+    const first = !provenance ? "provenance" : Object.keys(missing)[0];
+    setProvenanceMissing(!provenance);
     if (first) {
       setLabelErrors(missing);
       setError("Answer the marked questions above first. They are required to submit.");
@@ -165,6 +167,7 @@ export function EpisodePanel({
 
   function changeProvenance(value: string) {
     setProvenance(value);
+    setProvenanceMissing(false);
     setError(null);
     start(async () => {
       const result = await saveDetailsAction(episode.id, { provenance: value });
@@ -259,7 +262,7 @@ export function EpisodePanel({
         </Button>
       </div>
 
-      <div className="flex-1 space-y-6 overflow-y-auto px-4 py-4">
+      <div className="relative flex-1 space-y-6 overflow-y-auto px-4 py-4">
         {submitted && (
           <p
             role="status"
@@ -387,27 +390,30 @@ export function EpisodePanel({
           </Block>
         )}
 
-        <Block title="Real or invented?">
+        <Block
+          title="Real or invented?"
+          note={submitted ? undefined : "Required to submit."}
+        >
           {submitted ? (
             <p className="text-sm">{provenanceLabel(episode.provenance)}</p>
           ) : (
-            <fieldset className="space-y-1.5">
-              <legend className="sr-only">
-                Is this based on a real task, or invented for this exercise?
-              </legend>
-              {PROVENANCE.map((p) => (
-                <label key={p.value} className="flex items-start gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="provenance"
-                    className="mt-0.5 h-4 w-4 shrink-0"
-                    checked={provenance === p.value}
-                    onChange={() => changeProvenance(p.value)}
-                  />
-                  {p.label}
-                </label>
-              ))}
-            </fieldset>
+            <LabelQuestion
+              id="provenance"
+              text="Is this based on a real task, or invented for this exercise?"
+              error={
+                provenanceMissing
+                  ? "Say whether the task is real or was made up for today."
+                  : undefined
+              }
+            >
+              <Radios
+                name="provenance"
+                legend="Is this based on a real task, or invented for this exercise?"
+                value={provenance}
+                options={PROVENANCE.map((p) => ({ value: p.value, label: p.label }))}
+                onChange={changeProvenance}
+              />
+            </LabelQuestion>
           )}
         </Block>
 
@@ -649,7 +655,7 @@ export function EpisodePanel({
             )}
             <Button
               className="w-full"
-              disabled={pending || busy || included.length === 0 || !provenance}
+              disabled={pending || busy || included.length === 0}
               onClick={() => attempt("submit")}
             >
               Submit {what}
@@ -658,7 +664,7 @@ export function EpisodePanel({
               <Button
                 variant="outline"
                 className="w-full"
-                disabled={pending || busy || included.length === 0 || !provenance}
+                disabled={pending || busy || included.length === 0}
                 onClick={() => attempt("submit-then-related")}
               >
                 <GitCompareArrows className="h-4 w-4" />
