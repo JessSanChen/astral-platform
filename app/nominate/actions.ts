@@ -22,15 +22,6 @@ const schema = z.object({
     (v) => (typeof v === "string" ? v.trim() : ""),
     z.string().min(1, "Describe the finding."),
   ),
-  slidesUrl: z
-    .string()
-    .trim()
-    .max(500)
-    .optional()
-    .refine(
-      (v) => !v || /^https?:\/\/\S+$/i.test(v),
-      "That does not look like a link. Paste the full address, starting with https://",
-    ),
 });
 
 export type NominationState = {
@@ -61,7 +52,6 @@ export async function submitNomination(
     track: formData.get("track"),
     headline: formData.get("headline"),
     details: formData.get("details"),
-    slidesUrl: formData.get("slidesUrl") ?? undefined,
   });
   if (!parsed.success) {
     const errors: Record<string, string> = {};
@@ -82,7 +72,6 @@ export async function submitNomination(
       track: v.track as TrackValue,
       headline: v.headline,
       details: v.details,
-      slidesUrl: v.slidesUrl || null,
       submittedAt: now,
       updatedAt: now,
     })
@@ -91,7 +80,8 @@ export async function submitNomination(
       set: {
         headline: v.headline,
         details: v.details,
-        slidesUrl: v.slidesUrl || null,
+        // The link to slides is no longer asked for. One saved before
+        // that is left as it is, not cleared by a later edit.
         updatedAt: now,
         submissionCount: sql`${nomination.submissionCount} + 1`,
       },

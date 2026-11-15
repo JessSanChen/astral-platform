@@ -111,18 +111,73 @@ export async function createEpisode(opts: {
         modelId: opts.modelId,
         episodeId: id,
         sessionOrder: 1,
-        // A folder's session starts from the folder's answers.
+        // A folder's session starts from the folder's answers. A
+        // conversation's session carries a copy of what its episode holds.
         ...(opts.folder && opts.folderLabels
           ? {
               authorLabels: readFolderLabels(opts.folderLabels),
               authorLabelsVersion: AUTHOR_LABELS_VERSION,
               authorLabelsUpdatedAt: now,
             }
-          : {}),
+          : !opts.folder && (created.taskProvenance || created.goalText)
+            ? {
+                authorLabels: standaloneSessionLabels(created),
+                authorLabelsVersion: AUTHOR_LABELS_VERSION,
+                authorLabelsUpdatedAt: now,
+              }
+            : {}),
       })
       .returning();
     return { episode: created, session: first };
   });
+}
+
+/**
+ * A conversation that stands alone keeps its author's answers on its
+ * episode. This is the same account in the shape a session carries, so
+ * its one session can hold a copy and every session reads the same way.
+ */
+function standaloneSessionLabels(ep: {
+  authorLabels: unknown;
+  taskProvenance: string | null;
+  goalText: string | null;
+}) {
+  return readSessionLabels({
+    ...readLabels(ep.authorLabels),
+    provenance: ep.taskProvenance ?? "",
+    goal: ep.goalText ?? "",
+  });
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Brings a standalone conversation's session up to date with its episode,
+ * after any change to the answers, so the copy is never behind: a draft
+ * read from the session says what its author last said, not what they had
+ * said at some earlier point. Does nothing for a folder, whose sessions
+ * answer for themselves.
+ */
+async function mirrorOntoSession(
+  run: Tx | typeof db,
+  ep: {
+    id: string;
+    isFolder: boolean;
+    authorLabels: unknown;
+    taskProvenance: string | null;
+    goalText: string | null;
+  },
+  now: Date,
+) {
+  if (ep.isFolder) return;
+  await run
+    .update(conversation)
+    .set({
+      authorLabels: standaloneSessionLabels(ep),
+      authorLabelsVersion: AUTHOR_LABELS_VERSION,
+      authorLabelsUpdatedAt: now,
+    })
+    .where(eq(conversation.episodeId, ep.id));
 }
 
 /**
@@ -159,19 +214,30 @@ export async function addSession(episodeId: string, userId: string, modelId?: st
     let title = ep.title;
     if (!ep.isFolder) {
       title = `Folder ${folders + 1}`;
-      // What was said about the conversation goes with the conversation.
-      await tx
+      // What was said about the conversation goes with the conversation,
+      // and so does the record of when: when its real-or-invented answer
+      // last changed, and each saved version of its goal.
+      const [firstSession] = await tx
         .update(conversation)
         .set({
-          authorLabels: {
-            ...readLabels(ep.authorLabels),
-            provenance: ep.taskProvenance ?? "",
-            goal: ep.goalText ?? "",
-          },
+          authorLabels: standaloneSessionLabels(ep),
           authorLabelsVersion: AUTHOR_LABELS_VERSION,
           authorLabelsUpdatedAt: now,
+          provenanceChangedAt: ep.provenanceChangedAt,
         })
-        .where(eq(conversation.episodeId, episodeId));
+        .where(eq(conversation.episodeId, episodeId))
+        .returning({ id: conversation.id });
+      if (firstSession) {
+        await tx
+          .update(episodeGoalRevision)
+          .set({ conversationId: firstSession.id })
+          .where(
+            and(
+              eq(episodeGoalRevision.episodeId, episodeId),
+              isNull(episodeGoalRevision.conversationId),
+            ),
+          );
+      }
       await tx
         .update(episode)
         .set({
@@ -208,24 +274,55 @@ export async function addSession(episodeId: string, userId: string, modelId?: st
  */
 export async function saveSessionLabels(conversationId: string, userId: string, raw: unknown) {
   const labels = readSessionLabels(raw);
-  const [row] = await db
-    .select({ status: episode.status, isFolder: episode.isFolder })
-    .from(conversation)
-    .innerJoin(episode, eq(episode.id, conversation.episodeId))
-    .where(and(eq(conversation.id, conversationId), eq(conversation.userId, userId)));
-  if (!row) throw new EpisodeError("That session could not be found.");
-  if (row.status !== "draft") {
-    throw new EpisodeError("This has been submitted, so it can no longer be changed.");
-  }
-  await db
-    .update(conversation)
-    .set({
-      authorLabels: labels,
-      authorLabelsVersion: AUTHOR_LABELS_VERSION,
-      authorLabelsUpdatedAt: new Date(),
-    })
-    .where(eq(conversation.id, conversationId));
-  return { labels };
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({
+        episodeId: episode.id,
+        status: episode.status,
+        stored: conversation.authorLabels,
+      })
+      .from(conversation)
+      .innerJoin(episode, eq(episode.id, conversation.episodeId))
+      .where(and(eq(conversation.id, conversationId), eq(conversation.userId, userId)))
+      // The folder is held until this is written, so that submitting it
+      // and saving an answer cannot cross: whichever comes second sees
+      // what the first did.
+      .for("update", { of: episode });
+    if (!row) throw new EpisodeError("That session could not be found.");
+    if (row.status !== "draft") {
+      throw new EpisodeError("This has been submitted, so it can no longer be changed.");
+    }
+    const before = readSessionLabels(row.stored);
+    const now = new Date();
+
+    // A changed goal is kept as a revision, with whether the session had
+    // begun: a goal written afterwards is context, not a plan made in
+    // advance. The same record a conversation's goal has always had.
+    if (labels.goal !== before.goal) {
+      const [{ sent }] = await tx
+        .select({ sent: sql<number>`count(*)::int` })
+        .from(message)
+        .where(eq(message.conversationId, conversationId));
+      await tx.insert(episodeGoalRevision).values({
+        episodeId: row.episodeId,
+        conversationId,
+        goalText: labels.goal || null,
+        afterWorkBegan: sent > 0,
+        savedAt: now,
+      });
+    }
+
+    await tx
+      .update(conversation)
+      .set({
+        authorLabels: labels,
+        authorLabelsVersion: AUTHOR_LABELS_VERSION,
+        authorLabelsUpdatedAt: now,
+        ...(labels.provenance !== before.provenance ? { provenanceChangedAt: now } : {}),
+      })
+      .where(eq(conversation.id, conversationId));
+    return { labels };
+  });
 }
 
 /**
@@ -277,6 +374,9 @@ export async function saveEpisodeDetails(
       }
     }
     await tx.update(episode).set(set).where(eq(episode.id, episodeId));
+    if (set.taskProvenance !== undefined || set.goalText !== undefined) {
+      await mirrorOntoSession(tx, { ...ep, ...set } as typeof ep, now);
+    }
     return { savedAt: now };
   });
 }
@@ -302,7 +402,14 @@ export async function saveAuthorLabels(episodeId: string, userId: string, raw: u
       updatedAt: new Date(),
     })
     .where(and(eq(episode.id, episodeId), eq(episode.userId, userId), eq(episode.status, "draft")))
-    .returning({ id: episode.id });
+    .returning({
+      id: episode.id,
+      isFolder: episode.isFolder,
+      authorLabels: episode.authorLabels,
+      taskProvenance: episode.taskProvenance,
+      goalText: episode.goalText,
+    });
+  if (saved) await mirrorOntoSession(db, saved, new Date());
   if (!saved) {
     // Not theirs, not there, or already submitted: which, is for them.
     const ep = await getOwnedEpisode(episodeId, userId);
@@ -484,11 +591,7 @@ export async function submitEpisode(episodeId: string, userId: string) {
     const sessionLabelsAtSubmit = (s: (typeof included)[number]) =>
       ep.isFolder
         ? readSessionLabels(s.authorLabels)
-        : readSessionLabels({
-            ...readLabels(ep.authorLabels),
-            provenance: ep.taskProvenance ?? "",
-            goal: ep.goalText ?? "",
-          });
+        : standaloneSessionLabels(ep);
     if (!ep.isFolder) {
       for (const s of included) {
         await tx

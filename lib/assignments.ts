@@ -289,14 +289,23 @@ export async function loadAssignment(assignmentId: string, reviewerId: string) {
 
 /** Records that the reviewer is still there, so their place is kept. */
 export async function touchAssignment(assignmentId: string, reviewerId: string) {
+  // Everything this reviewer has in progress, not only the one on screen.
+  // A transcript review and a comparison can both be open, and the one
+  // set aside must not run out of time while its reviewer is busy with
+  // the other: it would be lost to them for good, with what they had
+  // filled in. It is still let go once they stop reviewing altogether.
   await db
     .update(reviewAssignment)
     .set({ lastSeenAt: new Date() })
     .where(
       and(
-        eq(reviewAssignment.id, assignmentId),
         eq(reviewAssignment.reviewerId, reviewerId),
         eq(reviewAssignment.state, "active"),
+        sql`exists (
+          select 1 from review_assignment shown
+          where shown.id = ${assignmentId} and shown.reviewer_id = ${reviewerId}
+            and shown.state = 'active'
+        )`,
       ),
     );
 }

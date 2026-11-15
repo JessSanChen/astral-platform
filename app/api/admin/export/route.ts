@@ -204,6 +204,9 @@ export async function GET(req: Request) {
         emit("episode_goal_revision", {
           id: g.id,
           episode_id: g.episodeId,
+          // Set when the goal is one session's, in a folder; empty when
+          // it is the goal of the whole conversation or folder.
+          conversation_id: g.conversationId,
           goal_text: g.goalText,
           after_work_began: g.afterWorkBegan,
           saved_at: g.savedAt,
@@ -262,11 +265,13 @@ export async function GET(req: Request) {
           // scenario, what they expected a reviewer to decide, whether the
           // task was real, and the optional goal. In a folder each session
           // has its own; the folder's are on its episode. For a conversation
-          // that stands alone these are a copy, made at submission, of what
-          // its episode holds.
+          // that stands alone these are a copy of what its episode holds,
+          // kept up to date with every change, drafts included.
           author_labels: convo.authorLabels,
           author_labels_version: convo.authorLabelsVersion,
           author_labels_updated_at: convo.authorLabelsUpdatedAt,
+          // For a session in a folder; a conversation's is on its episode.
+          provenance_changed_at: convo.provenanceChangedAt,
           scenario: convo.scenario,
           created_at: convo.createdAt,
           submitted_at: convo.lastSubmittedAt,
