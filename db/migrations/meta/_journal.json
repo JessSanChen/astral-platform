@@ -127,6 +127,13 @@
       "when": 1794747492908,
       "tag": "0017_comparison_form_d2",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794748757541,
+      "tag": "0018_session_goal_history",
+      "breakpoints": true
     }
   ]
 }

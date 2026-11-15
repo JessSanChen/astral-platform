@@ -293,12 +293,16 @@ export const conversation = pgTable(
     // What the author says about this one session: the same questions as
     // for a conversation that stands alone. For a session in a folder they
     // start from the folder's answers and can differ from them. For a
-    // conversation that stands alone they are a copy, made at submission,
-    // of the answers kept on its episode, so every session reads the same
-    // way in the export. See lib/author-labels.ts.
+    // conversation that stands alone they are a copy of the answers kept
+    // on its episode, brought up to date with every change, so every
+    // session reads the same way in the export. See lib/author-labels.ts.
     authorLabels: jsonb("author_labels"),
     authorLabelsVersion: text("author_labels_version"),
     authorLabelsUpdatedAt: timestamp("author_labels_updated_at"),
+    // For a session in a folder: when its real-or-invented answer was
+    // last changed. A conversation that stands alone keeps this on its
+    // episode (provenance_changed_at).
+    provenanceChangedAt: timestamp("provenance_changed_at"),
     sessionOrder: integer("session_order").notNull().default(1),
   },
   (t) => [
@@ -698,8 +702,14 @@ export const episodeGoalRevision = pgTable(
     episodeId: uuid("episode_id")
       .notNull()
       .references(() => episode.id, { onDelete: "cascade" }),
+    // Set when the goal is one session's, in a folder. Empty when it is
+    // the goal of the whole episode: a conversation's, or a folder's own.
+    conversationId: uuid("conversation_id").references(() => conversation.id, {
+      onDelete: "cascade",
+    }),
     goalText: text("goal_text"),
-    // Whether any message had been sent in the episode when this was saved.
+    // Whether any message had been sent when this was saved: in the
+    // session, for a session's goal; anywhere in the episode otherwise.
     // A goal written afterwards is context, not a plan made in advance.
     afterWorkBegan: boolean("after_work_began").notNull(),
     savedAt: timestamp("saved_at").notNull().defaultNow(),
