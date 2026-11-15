@@ -17,6 +17,8 @@
     "prod:doctor": "node scripts/with-env.mjs .env.production.local npx tsx scripts/doctor.ts",
     "prod:check-models": "node scripts/with-env.mjs .env.production.local npx tsx scripts/check-models.ts",
     "prod:check-scanners": "node scripts/with-env.mjs .env.production.local npx tsx scripts/check-scanners.ts",
+    "prod:set-password": "node scripts/with-env.mjs .env.production.local npx tsx scripts/set-password.ts",
+    "set-password": "tsx --env-file=.env.local scripts/set-password.ts",
     "load-test": "tsx --env-file=.env.local scripts/load-test.ts",
     "mock-openrouter": "node scripts/mock-openrouter.mjs 4010",
     "check-models": "tsx --env-file=.env.local scripts/check-models.ts",

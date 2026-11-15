@@ -9,6 +9,12 @@ import { auth } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { passwordProblem } from "@/lib/credentials";
 import { getCurrentUser } from "@/lib/gate";
+import {
+  byId,
+  lockedMessage,
+  returnPasswordAttempt,
+  takePasswordAttempt,
+} from "@/lib/sign-in-guard";
 
 export type ChangePasswordState = {
   errors?: { currentPassword?: string; newPassword?: string };
@@ -46,14 +52,31 @@ export async function changeOwnPassword(
   });
   if (problem) return { errors: { newPassword: problem } };
 
+  // The current password is a password being checked, so it gets the same
+  // limit as signing in, from the same count. Without one, this form would
+  // be the place to guess it: anyone at an unattended laptop could try as
+  // many as they liked, and then keep the account.
+  const attempt = await takePasswordAttempt(byId(cu.user.id));
+  if (!attempt.allowed) {
+    return { errors: { currentPassword: lockedMessage(attempt.minutes) } };
+  }
+
   try {
     await auth.api.changePassword({
       body: { currentPassword, newPassword, revokeOtherSessions: false },
       headers: await headers(),
     });
-  } catch {
-    // The login system refuses for one reason that a person can cause.
-    return { errors: { currentPassword: "That is not your current password." } };
+  } catch (error) {
+    const code = (error as { body?: { code?: string } } | null)?.body?.code;
+    if (code === "INVALID_PASSWORD") {
+      return { errors: { currentPassword: "That is not your current password." } };
+    }
+    // Not a wrong guess, so it does not use up an attempt.
+    await returnPasswordAttempt(byId(cu.user.id));
+    return {
+      message:
+        "The password could not be changed. Sign out, sign in again, and try once more.",
+    };
   }
 
   // Every other session of this account ends here; the one making the

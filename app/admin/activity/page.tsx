@@ -39,7 +39,9 @@ export default async function AdminActivity() {
                     <span className="font-medium">{e.words}</span>
                   ) : (
                     <>
-                      <span className="font-medium">{e.actor ?? "A deleted account"}</span>{" "}
+                      <span className="font-medium">
+                        {e.actor ?? "Someone with the database credentials"}
+                      </span>{" "}
                       {e.words}
                     </>
                   )}

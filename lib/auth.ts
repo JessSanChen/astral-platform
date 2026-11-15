@@ -4,11 +4,17 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { setSessionCookie } from "better-auth/cookies";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { recordAudit } from "@/lib/audit";
 import * as schema from "@/db/schema";
-import { emailProblem, passwordProblem } from "@/lib/credentials";
+import { emailProblem, guessableByAnyone, passwordProblem } from "@/lib/credentials";
+import {
+  byEmail,
+  lockedMessage,
+  returnPasswordAttempt,
+  takePasswordAttempt,
+} from "@/lib/sign-in-guard";
 import {
   EVENT_CODE_HEADER,
   EVENT_CODE_REJECTED,
@@ -128,7 +134,8 @@ export const auth = betterAuth({
      * changing the code to close registration closed nothing.
      */
     before: createAuthMiddleware(async (ctx) => {
-      if (ctx.path === "/sign-in/email") return refuseIfLocked(ctx.body);
+      refuseIfNotForTheBrowser(ctx.path, Boolean(ctx.request));
+      if (ctx.path === "/sign-in/email") return beforeSignIn(ctx.body);
       if (ctx.path !== "/sign-up/email") return;
       const code = ctx.headers?.get(EVENT_CODE_HEADER);
       if (!(await eventCodeMatches(code))) {
@@ -155,10 +162,10 @@ export const auth = betterAuth({
     /**
      * What a sign-in attempt leaves behind.
      *
-     * A wrong password is counted against the account, and enough of them
-     * in a row lock it for a few minutes. A right one clears the count, and
-     * is then looked at: this is the one moment the password itself is in
-     * hand, so it is the only place an old or weak one can be caught.
+     * The attempt was counted before the password was checked (see
+     * lib/sign-in-guard.ts). A right password clears the count, and is then
+     * looked at: this is the one moment the password itself is in hand, so
+     * it is the only place one that no longer meets the rules can be caught.
      */
     after: createAuthMiddleware(async (ctx) => {
       if (ctx.path !== "/sign-in/email") return;
@@ -169,7 +176,12 @@ export const auth = betterAuth({
 
       const signedIn = ctx.context.newSession;
       if (!signedIn) {
-        await countFailedSignIn(email);
+        // A wrong password keeps the attempt it took. Anything else that
+        // stopped the sign-in gets it back: a paused account is refused
+        // whatever is typed, and that is not somebody guessing.
+        const code = (ctx.context.returned as { body?: { code?: string } } | undefined)?.body
+          ?.code;
+        if (code !== "INVALID_EMAIL_OR_PASSWORD") await returnPasswordAttempt(byEmail(email));
         return;
       }
 
@@ -177,6 +189,11 @@ export const auth = betterAuth({
         role?: string | null;
         mustChangePassword?: boolean | null;
       };
+      // Anything guessable by a stranger was turned away before it got
+      // here. What is left to catch is narrower: a password built on the
+      // person's own name or address, one without a number, or one too
+      // short for an organizer. None of those is something a stranger
+      // walks in with, so the person who has it may replace it themselves.
       const weak = passwordProblem(password, {
         name: account.name,
         email: account.email,
@@ -214,58 +231,66 @@ export const auth = betterAuth({
 
 export type Session = typeof auth.$Infer.Session;
 
-/** Wrong passwords in a row before sign-in is refused for a while. */
-export const MAX_FAILED_SIGN_INS = 8;
-/** How long it is then refused for. */
-export const SIGN_IN_LOCK_MINUTES = 5;
-
 /**
- * Refuses a sign-in for an account that is locked.
+ * Parts of the login library that are not for browsers to call.
  *
- * Checked before the password is, so that a guesser learns nothing from the
- * attempts made while locked: right or wrong, the answer is the same.
+ * The library answers on /api/auth/ for everything it can do, and that
+ * includes a whole administration API: set anyone's password, change
+ * anyone's role, sign in as anyone, delete anyone. All of it accepts any
+ * organizer's session. The app has its own versions of the few of these it
+ * needs (app/admin/actions.ts), which check the account afresh, hold
+ * passwords to the rules, sign people out when they should be, and write
+ * down what was done. Left open, these would be a way round every one of
+ * those: someone with an organizer's cookie could do it all by hand and
+ * leave no trace.
+ *
+ * So they are refused when they arrive as a request from outside. The app
+ * still uses one of them itself, by calling the library directly from the
+ * server, where there is no request and this lets it through.
+ *
+ * Changing a password is on the list for the same reason: the app's own
+ * form (app/change-password) applies the rules and counts wrong guesses,
+ * and the library's endpoint does neither.
  */
-async function refuseIfLocked(body: unknown) {
-  const raw = (body as { email?: unknown } | null)?.email;
-  const email = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  if (!email) return;
-  const [account] = await db
-    .select({ lockedUntil: schema.user.lockedUntil })
-    .from(schema.user)
-    .where(eq(schema.user.email, email));
-  const until = account?.lockedUntil?.getTime() ?? 0;
-  if (until <= Date.now()) return;
-  const minutes = Math.max(1, Math.ceil((until - Date.now()) / 60_000));
-  throw new APIError("TOO_MANY_REQUESTS", {
-    message: `Too many wrong passwords for this account. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}, or ask an organizer to set a new password.`,
-  });
+function refuseIfNotForTheBrowser(path: string, fromOutside: boolean) {
+  if (!fromOutside) return;
+  if (path.startsWith("/admin/") || path === "/change-password" || path === "/set-password") {
+    throw new APIError("NOT_FOUND", { message: "Not found." });
+  }
 }
 
-/** Counts a wrong password, and locks the account when there are enough. */
-async function countFailedSignIn(email: string) {
-  // One statement, so two wrong guesses at the same moment are both counted.
-  const [account] = await db
-    .update(schema.user)
-    .set({ failedSignIns: sql`${schema.user.failedSignIns} + 1` })
-    .where(eq(schema.user.email, email))
-    .returning({
-      id: schema.user.id,
-      name: schema.user.name,
-      email: schema.user.email,
-      failedSignIns: schema.user.failedSignIns,
-    });
-  if (!account || account.failedSignIns < MAX_FAILED_SIGN_INS) return;
+/**
+ * What happens before a password is checked at sign-in.
+ *
+ * First, a password that anyone could guess is turned away without being
+ * checked at all, right or wrong. Sign-up has refused these for a while,
+ * but accounts older than that rule can still have one, and letting it work
+ * "one last time, to choose a new one" hands the account to whoever tries
+ * it first: they are the one who gets to choose. The owner of such an
+ * account asks an organizer for a temporary password instead, which is a
+ * conversation a guesser cannot have.
+ *
+ * Then the attempt is counted against the account, and refused if there
+ * have been too many.
+ */
+async function beforeSignIn(body: unknown) {
+  const { email: rawEmail, password: rawPassword } = (body ?? {}) as {
+    email?: unknown;
+    password?: unknown;
+  };
+  const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
+  const password = typeof rawPassword === "string" ? rawPassword : "";
+  if (!email) return;
 
-  await db
-    .update(schema.user)
-    .set({
-      failedSignIns: 0,
-      lockedUntil: new Date(Date.now() + SIGN_IN_LOCK_MINUTES * 60_000),
-    })
-    .where(eq(schema.user.id, account.id));
-  await recordAudit({
-    action: "sign_in_locked",
-    target: account,
-    detail: `${MAX_FAILED_SIGN_INS} wrong passwords in a row; locked for ${SIGN_IN_LOCK_MINUTES} minutes.`,
-  });
+  if (guessableByAnyone(password)) {
+    throw new APIError("FORBIDDEN", {
+      message:
+        "That password is too easy to guess, so it is no longer accepted here, for any account. If it is yours, ask an organizer to set a new one for you.",
+    });
+  }
+
+  const attempt = await takePasswordAttempt(byEmail(email));
+  if (!attempt.allowed) {
+    throw new APIError("TOO_MANY_REQUESTS", { message: lockedMessage(attempt.minutes) });
+  }
 }

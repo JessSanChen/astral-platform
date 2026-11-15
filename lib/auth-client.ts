@@ -3,11 +3,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createAuthClient } from "better-auth/react";
-import { adminClient } from "better-auth/client/plugins";
 
-export const authClient = createAuthClient({
-  plugins: [adminClient()],
-});
+// No administration plugin here. The login library has one, and the server
+// refuses its endpoints from a browser (see lib/auth.ts): everything an
+// organizer does goes through the app's own actions.
+export const authClient = createAuthClient();
 
 export const { signIn, signUp, signOut } = authClient;
 

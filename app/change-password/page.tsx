@@ -27,8 +27,8 @@ export default async function ChangePasswordPage() {
         </h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
           The password you just signed in with has to be replaced before you
-          carry on. Either an organizer set it for you, which makes it
-          temporary, or it is one that would not be accepted today
+          carry on. Either it was set for you, which makes it temporary, or
+          it is one that would not be accepted if you chose it today
           {cu.isAdmin
             ? `: organizer accounts need at least ${ORGANIZER_PASSWORD_LENGTH} characters, because of what they can do.`
             : "."}

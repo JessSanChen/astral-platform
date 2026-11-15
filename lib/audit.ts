@@ -25,7 +25,7 @@ export const AUDIT_ACTIONS = {
   model_list_changed: "switched the model list",
   export_downloaded: "downloaded the export",
   everyone_signed_out: "signed everyone out",
-  sign_in_locked: "Sign-in was locked after repeated wrong passwords for",
+  sign_in_locked: "Password attempts ran out, and sign-in was locked, for",
   weak_password_flagged: "Signed in with a password that has to be replaced:",
 } as const;
 

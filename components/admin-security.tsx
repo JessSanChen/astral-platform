@@ -19,9 +19,10 @@ export function SignEveryoneOut() {
       <div className="space-y-2">
         <p className="text-sm leading-relaxed text-muted-foreground">
           Everyone, you included, has to sign in again. Nothing anyone has
-          written is lost. At sign-in, a password that is too short for an
-          organizer, or too easy to guess, has to be replaced before the
-          account can be used.
+          written is lost. A password that is too easy to guess is refused at
+          sign-in, and its owner needs an organizer to set a new one; an
+          organizer&apos;s that is merely too short has to be replaced before
+          the console opens.
         </p>
         <Button variant="outline" size="sm" onClick={() => setAsking(true)}>
           Sign everyone out

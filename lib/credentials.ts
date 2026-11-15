@@ -192,11 +192,30 @@ export function passwordRules(
   ];
 }
 
+/**
+ * True for a password a stranger could guess knowing nothing about whose it
+ * is: under the minimum length, on the list of common ones, or built on an
+ * obvious word. Deliberately leaves out the person's own name and address,
+ * which take knowing who they are.
+ */
+export function guessableByAnyone(password: string) {
+  const unmet = new Set(
+    passwordRules(password).filter((rule) => !rule.met).map((rule) => rule.id),
+  );
+  return unmet.has("length") || unmet.has("guessable");
+}
+
+/** The login system stores nothing longer than this. */
+export const MAX_PASSWORD_LENGTH = 128;
+
 /** Returns what is wrong with a password, or null if it will do. */
 export function passwordProblem(
   password: string,
   who: PasswordOwner = {},
 ): string | null {
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return `Use a password of at most ${MAX_PASSWORD_LENGTH} characters.`;
+  }
   const unmet = passwordRules(password, who).find((rule) => !rule.met);
   if (!unmet) return null;
   switch (unmet.id) {
