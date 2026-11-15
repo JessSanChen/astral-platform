@@ -98,13 +98,12 @@ test.describe("independent review", () => {
       "PRIVATE-GOAL: a note only I should see.",
     );
 
-    // Not released yet: nobody is offered it.
+    // Available the moment it was submitted: nobody had to release it.
+    const [arrived] = await sql`
+      select assignment_state, review_level from episode where id = ${author.episodeId}
+    `;
+    expect(arrived).toMatchObject({ assignment_state: "ready", review_level: "general" });
     const reviewer = await newReviewer(browser, "Rui Reviewer");
-    await reviewer.page.goto("/review");
-    await reviewer.page.getByRole("button", { name: "Get a review" }).click();
-    await expect(reviewer.page.getByText(NOTHING)).toBeVisible();
-
-    await release(author.episodeId);
 
     // Never your own work.
     await sql`
@@ -132,6 +131,12 @@ test.describe("independent review", () => {
     await form.getByRole("button", { name: "Submit review" }).click();
     await expect(form.getByText("Please complete the highlighted answers.")).toBeVisible();
     await expect(form.getByText("Answer the main question.")).toBeVisible();
+
+    // The scales are shown in words, without their codes, and the question
+    // about what makes a judgment uncertain is gone.
+    await expect(form.getByRole("radio", { name: "Plausible, context-dependent dual-use relevance" })).toBeVisible();
+    await expect(form.getByText(/\b[ga][0-3]:/)).toHaveCount(0);
+    await expect(form.getByText("What makes the judgment uncertain?")).toHaveCount(0);
 
     // One screen, and no menu of policy rules on it.
     await expect(
@@ -194,7 +199,7 @@ test.describe("independent review", () => {
       evidence_turns: [1],
       subject_sensitivity: "g0",
       aim_evidence: "a0",
-      form_version: "C-2.0",
+      form_version: "C-2.1",
       state: "completed",
       slot: 1,
       purpose: "primary",
@@ -296,48 +301,51 @@ test.describe("independent review", () => {
     await context.close();
   });
 
-  test("a record that needs subject knowledge goes only to someone who says they have it", async ({
+  test("any reviewer can be given any submission, and skipping is the first thing offered", async ({
     browser,
   }) => {
     const author = await authorWith(browser, "Uma Author", "How do phages attach?");
-    await release(author.episodeId, "specialist", ["bio_microbiology"]);
 
+    // Someone who said they have no background in any of the subjects.
     const general = await newReviewer(browser, "Gil General");
-    await general.page.goto("/review");
-    await general.page.getByRole("button", { name: "Get a review" }).click();
-    await expect(general.page.getByText(NOTHING)).toBeVisible();
+    const assignmentId = await getReview(general.page);
+    await expect(general.page.getByText("to: How do phages attach?")).toBeVisible();
 
-    // Able to assess routine work in the subject is not enough for a
-    // specialist record.
-    const routine = await newReviewer(browser, "Rae Routine", {
-      area: INTAKE.virology,
-      level: INTAKE.routine,
-    });
-    await routine.page.goto("/review");
-    await routine.page.getByRole("button", { name: "Get a review" }).click();
-    await expect(routine.page.getByText(NOTHING)).toBeVisible();
+    // What they said they could assess is kept with the assignment, as a
+    // description. It decided nothing.
+    const [{ routing }] = await sql`select routing from review_assignment where id = ${assignmentId}`;
+    expect((routing as { familiarity: Record<string, string> }).familiarity).toEqual({});
 
+    // The form opens with the way out, before any question.
+    const form = reviewForm(general.page);
+    const first = form.getByRole("button").first();
+    await expect(first).toHaveText("Skip this one");
+    await expect(form.getByText(/Outside your expertise, or a record you recognize\?/)).toBeVisible();
+    await first.click();
+    await form.getByRole("radio", { name: "Outside my expertise" }).check();
+    await form.getByRole("button", { name: "Confirm skip" }).click();
+    await expect(form.getByText("Skipped", { exact: true })).toBeVisible();
+
+    // A specialist in the subject is given it the same way as anyone else.
     const specialist = await newReviewer(browser, "Spe Cialist", {
       area: INTAKE.virology,
       level: INTAKE.specialist,
     });
-    const assignmentId = await getReview(specialist.page);
+    const second = await getReview(specialist.page);
     await expect(specialist.page.getByText("to: How do phages attach?")).toBeVisible();
-    // Why they were eligible is kept with the assignment.
-    const [{ routing }] = await sql`select routing from review_assignment where id = ${assignmentId}`;
-    expect((routing as { familiarity: Record<string, string> }).familiarity).toEqual({
+    const [{ routing: theirs }] = await sql`select routing from review_assignment where id = ${second}`;
+    expect((theirs as { familiarity: Record<string, string> }).familiarity).toEqual({
       bio_microbiology: "F3",
     });
+    // The explanation is optional.
+    await fillReview(specialist.page, A_NO);
+    await submitReview(specialist.page);
+    const [stored] = await sql`
+      select rationale, uncertainty_reasons, form_version from review_response where assignment_id = ${second}
+    `;
+    expect(stored).toMatchObject({ rationale: "", uncertainty_reasons: [], form_version: "C-2.1" });
 
-    // A routine record in the subject is open to both of them.
-    const second = await authorWith(browser, "Vik Author", "What is a plaque assay for?");
-    await release(second.episodeId, "routine", ["bio_microbiology"]);
-    await getReview(routine.page);
-    await expect(routine.page.getByText("to: What is a plaque assay for?")).toBeVisible();
-    await general.page.getByRole("button", { name: "Get a review" }).click();
-    await expect(general.page.getByText(NOTHING)).toBeVisible();
-
-    for (const p of [author, general, routine, specialist, second]) await p.context.close();
+    for (const p of [author, general, specialist]) await p.context.close();
   });
 
   test("a record with no place left is not handed out, and a held one is not accepted", async ({

@@ -7,7 +7,6 @@ import { submitReviewAction } from "@/app/review/actions";
 import { useClipboardLog } from "@/components/clipboard-log";
 import { Radios } from "@/components/intake-fields";
 import {
-  Checks,
   Question,
   ReviewFinished,
   clearDraft,
@@ -18,7 +17,6 @@ import {
 import { ReviewSkip } from "@/components/review-skip";
 import { ReviewTranscript } from "@/components/review-transcript";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { ViewContent } from "@/lib/episodes";
 import {
@@ -30,7 +28,6 @@ import {
   REVIEW_REMINDER,
   REVIEW_LIMITS,
   SUBJECT_SENSITIVITY,
-  UNCERTAINTY_REASONS,
   VERDICTS,
   type ReviewDraft,
 } from "@/lib/review-form";
@@ -117,7 +114,6 @@ export default function ReviewWorkspace({
     });
   }
 
-  const uncertaintyRequired = draft.verdict === "indeterminate" || draft.confidence === "low";
   const linked = content.kind === "linked";
 
   return (
@@ -178,6 +174,22 @@ export default function ReviewWorkspace({
         )}
         {mode === "form" && (
           <div className="space-y-6 p-4">
+            {/* First thing on the form: nobody decides who is able to
+                review what, so the reviewer says so themselves. */}
+            <div className="flex items-center gap-3 rounded-[var(--radius)] border border-accent/40 bg-accent/5 px-3 py-2.5">
+              <p className="min-w-0 flex-1 text-sm leading-snug">
+                Outside your expertise, or a record you recognize? Skip it.
+                A skip is never counted against you.
+              </p>
+              <Button
+                size="sm"
+                className="shrink-0"
+                disabled={pending}
+                onClick={() => setMode("skip")}
+              >
+                Skip this one
+              </Button>
+            </div>
             <p className="text-xs leading-relaxed text-muted-foreground">{REVIEW_REMINDER}</p>
             <details className="rounded-[var(--radius)] border border-border bg-card px-3 py-2">
               <summary className="cursor-pointer text-sm font-medium">
@@ -241,7 +253,7 @@ export default function ReviewWorkspace({
             <Question
               id="rationale"
               text={REVIEW_QUESTIONS.rationale}
-              hint="One or two sentences."
+              hint="A sentence or two, if it helps."
               error={errors.rationale}
             >
               <Textarea
@@ -253,33 +265,6 @@ export default function ReviewWorkspace({
               <p className="text-right text-[11px] text-muted-foreground">
                 {draft.rationale.length} / {REVIEW_LIMITS.rationale}
               </p>
-            </Question>
-
-            <Question
-              id="uncertaintyReasons"
-              text={REVIEW_QUESTIONS.uncertainty}
-              hint={
-                uncertaintyRequired
-                  ? "Needed, because you answered Cannot determine or Low confidence."
-                  : "Optional."
-              }
-              error={errors.uncertaintyReasons ?? errors.uncertaintyOther}
-            >
-              <Checks
-                legend={REVIEW_QUESTIONS.uncertainty}
-                options={UNCERTAINTY_REASONS}
-                value={draft.uncertaintyReasons}
-                onChange={(uncertaintyReasons) => set({ uncertaintyReasons })}
-              />
-              {draft.uncertaintyReasons.includes("other") && (
-                <Input
-                  aria-label="Other reason"
-                  placeholder="Say what"
-                  value={draft.uncertaintyOther}
-                  maxLength={REVIEW_LIMITS.uncertaintyOther}
-                  onChange={(e) => set({ uncertaintyOther: e.target.value })}
-                />
-              )}
             </Question>
 
             <Question

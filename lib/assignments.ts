@@ -24,13 +24,16 @@ import {
 } from "@/lib/review-form";
 
 /**
- * Who reviews what (specification section 5).
+ * Who reviews what (specification section 5, simplified at the
+ * organizer's request).
  *
  * A reviewer has one thing in front of them at a time, chosen for them. It
- * is never their own work, never something from a family they have already
- * been shown any part of, and never something that asks for subject
- * knowledge they have not said they have. Nothing here loosens those rules
- * when the pool runs dry: the answer then is that there is nothing to do.
+ * is never their own work, and never something from a family they have
+ * already been shown any part of. Beyond that, every available record is
+ * open to every reviewer: nobody is matched on subject knowledge, and a
+ * reviewer who finds a record outside their expertise skips it. Nothing
+ * loosens the two rules when the pool runs dry: the answer then is that
+ * there is nothing to do.
  *
  * An assignment row is also the record that someone was shown something,
  * which is why skipped and expired ones are kept.
@@ -40,33 +43,9 @@ export class AssignmentError extends Error {}
 
 export type Purpose = "primary" | "pair_audit";
 
-/** The subjects someone says they can assess at each level. */
+/** What someone said they could assess, as it stood when they were asked. */
 function familiarity(intake: unknown) {
-  const rated = ((intake ?? {}) as Partial<IntakeDraft>).familiarity ?? {};
-  const atLeast = (levels: string[]) =>
-    Object.entries(rated)
-      // "Other" never opens the door on its own.
-      .filter(([id, level]) => id !== "other" && levels.includes(level))
-      .map(([id]) => id);
-  return { rated, routine: atLeast(["F2", "F3"]), specialist: atLeast(["F3"]) };
-}
-
-/** A Postgres text[] of values that are known to be plain identifiers. */
-const textArray = (values: string[]) =>
-  sql`array[${values.length ? sql.join(values.map((v) => sql`${v}`), sql`, `) : sql``}]::text[]`;
-
-/**
- * Whether an episode's level is one this reviewer may take, as SQL over the
- * episode aliased `e`. General asks for nothing; Routine for F2 or F3 in one
- * of the episode's subjects; Specialist for F3; Unresolved, or no level at
- * all, is never handed out.
- */
-function levelAllows(e: ReturnType<typeof sql>, routine: string[], specialist: string[]) {
-  return sql`(
-    ${e}.review_level = 'general'
-    or (${e}.review_level = 'routine' and ${e}.eligible_domains && ${textArray(routine)})
-    or (${e}.review_level = 'specialist' and ${e}.eligible_domains && ${textArray(specialist)})
-  )`;
+  return { rated: ((intake ?? {}) as Partial<IntakeDraft>).familiarity ?? {} };
 }
 
 /** Lets go of items nobody has touched for longer than a reservation lasts. */
@@ -121,7 +100,9 @@ export async function requestAssignment(reviewerId: string, purpose: Purpose) {
   await expireStale();
 
   const settings = await getEventSettings();
-  const { rated, routine, specialist } = familiarity(standing.intake);
+  // Kept with the assignment as a description of the reviewer at the time.
+  // It no longer decides anything: every released record is open to all.
+  const { rated } = familiarity(standing.intake);
   const routing = { familiarity: rated, policyVersion: standing.policy.version };
 
   // Families this person must not be shown: any they have already been
@@ -164,7 +145,6 @@ export async function requestAssignment(reviewerId: string, purpose: Purpose) {
             join ${episode} e on e.id = v.episode_id
             where e.status = 'submitted'
               and e.assignment_state = 'ready'
-              and ${levelAllows(sql`e`, routine, specialist)}
               and v.family_id not in ${offLimits}
               and (
                 select count(*) from ${reviewAssignment} held
@@ -190,8 +170,6 @@ export async function requestAssignment(reviewerId: string, purpose: Purpose) {
           -- once both may be shown. The auditor has to be able to judge both.
           where source.status = 'submitted' and target.status = 'submitted'
             and source.assignment_state = 'ready' and target.assignment_state = 'ready'
-            and ${levelAllows(sql`source`, routine, specialist)}
-            and ${levelAllows(sql`target`, routine, specialist)}
             and rv.family_id not in ${offLimits}
             and not exists (
               select 1 from ${reviewAssignment} audited
@@ -390,8 +368,9 @@ export async function submitReview(
       evidenceMode: answers.evidenceMode,
       evidenceTurns,
       rationale: answers.rationale,
-      uncertaintyReasons: answers.uncertaintyReasons,
-      uncertaintyOther: answers.uncertaintyOther || null,
+      // Not asked by this form.
+      uncertaintyReasons: [],
+      uncertaintyOther: null,
       subjectSensitivity: answers.subjectSensitivity,
       aimEvidence: answers.aimEvidence,
       policyVersion: policy.version,

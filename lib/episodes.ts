@@ -14,7 +14,6 @@ import {
   submission,
   user,
 } from "@/db/schema";
-import { getEventSettings } from "@/lib/openrouter";
 import { sessionLetter, type Provenance } from "@/lib/episode-options";
 
 /**
@@ -298,7 +297,6 @@ export type ViewContent = { kind: "session" | "linked"; sessions: string[]; turn
  * happened.
  */
 export async function submitEpisode(episodeId: string, userId: string) {
-  const settings = await getEventSettings();
   return db.transaction(async (tx) => {
     const [ep] = await tx
       .select()
@@ -390,6 +388,8 @@ export async function submitEpisode(episodeId: string, userId: string) {
             taskProvenance: ep.taskProvenance,
             activityTemplate: ep.activityTemplate,
             goalText: ep.goalText,
+            authorLabels: ep.authorLabels,
+            authorLabelsVersion: ep.authorLabelsVersion,
             creationMethod: ep.creationMethod,
             sourceFamilyId: ep.sourceFamilyId,
           },
@@ -495,12 +495,11 @@ export async function submitEpisode(episodeId: string, userId: string) {
         status: "submitted",
         submittedAt: now,
         updatedAt: now,
-        // Either an organizer says who is able to review it, or, if the
-        // event is set to release things itself, it goes out as needing no
-        // specialist.
-        ...(settings.autoReleaseSubmissions
-          ? { assignmentState: "ready", reviewLevel: "general" }
-          : {}),
+        // Available to every reviewer at once. Nobody decides who is able
+        // to review what: a reviewer who finds it outside their expertise
+        // skips it. An organizer can still hold one back or withdraw it.
+        assignmentState: "ready",
+        reviewLevel: "general",
       })
       .where(eq(episode.id, episodeId))
       .returning();

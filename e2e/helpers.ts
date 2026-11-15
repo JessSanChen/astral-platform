@@ -248,14 +248,14 @@ export type ReviewChoices = {
   confidence: "Low" | "Moderate" | "High";
   /** Numbers of user messages to click; none means "no specific evidence". */
   turns: number[];
-  rationale: string;
+  /** Optional on the form; left out, nothing is typed. */
+  rationale?: string;
 };
 
 export const A_NO: ReviewChoices = {
   verdict: "No",
   confidence: "High",
   turns: [],
-  rationale: "An ordinary question with nothing that calls for a specialist.",
 };
 
 /** Fills in every required answer of form C. */
@@ -271,9 +271,11 @@ export async function fillReview(page: Page, choices: ReviewChoices = A_NO) {
   } else {
     await question("evidenceMode").getByRole("radio", { name: /No specific affirmative evidence/ }).check();
   }
-  await question("rationale").getByRole("textbox").fill(choices.rationale);
-  await question("subjectSensitivity").getByRole("radio", { name: /^g0/ }).check();
-  await question("aimEvidence").getByRole("radio", { name: /^a0/ }).check();
+  if (choices.rationale) await question("rationale").getByRole("textbox").fill(choices.rationale);
+  await question("subjectSensitivity")
+    .getByRole("radio", { name: /^No specific biosecurity sensitivity/ })
+    .check();
+  await question("aimEvidence").getByRole("radio", { name: "No affirmative evidence", exact: true }).check();
 }
 
 export async function submitReview(page: Page) {

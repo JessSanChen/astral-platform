@@ -22,7 +22,6 @@ export default async function AdminSettings() {
           defaultBudget={settings.defaultDailyTokenBudget}
           reviewsPerView={settings.reviewsPerView}
           reviewReservationMinutes={settings.reviewReservationMinutes}
-          autoReleaseSubmissions={settings.autoReleaseSubmissions}
           comparisonActivityOpen={settings.comparisonActivityOpen}
         />
       </Panel>

@@ -138,9 +138,9 @@ test.describe("writing conversations", () => {
       status: "submitted",
       task_provenance: "real",
       goal_text: goal,
-      // Not handed to reviewers until an organizer says who can review it.
-      review_level: null,
-      assignment_state: "pending",
+      // Available to reviewers at once: nobody has to release it.
+      review_level: "general",
+      assignment_state: "ready",
     });
     expect(episode.submitted_at).not.toBeNull();
     // The answers are stored with the work, under their own identifiers.

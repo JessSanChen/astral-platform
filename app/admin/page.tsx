@@ -1,5 +1,4 @@
 import { trackLabel } from "@/lib/nominations";
-import Link from "next/link";
 import { requireAdmin } from "@/lib/gate";
 import { overview } from "@/lib/admin";
 import { getEventSettings } from "@/lib/openrouter";
@@ -40,16 +39,6 @@ export default async function AdminOverview() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
-          label="Waiting to be released"
-          value={episodes.pending}
-          tone={episodes.pending > 0 ? "warn" : "normal"}
-          hint={
-            settings.autoReleaseSubmissions
-              ? "New submissions are released automatically"
-              : "Nobody can review these until you route them"
-          }
-        />
-        <Stat
           label="Passed the instruction check"
           value={data.instructionPassed}
           hint={`For review instructions version ${data.policyVersion}`}
@@ -66,16 +55,6 @@ export default async function AdminOverview() {
         />
       </div>
 
-      {episodes.pending > 0 && (
-        <p className="rounded-[var(--radius)] border border-border bg-muted px-4 py-2.5 text-sm">
-          {episodes.pending === 1
-            ? "1 submission is waiting to be released for review. "
-            : `${episodes.pending} submissions are waiting to be released for review. `}
-          <Link href="/admin/submissions?state=pending" className="text-accent underline">
-            Open Submissions
-          </Link>
-        </p>
-      )}
       {settings.chatPaused && (
         <p className="rounded-[var(--radius)] border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
           Chat is paused for everyone. Nobody can send a message until you

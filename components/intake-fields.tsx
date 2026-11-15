@@ -188,10 +188,10 @@ export function IntakeFields({
               <p className="text-xs leading-relaxed text-muted-foreground">
                 Pick the areas you know best and say how far you could judge
                 whether a conversation in that area is scientifically or
-                technically plausible. This decides which conversations you can
-                be asked to review. It is your own estimate, not a credential;
-                you can leave an area unrated, and you can always skip a review
-                that turns out to be beyond you.
+                technically plausible. It is your own estimate, not a
+                credential, and it helps the research team read your reviews.
+                It does not limit what you can review: if a record turns out
+                to be beyond you, skip it.
               </p>
               <p className="text-xs text-muted-foreground">
                 {ratedCount} of up to {MAX_RATED_AREAS} rated.

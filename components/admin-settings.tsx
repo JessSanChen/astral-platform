@@ -18,14 +18,12 @@ export function EventSettingsForm({
   defaultBudget,
   reviewsPerView,
   reviewReservationMinutes,
-  autoReleaseSubmissions,
   comparisonActivityOpen,
 }: {
   eventCode: string;
   defaultBudget: number;
   reviewsPerView: number;
   reviewReservationMinutes: number;
-  autoReleaseSubmissions: boolean;
   comparisonActivityOpen: boolean;
 }) {
   const router = useRouter();
@@ -34,7 +32,6 @@ export function EventSettingsForm({
   const [budget, setBudget] = useState(String(defaultBudget));
   const [perView, setPerView] = useState(String(reviewsPerView));
   const [reservation, setReservation] = useState(String(reviewReservationMinutes));
-  const [autoRelease, setAutoRelease] = useState(autoReleaseSubmissions);
   const [comparisonOpen, setComparisonOpen] = useState(comparisonActivityOpen);
   const [note, setNote] = useState<string | null>(null);
 
@@ -67,7 +64,6 @@ export function EventSettingsForm({
         setReviewSettings({
           reviewsPerView: reviews,
           reviewReservationMinutes: minutes,
-          autoReleaseSubmissions: autoRelease,
           comparisonActivityOpen: comparisonOpen,
         }),
       ]);
@@ -114,24 +110,6 @@ export function EventSettingsForm({
           onChange={(e) => setReservation(e.target.value)}
         />
       </Field>
-
-      <label className="flex items-start gap-2.5 text-sm">
-        <input
-          type="checkbox"
-          className="mt-0.5 h-4 w-4 shrink-0"
-          checked={autoRelease}
-          onChange={(e) => setAutoRelease(e.target.checked)}
-        />
-        <span>
-          <span className="font-medium">Release new submissions for review automatically</span>
-          <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-            On: each new submission goes straight out as General, which any
-            reviewer can be given. Off: it waits as Pending until an organizer
-            routes it from Submissions. Applies to submissions made from now
-            on.
-          </span>
-        </span>
-      </label>
 
       <label className="flex items-start gap-2.5 text-sm">
         <input

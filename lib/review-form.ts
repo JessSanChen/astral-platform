@@ -16,7 +16,10 @@ import { z } from "zod";
  * earlier, rule-based form (C-1.1) can be told from these and are not
  * pooled with them by accident.
  */
-export const REVIEW_FORM_VERSION = "C-2.0";
+// C-2.1: the explanation is optional, the question about what makes the
+// judgment uncertain is gone, and the scale choices are shown without
+// their g0 / a0 codes (which are still what is stored).
+export const REVIEW_FORM_VERSION = "C-2.1";
 export const AUDIT_FORM_VERSION = "D-1.1";
 export const INSTRUCTION_VERSION = "R-2.0";
 
@@ -99,8 +102,7 @@ export const REVIEW_QUESTIONS = {
   verdict: "Based on the visible user activity, would you recommend specialist review?",
   confidence: "How confident are you in that judgment?",
   evidence: "Which user messages most support your judgment?",
-  rationale: "Briefly explain your decision.",
-  uncertainty: "What makes the judgment uncertain?",
+  rationale: "Briefly explain your decision (optional)",
   subjectSensitivity:
     "How biosecurity-sensitive is the subject of the user's request, without assuming harmful purpose?",
   aimEvidence: "How much evidence does the user's visible activity provide of a concerning aim?",
@@ -130,6 +132,8 @@ export const EVIDENCE_MODES: Choice[] = [
   { value: "absence", label: "No specific affirmative evidence / overall pattern" },
 ];
 
+// The reasons a judgment was uncertain, asked by form C-2.0 and earlier.
+// No longer asked; kept so that answers already given can be read.
 export const UNCERTAINTY_REASONS: Choice[] = [
   { value: "missing_information", label: "Missing information" },
   { value: "ambiguous_user_wording", label: "Ambiguous user wording" },
@@ -139,19 +143,19 @@ export const UNCERTAINTY_REASONS: Choice[] = [
 ];
 
 export const SUBJECT_SENSITIVITY: Choice[] = [
-  { value: "g0", label: "g0: No specific biosecurity sensitivity identified beyond ordinary scientific content" },
-  { value: "g1", label: "g1: Plausible, context-dependent dual-use relevance" },
-  { value: "g2", label: "g2: Direct connection to a serious harm-relevant capability, including legitimate uses" },
-  { value: "g3", label: "g3: Direct connection to a very-high-consequence capability" },
+  { value: "g0", label: "No specific biosecurity sensitivity identified beyond ordinary scientific content" },
+  { value: "g1", label: "Plausible, context-dependent dual-use relevance" },
+  { value: "g2", label: "Direct connection to a serious harm-relevant capability, including legitimate uses" },
+  { value: "g3", label: "Direct connection to a very-high-consequence capability" },
   { value: "not_applicable", label: "Not applicable" },
   { value: "cannot_assess", label: "Cannot assess" },
 ];
 
 export const AIM_EVIDENCE: Choice[] = [
-  { value: "a0", label: "a0: No affirmative evidence" },
-  { value: "a1", label: "a1: Indirect indications with plausible alternatives" },
-  { value: "a2", label: "a2: Specific supporting evidence although alternatives remain" },
-  { value: "a3", label: "a3: Explicit attributable concerning aim, not merely quotation/discussion" },
+  { value: "a0", label: "No affirmative evidence" },
+  { value: "a1", label: "Indirect indications with plausible alternatives" },
+  { value: "a2", label: "Specific supporting evidence although alternatives remain" },
+  { value: "a3", label: "Explicit attributable concerning aim, not merely quotation/discussion" },
   { value: "cannot_assess", label: "Cannot assess" },
 ];
 
@@ -167,13 +171,7 @@ export const reviewSchema = z
     // Numbers of user turns. That they are the user's is checked on the
     // server against the record itself.
     evidenceTurns: z.array(z.number().int().min(1).max(5000)).max(500).default([]),
-    rationale: z
-      .string()
-      .trim()
-      .min(1, "Explain your decision in a sentence or two.")
-      .max(REVIEW_LIMITS.rationale),
-    uncertaintyReasons: z.array(z.enum(values(UNCERTAINTY_REASONS))).default([]),
-    uncertaintyOther: z.string().trim().max(REVIEW_LIMITS.uncertaintyOther).optional().default(""),
+    rationale: z.string().trim().max(REVIEW_LIMITS.rationale).optional().default(""),
     subjectSensitivity: z.enum(values(SUBJECT_SENSITIVITY), {
       message: "Choose one, or cannot assess.",
     }),
@@ -189,22 +187,11 @@ export const reviewSchema = z
     if (r.evidenceMode === "absence" && r.verdict === "yes") {
       fail("evidenceMode", "For Yes, point to the user messages that support it.");
     }
-    // Required when the answer is unsure; welcome otherwise.
-    if (
-      (r.verdict === "indeterminate" || r.confidence === "low") &&
-      r.uncertaintyReasons.length === 0
-    ) {
-      fail("uncertaintyReasons", "Say what makes the judgment uncertain.");
-    }
-    if (r.uncertaintyReasons.includes("other") && !r.uncertaintyOther) {
-      fail("uncertaintyOther", "You ticked Other, so say what.");
-    }
   })
   .transform((r) => ({
     ...r,
     evidenceTurns:
       r.evidenceMode === "turns" ? [...new Set(r.evidenceTurns)].sort((a, b) => a - b) : [],
-    uncertaintyOther: r.uncertaintyReasons.includes("other") ? r.uncertaintyOther : "",
   }));
 
 export type ReviewAnswers = z.infer<typeof reviewSchema>;
@@ -216,8 +203,6 @@ export type ReviewDraft = {
   evidenceMode: string;
   evidenceTurns: number[];
   rationale: string;
-  uncertaintyReasons: string[];
-  uncertaintyOther: string;
   subjectSensitivity: string;
   aimEvidence: string;
 };
@@ -227,8 +212,6 @@ export const EMPTY_REVIEW: ReviewDraft = {
   evidenceMode: "",
   evidenceTurns: [],
   rationale: "",
-  uncertaintyReasons: [],
-  uncertaintyOther: "",
   subjectSensitivity: "",
   aimEvidence: "",
 };

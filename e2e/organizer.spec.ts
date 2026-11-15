@@ -4,6 +4,7 @@ import { INTAKE_VERSION } from "@/lib/intake";
 import { formatEventDateTime, fromEventInputValue } from "@/lib/time";
 import { episodeOf, passInstructionCheck, release, resetSettings, sql } from "./db";
 import {
+  INTAKE,
   choose,
   fillReview,
   getReview,
@@ -123,6 +124,31 @@ test.describe("the organizer console", () => {
     const mineOnly = only.filter((l) => l.record === "session" && l.user_id === session.user_id);
     expect(mineOnly.map((l) => l.session_id)).toEqual([submitted.sessionId]);
 
+    // A participant corrects their background answers afterwards. The
+    // export then carries the new answers as the current ones, both sets in
+    // the history, and the submission still says what stood when it was made.
+    await participant.page.goto("/profile");
+    await choose(participant.page, INTAKE.role, "Policy or safety professional");
+    await participant.page.getByRole("button", { name: "Save changes" }).click();
+    await expect(participant.page.getByText("Saved.")).toBeVisible();
+
+    const after = await exportLines(page);
+    const theirs = (l: Line) => l.user_id === session.user_id;
+    const current = after.find((l) => l.record === "participant_intake" && theirs(l))!;
+    expect((current.intake as { role: string }).role).toBe("policy_safety");
+    expect(new Date(current.intake_updated_at as string).getTime()).toBeGreaterThan(
+      new Date(intake.intake_updated_at as string).getTime(),
+    );
+    const history = after.filter((l) => l.record === "participant_intake_revision" && theirs(l));
+    expect(history.map((h) => [h.source, (h.intake as { role: string }).role])).toEqual([
+      ["onboarding", "postdoctoral"],
+      ["profile", "policy_safety"],
+    ]);
+    const frozen = after.find((l) => l.record === "session" && l.session_id === submitted.sessionId)!;
+    const snapshot = (frozen.submissions as { snapshot: { participant: { intake: { role: string } } } }[])[0]
+      .snapshot;
+    expect(snapshot.participant.intake.role).toBe("postdoctoral");
+
     await participant.context.close();
     await organizer.context.close();
   });
@@ -181,82 +207,48 @@ test.describe("the organizer console", () => {
     await organizer.context.close();
   });
 
-  test("a submission waits until an organizer says who can review it", async ({ browser }) => {
-    const author = await newParticipant(browser, "Avis Author", "author");
-    await startConversation(author.page);
-    await say(author.page, "ROUTED: what is a restriction enzyme?");
-    await submitWork(author.page);
-    const [{ title, id: episodeId }] = await sql`
-      select e.title, e.id from episode e join "user" u on u.id = e.user_id
-      where u.email = ${author.email}
-    `;
+  test("an organizer can hold a submission back from review, and put it back", async ({
+    browser,
+  }) => {
     // Nothing else on offer, so what the reviewer gets is this.
     await sql`update episode set assignment_state = 'held' where assignment_state = 'ready'`;
+    const author = await newParticipant(browser, "Avis Author", "author");
+    const { episodeId } = await submittedConversation(author.page, "HELD: what is a restriction enzyme?");
+    const state = async () =>
+      (await sql`select assignment_state from episode where id = ${episodeId}`)[0].assignment_state;
+    expect(await state()).toBe("ready");
+
+    // A reviewer has it open: nobody released it, or decided who could.
+    const reviewer = await newReviewer(browser, "Rhys Reviewer");
+    await getReview(reviewer.page);
+    await expect(reviewer.page.getByText("to: HELD: what is a restriction enzyme?")).toBeVisible();
 
     const organizer = await newOrganizer(browser, "Rory Router");
     const page = organizer.page;
     await page.goto("/admin/submissions");
+    // No levels, no subjects, nothing to release.
+    await expect(page.getByText(/Review level|Subjects a reviewer needs|Release all pending/)).toHaveCount(0);
     const card = page.getByRole("article").filter({ hasText: "Avis Author" });
-    await expect(card).toContainText("Pending");
-    await expect(card.getByRole("list", { name: "Review coverage" })).toContainText("0 of 3 reviewed");
+    await expect(card).toContainText("Available");
+    await expect(card.getByRole("list", { name: "Review coverage" })).toContainText("1 in progress");
+    await expect(card.getByText(/1 reviewer has this open now/)).toBeVisible();
 
-    // A level that needs a subject is refused without one.
-    await choose(page, "Review level", "Specialist", card);
-    await choose(page, "Assignment state", "Ready", card);
-    await card.getByRole("button", { name: "Save routing" }).click();
-    await expect(card.getByRole("status")).toContainText(/subject/i);
-    const [before] = await sql`select assignment_state, review_level from episode where id = ${episodeId}`;
-    expect(before).toMatchObject({ assignment_state: "pending", review_level: null });
-
-    // General, and out it goes.
-    await choose(page, "Review level", "General", card);
-    await card.getByRole("button", { name: "Save routing" }).click();
-    await expect(card.getByRole("status")).toHaveText("Saved.");
-    const [after] = await sql`select assignment_state, review_level from episode where id = ${episodeId}`;
-    expect(after).toMatchObject({ assignment_state: "ready", review_level: "general" });
-
-    const reviewer = await newReviewer(browser, "Rhys Reviewer");
-    await getReview(reviewer.page);
-    await expect(reviewer.page.getByText("to: ROUTED: what is a restriction enzyme?")).toBeVisible();
-
-    // Held back while someone has it open: it is taken from them, and the
-    // organizer is told that is what saving will do.
-    await page.reload();
-    const ready = page.getByRole("article").filter({ hasText: "Avis Author" });
-    await expect(ready.getByRole("list", { name: "Review coverage" })).toContainText("1 in progress");
-    await choose(page, "Assignment state", "Held", ready);
-    await expect(ready.getByText(/1 reviewer has this open now/)).toBeVisible();
-    await ready.getByRole("button", { name: "Save routing" }).click();
+    // Held back: taken from the reviewer who had it, and said so.
+    await card.getByRole("button", { name: "Hold back from review" }).click();
     await expect(page.getByRole("status").filter({ hasText: /Taken back from 1 reviewer/ })).toBeVisible();
-
+    expect(await state()).toBe("held");
     await reviewer.page.reload();
     await expect(reviewer.page.getByText("Your hold on this one ran out")).toBeVisible();
-    expect(title).toBeTruthy();
+
+    // And put back.
+    await page.reload();
+    const held = page.getByRole("article").filter({ hasText: "Avis Author" });
+    await expect(held).toContainText("Held");
+    await held.getByRole("button", { name: "Make available for review" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
+    expect(await state()).toBe("ready");
 
     for (const person of [author, organizer, reviewer]) await person.context.close();
-  });
-
-  test("everything waiting can be released at once", async ({ browser }) => {
-    const author = await newParticipant(browser, "Bulk Betty", "author");
-    const one = await submittedConversation(author.page, "First to release?");
-    const two = await submittedConversation(author.page, "Second to release?");
-    const organizer = await newOrganizer(browser, "Rita Releases");
-    const page = organizer.page;
-
-    await page.goto("/admin/submissions");
-    await page.getByRole("button", { name: /^Release all pending as General \(\d+\)$/ }).click();
-    await page.getByRole("button", { name: /^Yes, release \d+$/ }).click();
-    await expect(page.getByRole("status").filter({ hasText: /Released \d+ submissions? for review\./ })).toBeVisible();
-
-    const rows = await sql`
-      select review_level, assignment_state from episode where id in ${sql([one.episodeId, two.episodeId])}
-    `;
-    expect(rows).toEqual([
-      { review_level: "general", assignment_state: "ready" },
-      { review_level: "general", assignment_state: "ready" },
-    ]);
-    await author.context.close();
-    await organizer.context.close();
   });
 
   test("publishing new review instructions makes reviewers answer the questions again", async ({
@@ -307,7 +299,6 @@ test.describe("the organizer console", () => {
         verdict: "No",
         confidence: "High",
         turns: [],
-        rationale: "Nothing in what the user asks calls for a specialist.",
       });
       await submitReview(reviewer.page);
       const [stored] = await sql`
@@ -327,19 +318,20 @@ test.describe("the organizer console", () => {
     const { page, context } = await newOrganizer(browser, "Sam Settings");
     await page.goto("/admin/settings");
     await page.getByLabel("Reviews per view").fill("2");
-    await page.getByRole("checkbox", { name: "Release new submissions for review automatically" }).check();
+    // Nothing to switch on for submissions to reach reviewers.
+    await expect(page.getByText(/Release new submissions/)).toHaveCount(0);
     await page.getByRole("button", { name: "Save settings" }).click();
     await expect(page.getByText("Saved.")).toBeVisible();
     await expect
       .poll(async () => {
         const [row] = await sql`
-          select reviews_per_view, auto_release_submissions from event_settings where id = 1
+          select reviews_per_view from event_settings where id = 1
         `;
         return row;
       })
-      .toMatchObject({ reviews_per_view: 2, auto_release_submissions: true });
+      .toMatchObject({ reviews_per_view: 2 });
 
-    // With automatic release on, a new submission needs nobody's attention.
+    // A new submission needs nobody's attention to reach reviewers.
     const author = await newParticipant(browser, "Auto Anna", "author");
     const { episodeId } = await submittedConversation(author.page, "Released without anyone?");
     const [row] = await sql`select review_level, assignment_state from episode where id = ${episodeId}`;

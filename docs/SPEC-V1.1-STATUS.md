@@ -31,16 +31,20 @@ settle, or went against it. Each is a small change to reverse.
    Review instructions**, with a warning that it is meant to stay fixed.
    See "The shared review definition" below.
 
-2. **Anyone can review anything, unless an organizer restricts it.**
-   The specification has every submission wait as *Pending* until an
-   organizer sets who is able to review it (5.3). The organizer found
-   that too restrictive for a day with about sixty people, so a new
-   submission is now released at once as a *General* item (migration
-   0012). **Organize → Submissions** can still mark one *Routine* or
-   *Specialist* for people who rated themselves in a subject, or hold it;
-   **Organize → Settings** can turn automatic release off. Two rules are
+2. **There is no routing: every submission is open to every reviewer.**
+   The specification has organizers set a review level and subject areas
+   for each submission and match reviewers on their self-rated familiarity
+   (5.1 to 5.3). The organizer judged that infeasible to do live, so it is
+   removed. A submission is available the moment it is submitted, to anyone
+   who has passed the instruction check. The review form opens with a
+   prominent "Skip this one" for a record outside the reviewer's
+   expertise, and that is how expertise is handled. Two rules are
    unchanged: nobody reviews their own work, and nobody is shown two
    things from the same piece of work and its related versions.
+   **Organize → Submissions** keeps one control per submission: hold it
+   back or withdraw it, for the case where it should not be shown at all.
+   The self-rating on the intake form is still collected and still stored
+   with each assignment, as a description of the reviewer.
 
 3. **Copying and pasting is still recorded.** The specification says "No
    clipboard-history" (6.2). You asked for this logging two rounds ago, so
@@ -168,7 +172,10 @@ it asks for, and where it is:
 | One instruction version for all reviews, stored on each | Built | `review_response.policy_version`, exported also as `review_instruction_version` |
 | Five-question check, R01 to R05, with retries | Built | `lib/review-form.ts` |
 | Verdict: Yes / No / Cannot determine, with the revision's question | Built | form C |
-| Confidence, rationale, uncertainty reasons, with the revision's wording and choices | Built | form C |
+| Confidence, with the revision's wording | Built | form C |
+| Rationale | Changed at the organizer's request: optional | form C; stored as an empty string when left out |
+| Uncertainty reasons | Removed at the organizer's request | not asked; the column holds an empty list |
+| g0 to g3 and a0 to a3 shown as codes | Changed: the choices are shown in words only; the codes are still what is stored | form C |
 | Evidence: user messages only; "No specific affirmative evidence / overall pattern" for No or Cannot determine | Built | only the user's turn numbers are buttons; the server drops any number that is not a user message, and refuses "no specific evidence" for Yes |
 | Optional opposing user-turn references | Not built | the revision makes it optional |
 | Sensitivity and aim scales kept (g0 to g3, a0 to a3) | Built | form C; no referral is computed from them |
@@ -213,10 +220,10 @@ that renames them. They mean the review instructions.
 
 | Item | Status | Where |
 | --- | --- | --- |
-| Review level and subject areas per submission | Built | Organize → Submissions |
-| Ready / Held / Withdrawn / Pending | Built | same |
-| General, Routine (F2 or F3 in a listed subject), Specialist (F3) | Built | `lib/assignments.ts` (`levelAllows`) |
-| "Other" and the focus tags never grant eligibility | Built | same (`familiarity`) |
+| Review level and subject areas per submission | Removed at the organizer's request | every submission is stored as General |
+| Ready / Held / Withdrawn | Built: available on arrival; an organizer can hold, withdraw or restore | Organize → Submissions |
+| General, Routine (F2 or F3 in a listed subject), Specialist (F3) | Removed at the organizer's request | reviewers are not matched on subject knowledge; they skip instead |
+| "Other" and the focus tags never grant eligibility | No longer applies | nothing grants or limits eligibility |
 | One active item per reviewer, enforced by the database | Built | unique index `review_assignment_one_active_uq` |
 | Never your own work; never two views from one family | Built | unique index `review_assignment_family_uq` plus the selection query |
 | Exposure recorded when the item is handed over | Built | the assignment row is the record; skips and expiries are kept |
@@ -226,7 +233,7 @@ that renames them. They mean the review instructions.
 | Three reviews per view; Refer / Do not refer / Unresolved / Pending | Built | `panelOutcome` in `lib/review-form.ts`; all votes kept |
 | A held record cannot take a review already in progress | Built | `submitReview` |
 | Pair audit: eligible for both, not exposed to either | Built | `requestAssignment` (pair branch) |
-| A different level for one session of a folder | Not built | level is set per submission and applies to all its views; set the stricter one |
+| A different level for one session of a folder | No longer applies | there are no levels |
 | Automated topic suggestions | Not built | the specification makes them optional |
 
 ### 6. Data contract

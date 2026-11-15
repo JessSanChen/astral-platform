@@ -196,7 +196,6 @@ export async function setNominationsCloseAt(iso: string | null) {
 export async function setReviewSettings(input: {
   reviewsPerView: number;
   reviewReservationMinutes: number;
-  autoReleaseSubmissions: boolean;
   comparisonActivityOpen: boolean;
 }) {
   const { user: me } = await requireAdmin();
@@ -211,7 +210,6 @@ export async function setReviewSettings(input: {
   ) {
     return { message: "The reservation must be a whole number of minutes from 5 to 240." };
   }
-  const autoReleaseSubmissions = input.autoReleaseSubmissions === true;
   const comparisonActivityOpen = input.comparisonActivityOpen === true;
 
   const before = await getEventSettings();
@@ -222,7 +220,6 @@ export async function setReviewSettings(input: {
   };
   note("Reviews per view", before.reviewsPerView, reviewsPerView);
   note("Review reservation, minutes", before.reviewReservationMinutes, reviewReservationMinutes);
-  note("Release new submissions automatically", before.autoReleaseSubmissions, autoReleaseSubmissions);
   note("Related versions open", before.comparisonActivityOpen, comparisonActivityOpen);
 
   await db
@@ -230,7 +227,6 @@ export async function setReviewSettings(input: {
     .set({
       reviewsPerView,
       reviewReservationMinutes,
-      autoReleaseSubmissions,
       comparisonActivityOpen,
       updatedAt: new Date(),
     })
@@ -571,37 +567,6 @@ export async function setEpisodeRouting(
   }
   revalidatePath("/admin");
   return { message: null, takenBack: result.takenBack ?? 0 };
-}
-
-/**
- * Releases everything still waiting: each Pending submission that has no
- * level yet becomes General and Ready, which any reviewer may be given.
- *
- * Ones an organizer has already given a level to are left alone, as are
- * Held and Withdrawn ones: those were decisions.
- */
-export async function releaseAllPending() {
-  const { user: me } = await requireAdmin();
-  const released = await db
-    .update(episode)
-    .set({ reviewLevel: "general", assignmentState: "ready", updatedAt: new Date() })
-    .where(
-      and(
-        eq(episode.status, "submitted"),
-        eq(episode.assignmentState, "pending"),
-        sql`${episode.reviewLevel} is null`,
-      ),
-    )
-    .returning({ id: episode.id });
-  if (released.length > 0) {
-    await recordAudit({
-      action: "submissions_released",
-      actor: me,
-      detail: `${released.length} pending submission${released.length === 1 ? "" : "s"} released as General.`,
-    });
-  }
-  revalidatePath("/admin");
-  return { message: null, released: released.length };
 }
 
 /* ---- The review instructions ----------------------------------------- */

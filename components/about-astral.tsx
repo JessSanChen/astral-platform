@@ -203,8 +203,7 @@ export function AboutAstral() {
             messages for context, and judge the user&apos;s. A sensitive
             subject does not by itself warrant referral, and a referral is
             not a conclusion that the user intends harm or that harm
-            occurred. Point to the user messages your answer rests on, and
-            say what you are unsure about.
+            occurred. Point to the user messages your answer rests on.
           </p>
           <p>
             The form is on one screen and you can change your answers until

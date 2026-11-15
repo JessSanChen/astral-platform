@@ -216,7 +216,7 @@ It prints a temporary password, which works once. If nobody is an
 organizer at all, `npm run prod:seed` makes organizers of the addresses in
 `ADMIN_EMAILS`. Both need the database credentials, which only you hold.
 
-## Moving to specification v1.1 (migrations 0007 to 0013)
+## Moving to specification v1.1 (migrations 0007 to 0014)
 
 This is the one release where the order matters more than usual, because
 the new code reads tables the old database does not have.
@@ -229,12 +229,12 @@ the new code reads tables the old database does not have.
    else. Then, in the console:
    - **Review instructions**: nothing to do. The shared review
      definition is published by the migration.
-   - **Settings**: reviews per view (3), whether new submissions are
-     released for review automatically (on), whether related versions
-     are open (on).
+   - **Settings**: reviews per view (3) and whether related versions are
+     open (on).
 4. Nothing has to be watched during the event for reviewing to work:
-   new submissions go to reviewers at once. **Submissions** is where you
-   restrict or hold one if you need to.
+   every submission is available to every reviewer at once.
+   **Submissions** is where you hold one back or withdraw it if it should
+   not be shown.
 
 Between step 1 and step 2 the old site keeps working, but anyone who
 loads a page is sent to the onboarding form, which on the old code is

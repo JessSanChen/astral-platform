@@ -2522,6 +2522,39 @@ still exist and answer organizers.
 
 ---
 
+## Round 28: no routing, a shorter review form, and a history of background answers
+
+- **No routing.** Organizers no longer set a review level or subjects, and
+  reviewers are no longer matched on what they said they could assess.
+  Every submission is available to every reviewer the moment it is
+  submitted. The Submissions page has one control per submission: hold it
+  back, withdraw it, or make it available again. The automatic-release
+  setting, the bulk release and the "who can review" table are gone.
+  Migration 0014 makes everything that was waiting or restricted
+  available; held and withdrawn work stays as it was.
+- **Skip comes first.** The review form opens with "Outside your
+  expertise, or a record you recognize? Skip it." and a button, above the
+  first question. The Skip button at the foot of the form is still there.
+- **A shorter form (C-2.1).** The explanation is optional. The question
+  about what makes the judgment uncertain is removed. The sensitivity and
+  aim choices are shown in words, without "g0:" and the like; the codes
+  are still what is stored.
+- **A history of background answers.** Checking how a corrected profile
+  shows up in the export found that only the latest answers were kept on
+  the person, plus a copy inside each submission made at the time. There
+  is now a row for every set of answers a person has given
+  (`profile_revision`, exported as `participant_intake_revision`), so
+  nothing is lost when someone corrects their background. The submission
+  snapshot also carries the author's own labels.
+
+What a changed profile looks like in the export, checked by a test: the
+`participant_intake` line has the new answers and a later
+`intake_updated_at`; there are two `participant_intake_revision` lines,
+the first answers and the correction; and the submission made before the
+change still carries the answers that stood when it was made.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

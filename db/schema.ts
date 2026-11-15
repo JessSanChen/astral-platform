@@ -212,6 +212,31 @@ export const termsVersion = pgTable("terms_version", {
 });
 
 // Singleton settings row (id is always 1).
+/**
+ * Every set of background answers a person has given, in order. The
+ * `profile` row holds only the latest; this keeps what was there before a
+ * correction, so that work and reviews done earlier can be read against
+ * the answers that stood at the time.
+ */
+export const profileRevision = pgTable(
+  "profile_revision",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // The name on the account at that moment, since it can be corrected too.
+    name: text("name"),
+    intake: jsonb("intake"),
+    intakeVersion: text("intake_version"),
+    publicReleasePermission: text("public_release_permission"),
+    // "onboarding" for the first answers, "profile" for a later change.
+    source: text("source").notNull(),
+    savedAt: timestamp("saved_at").notNull().defaultNow(),
+  },
+  (t) => [index("profile_revision_user_idx").on(t.userId, t.savedAt)],
+);
+
 export const eventSettings = pgTable("event_settings", {
   id: integer("id").primaryKey().default(1),
   eventCode: text("event_code").notNull(),

@@ -12,6 +12,7 @@ import {
   nomination,
   pairAudit,
   profile,
+  profileRevision,
   relatedVersion,
   review,
   reviewAssignment,
@@ -97,6 +98,22 @@ export async function GET(req: Request) {
         counts[record] = (counts[record] ?? 0) + 1;
         controller.enqueue(encoder.encode(JSON.stringify({ record, ...fields }) + "\n"));
       };
+
+      // --- Every set of background answers a person has given ------------
+      // participant_intake below is the latest. These are all of them, in
+      // order, so work done before a correction can be read against the
+      // answers that stood then (a submission also carries its own copy).
+      for (const r of await db.select().from(profileRevision).orderBy(asc(profileRevision.savedAt))) {
+        emit("participant_intake_revision", {
+          user_id: r.userId,
+          name: r.name,
+          intake: r.intake,
+          intake_version: r.intakeVersion,
+          public_release_permission: r.publicReleasePermission,
+          source: r.source,
+          saved_at: r.savedAt,
+        });
+      }
 
       // --- The review instructions, every version -----------------------
       // The record keeps the name it had when this was a rule-based policy.

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/gate";
-import { reviewerPool, submissionsList, type SubmissionState } from "@/lib/admin";
+import { submissionsList, type SubmissionState as State } from "@/lib/admin";
 import {
   ACTIVITY_TEMPLATES,
   comparisonIntentLabel,
@@ -9,12 +9,19 @@ import {
 import { getEventSettings } from "@/lib/openrouter";
 import { ASSIGNMENT_STATES, COMPARISON_TYPES, OUTCOME_LABELS } from "@/lib/review-form";
 import { formatEventDateTime } from "@/lib/time";
-import { ReleaseAllPending, SubmissionRouting } from "@/components/admin-submissions";
+import { SubmissionState } from "@/components/admin-submissions";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Submissions" };
 
-const FILTERS = [{ value: "all", label: "All" }, ...ASSIGNMENT_STATES];
+// "Pending" is from when submissions waited for an organizer. Nothing is
+// put in that state any more, so it is offered only if something is in it.
+const FILTERS = [
+  { value: "all", label: "All" },
+  { value: "ready", label: "Available" },
+  { value: "held", label: "Held" },
+  { value: "withdrawn", label: "Withdrawn" },
+];
 
 const STATE_TONE: Record<string, string> = {
   pending: "bg-muted text-muted-foreground",
@@ -42,19 +49,14 @@ export default async function AdminSubmissions({
   await requireAdmin();
   const { state } = await searchParams;
   const filter = ASSIGNMENT_STATES.some((s) => s.value === state)
-    ? (state as SubmissionState)
+    ? (state as State)
     : "all";
 
   // All of them, so the filter can show its counts; narrowed below.
-  const [all, pool, settings] = await Promise.all([
-    submissionsList(),
-    reviewerPool(),
-    getEventSettings(),
-  ]);
+  const [all, settings] = await Promise.all([submissionsList(), getEventSettings()]);
   const shown = filter === "all" ? all : all.filter((e) => e.assignmentState === filter);
   const countOf = (value: string) =>
     value === "all" ? all.length : all.filter((e) => e.assignmentState === value).length;
-  const waiting = all.filter((e) => e.assignmentState === "pending" && !e.reviewLevel).length;
 
   return (
     <div className="space-y-4 px-5 py-5">
@@ -74,26 +76,16 @@ export default async function AdminSubmissions({
             {f.label} ({countOf(f.value)})
           </Link>
         ))}
-        <span className="ml-auto">
-          <ReleaseAllPending waiting={waiting} />
-        </span>
       </div>
 
       <p className="max-w-4xl text-xs leading-relaxed text-muted-foreground">
-        Nothing is shown to a reviewer until it is <strong>Ready</strong> with a level.{" "}
-        <strong>General</strong> can go to anyone who has passed the instruction check;{" "}
-        <strong>Routine domain</strong> only to someone who rated themselves F2 or F3 in one of
-        the subjects you tick; <strong>Specialist</strong> only F3. <strong>Unresolved</strong>{" "}
-        is for something you cannot place yet, and is never handed out. Each thing a reviewer
-        can be shown (a conversation, or a folder read as a whole) aims for{" "}
-        {settings.reviewsPerView} review{settings.reviewsPerView === 1 ? "" : "s"}; nobody is
-        shown their own work, or two things from the same piece of work and its related versions.
-        {settings.autoReleaseSubmissions
-          ? " New submissions are being released automatically as General (Settings)."
-          : " New submissions wait here as Pending (change this in Settings)."}
+        Every submission is available to every reviewer as soon as it is submitted. Nobody is
+        shown their own work, or two things from the same piece of work and its related versions,
+        and a reviewer who finds one outside their expertise skips it. Each thing a reviewer can
+        be shown (a conversation, or a folder read as a whole) aims for {settings.reviewsPerView}{" "}
+        review{settings.reviewsPerView === 1 ? "" : "s"}. Hold one back, or withdraw it, only if
+        it should not be shown at all.
       </p>
-
-      <ReviewerPool pool={pool} />
 
       {shown.length === 0 ? (
         <p className="rounded-[var(--radius)] border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
@@ -164,8 +156,10 @@ function SubmissionCard({ episode: ep, target }: { episode: Submission; target: 
             STATE_TONE[ep.assignmentState] ?? STATE_TONE.pending,
           )}
         >
-          {ASSIGNMENT_STATES.find((s) => s.value === ep.assignmentState)?.label ??
-            ep.assignmentState}
+          {ep.assignmentState === "ready"
+            ? "Available"
+            : (ASSIGNMENT_STATES.find((s) => s.value === ep.assignmentState)?.label ??
+              ep.assignmentState)}
         </span>
       </div>
 
@@ -184,10 +178,8 @@ function SubmissionCard({ episode: ep, target }: { episode: Submission; target: 
         ))}
       </ul>
 
-      <SubmissionRouting
+      <SubmissionState
         episodeId={ep.id}
-        reviewLevel={ep.reviewLevel}
-        eligibleDomains={ep.eligibleDomains}
         assignmentState={ep.assignmentState}
         activeHolders={activeHolders}
       />
@@ -213,58 +205,4 @@ function PairAudit({
   if (link.auditInProgress) return <span>comparison in progress</span>;
   if (link.targetStatus !== "submitted") return <span>no comparison until both are submitted</span>;
   return <span>not compared yet</span>;
-}
-
-function ReviewerPool({ pool }: { pool: Awaited<ReturnType<typeof reviewerPool>> }) {
-  const anyone = pool.domains.filter((d) => d.everyone.routine > 0);
-  return (
-    <details className="rounded-[var(--radius)] border border-border bg-card">
-      <summary className="cursor-pointer px-4 py-2.5 text-sm">
-        <span className="font-medium">Who can review</span>{" "}
-        <span className="text-xs text-muted-foreground">
-          {`${pool.ready} of ${pool.onboarded} people have passed the instruction check for review instructions version ${pool.policyVersion}.`}
-        </span>
-      </summary>
-      <div className="border-t border-border px-4 py-3">
-        <Panelless>
-          Look here before marking something Routine or Specialist: with nobody in a column, it
-          will sit unreviewed. Counts are of people who can review now, with everyone who has
-          joined in brackets.
-        </Panelless>
-        {anyone.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">
-            Nobody has rated themselves F2 or F3 in any subject yet, so only General items can be
-            reviewed.
-          </p>
-        ) : (
-          <table className="mt-2 text-xs">
-            <thead className="text-left text-muted-foreground">
-              <tr>
-                <th className="py-1 pr-6 font-medium">Subject</th>
-                <th className="py-1 pr-6 text-right font-medium">Routine (F2 or F3)</th>
-                <th className="py-1 text-right font-medium">Specialist (F3)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {anyone.map((d) => (
-                <tr key={d.id} className="border-t border-border">
-                  <td className="py-1 pr-6">{d.label}</td>
-                  <td className="py-1 pr-6 text-right tabular-nums">
-                    {d.routine} ({d.everyone.routine})
-                  </td>
-                  <td className="py-1 text-right tabular-nums">
-                    {d.specialist} ({d.everyone.specialist})
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </details>
-  );
-}
-
-function Panelless({ children }: { children: React.ReactNode }) {
-  return <p className="max-w-3xl text-xs leading-relaxed text-muted-foreground">{children}</p>;
 }
