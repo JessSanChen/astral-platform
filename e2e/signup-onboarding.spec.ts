@@ -143,7 +143,7 @@ test.describe("getting in", () => {
     await expect(background.getByText(/primary area|specialization/i)).toHaveCount(0);
 
     await finishOnboarding(page, { area: INTAKE.virology, level: INTAKE.specialist });
-    await expect(page.getByRole("heading", { name: "New conversation" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New", exact: true })).toBeVisible();
 
     const row = await stored(email);
     expect(row.intake).toMatchObject({

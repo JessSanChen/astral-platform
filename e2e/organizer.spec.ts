@@ -67,7 +67,9 @@ test.describe("the organizer console", () => {
     await expect(row).toContainText("Active");
     await expect(row.locator("td").nth(column("Submitted"))).toHaveText("1");
     await expect(row.locator("td").nth(column("Drafts"))).toHaveText("1");
-    await expect(row.locator("td").nth(column("Reviews"))).toHaveText("0");
+    // Transcript reviews and comparisons are counted in columns of their own.
+    await expect(row.locator("td").nth(column("Transcript reviews"))).toHaveText("0");
+    await expect(row.locator("td").nth(column("Comparisons"))).toHaveText("0");
 
     // Your own role is not yours to change.
     const mine = page.locator("tr").filter({ hasText: organizer.email });
@@ -127,8 +129,9 @@ test.describe("the organizer console", () => {
     expect(mineOnly.map((l) => l.session_id)).toEqual([submitted.sessionId]);
 
     // A participant corrects their background answers afterwards. The
-    // export then carries the new answers as the current ones, both sets in
-    // the history, and the submission still says what stood when it was made.
+    // correction replaces what was there: the export carries the new
+    // answers, and the submission made earlier still says what stood when
+    // it was made.
     await participant.page.goto("/profile");
     await choose(participant.page, INTAKE.role, "Policy or safety professional");
     await participant.page.getByRole("button", { name: "Save changes" }).click();
@@ -141,11 +144,6 @@ test.describe("the organizer console", () => {
     expect(new Date(current.intake_updated_at as string).getTime()).toBeGreaterThan(
       new Date(intake.intake_updated_at as string).getTime(),
     );
-    const history = after.filter((l) => l.record === "participant_intake_revision" && theirs(l));
-    expect(history.map((h) => [h.source, (h.intake as { role: string }).role])).toEqual([
-      ["onboarding", "postdoctoral"],
-      ["profile", "policy_safety"],
-    ]);
     const frozen = after.find((l) => l.record === "session" && l.session_id === submitted.sessionId)!;
     const snapshot = (frozen.submissions as { snapshot: { participant: { intake: { role: string } } } }[])[0]
       .snapshot;

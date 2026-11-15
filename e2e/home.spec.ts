@@ -36,12 +36,17 @@ test.describe("the front page", () => {
     await expect(page.getByRole("table").getByRole("row")).not.toHaveCount(1);
     const main = page.getByRole("main");
     await expect(main.getByText(/collaborat/i)).toHaveCount(0);
-    // Five awards: two counted, three entered by nomination.
+    // Six awards: three counted, three entered by nomination. The one
+    // for comparisons says its prize pool is smaller.
     const awards = page.getByRole("table");
-    await expect(awards.getByRole("row")).toHaveCount(6);
+    await expect(awards.getByRole("row")).toHaveCount(7);
+    await expect(
+      awards.getByRole("row").filter({ hasText: "Most Qualified Comparisons" }),
+    ).toContainText("Smaller prize pool");
     for (const award of [
       "Most Qualified Transcripts",
       "Most Qualified Reviews",
+      "Most Qualified Comparisons",
       "Most Interesting AI Risk Finding",
       "Best Comparative Investigation",
       "Best Multi-Session Investigation",

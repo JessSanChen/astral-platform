@@ -145,7 +145,7 @@ export const PROVENANCE = {
  * its id.
  *
  * Created directly, so that a test decides what its first message is. The
- * way a person starts one, by typing on the New conversation screen, has a
+ * way a person starts one, by choosing a model and typing on the New screen, has a
  * test of its own in authoring.spec.ts. Whether the task is real or
  * invented is answered here unless a test asks to leave it for the panel.
  */
@@ -161,6 +161,9 @@ export async function startConversation(
     data: {
       modelId: DEFAULT_MODELS[0].id,
       folder: Boolean(options.folder),
+      // A folder made here has its own questions answered already, as the
+      // New screen would have had them answered.
+      folderLabels: options.folder ? { role: "self", taskKinds: ["learn"] } : undefined,
       provenance: options.provenance === undefined ? "invented" : options.provenance,
       goal: options.goal ?? null,
     },
@@ -170,6 +173,14 @@ export async function startConversation(
   await page.goto(`/chat/${id}`);
   await expect(page.getByPlaceholder("Send a message...")).toBeVisible();
   return id;
+}
+
+/** Chooses a model on the New screen, by its name. */
+export async function pickModel(page: Page, name: string = DEFAULT_MODELS[0].displayName) {
+  await page
+    .locator('[data-label-question="model"]')
+    .getByRole("radio", { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`) })
+    .check();
 }
 
 /** Sends a message and waits for the stand-in model's reply to it. */
@@ -189,6 +200,11 @@ export type AuthorAnswers = {
   scenario: string;
   expect: "Yes" | "No" | "Unsure";
   confidence: "High" | "Moderate" | "Low" | "Unsure";
+  /**
+   * Whether the task is real. Asked in the panel; left out here where it
+   * was already answered when the conversation was made.
+   */
+  provenance?: (typeof PROVENANCE)[keyof typeof PROVENANCE];
 };
 export const PLAIN_ANSWERS: AuthorAnswers = {
   role: "Myself, without a specific role",
@@ -201,6 +217,9 @@ export const PLAIN_ANSWERS: AuthorAnswers = {
 /** Answers the questions every submission needs, in the side panel. */
 export async function fillLabels(page: Page, answers: AuthorAnswers = PLAIN_ANSWERS) {
   const question = (id: string) => page.locator(`[data-label-question="${id}"]`);
+  if (answers.provenance) {
+    await question("provenance").getByRole("radio", { name: answers.provenance, exact: true }).check();
+  }
   await question("role").getByRole("radio", { name: answers.role, exact: true }).check();
   for (const task of answers.tasks) {
     await question("taskKinds").getByRole("checkbox", { name: task, exact: true }).check();
@@ -237,10 +256,15 @@ export function reviewForm(page: Page) {
 /** Asks for the next item and waits for it to open. */
 export async function getReview(page: Page) {
   await page.goto("/review");
-  await page.getByRole("button", { name: /^(Get a review|Next item)$/ }).click();
+  await page.getByRole("button", { name: "Get a review" }).click();
   await page.waitForURL(/\/review\/[0-9a-f-]{36}$/);
   await expect(reviewForm(page)).toBeVisible();
   return page.url().split("/").pop()!;
+}
+
+/** One of the two kinds of review on the Review page: its button, counts and instructions. */
+export function reviewCard(page: Page, kind: "Transcript review" | "Comparison") {
+  return page.getByRole("region", { name: kind, exact: true });
 }
 
 export type ReviewChoices = {

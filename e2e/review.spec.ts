@@ -9,6 +9,7 @@ import {
   getReview,
   newParticipant,
   newReviewer,
+  reviewCard,
   reviewForm,
   say,
   startConversation,
@@ -211,8 +212,11 @@ test.describe("independent review", () => {
     await page.goto(`/review/${assignmentId}`);
     await expect(page.getByText("You have finished this one")).toBeVisible();
     await page.goto("/review");
-    await expect(page.getByText(/1 reviewed, 0 compared, 0 skipped/)).toBeVisible();
-    await page.getByRole("button", { name: "Next item" }).click();
+    // Counted on its own card, apart from comparisons.
+    await expect(reviewCard(page, "Transcript review")).toContainText("1 completed · 0 skipped");
+    await expect(reviewCard(page, "Comparison")).toContainText("0 completed · 0 skipped");
+    // The button reads the same however many have been done.
+    await page.getByRole("button", { name: "Get a review" }).click();
     await expect(page.getByText(NOTHING)).toBeVisible();
 
     await author.context.close();
@@ -241,11 +245,14 @@ test.describe("independent review", () => {
       "Half a thought.",
     );
 
-    // Pausing is not giving up: the same item is waiting, and no other is offered.
+    // Pausing is not giving up. The button reads as it did, the page says
+    // one is in progress, and the button opens that one, not another.
     await page.getByRole("link", { name: "Pause" }).click();
     await page.waitForURL("**/review");
-    await expect(page.getByRole("button", { name: /Get a review|Next item/ })).toHaveCount(0);
-    await page.getByRole("button", { name: "Continue where you left off" }).click();
+    await expect(reviewCard(page, "Transcript review")).toContainText("1 in progress");
+    await expect(reviewCard(page, "Comparison")).not.toContainText("in progress");
+    await expect(page.getByRole("button", { name: /Next|Continue/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "Get a review" }).click();
     await page.waitForURL(`**/review/${assignmentId}`);
     await expect(page.locator('[data-turn="1"]')).toContainText(shown);
 
@@ -289,7 +296,8 @@ test.describe("independent review", () => {
     await reviewForm(page).getByRole("button", { name: "Next item" }).click();
     await expect(reviewForm(page).getByText(/nothing more for you right now/)).toBeVisible();
     await page.goto("/review");
-    await expect(page.getByText(/0 reviewed, 0 compared, 1 skipped/)).toBeVisible();
+    await expect(reviewCard(page, "Transcript review")).toContainText("0 completed · 1 skipped");
+    await expect(reviewCard(page, "Comparison")).toContainText("0 completed · 0 skipped");
 
     // The place it held is free for someone else.
     const second = await newReviewer(browser, "Tao Takes");
@@ -391,9 +399,9 @@ test.describe("independent review", () => {
     await page.getByRole("button", { name: "Submit and continue" }).click();
     await page.waitForURL(`**/chat/related/${sourceEpisode}`);
     await page
-      .getByRole("radio", { name: "Change wording or format while keeping the substantive facts" })
-      .check();
-    await page.getByLabel("Briefly describe what you will change.").fill("INTENDED: ask more formally.");
+    await expect(page.getByRole("heading", { name: "Create a related conversation" })).toBeVisible();
+    await page.getByRole("radio", { name: "A different way of asking" }).check();
+    await page.getByLabel("What are you planning to change? (optional)").fill("INTENDED: ask more formally.");
     await page.getByRole("button", { name: "Create", exact: true }).click();
     await page.waitForURL((url) => /\/chat\/[0-9a-f-]{36}$/.test(url.pathname) && !url.pathname.endsWith(source));
     const related = page.url().split("/").pop()!;
@@ -401,11 +409,25 @@ test.describe("independent review", () => {
     await submitWork(page);
     const relatedEpisode = await episodeOf(related);
 
+    // Unrelated work by someone else, for reviewing while a comparison waits.
+    const other = await authorWith(browser, "Yan Other", "What is a plasmid, in one line?");
+
     const auditor = await newReviewer(browser, "Abe Auditor");
     // A pair is offered only while both ends may be shown: with one of
     // them held back by an organizer, there is nothing to compare.
     await sql`update episode set assignment_state = 'held' where id = ${relatedEpisode}`;
     await auditor.page.goto("/review");
+    // Each kind of review has its own instructions, always in view under its button.
+    await expect(
+      auditor.page
+        .getByRole("group", { name: /^Transcript review instructions/ })
+        .getByRole("heading", { name: "Reviewing conversations for specialist attention" }),
+    ).toBeVisible();
+    await expect(
+      auditor.page
+        .getByRole("group", { name: "Comparison instructions" })
+        .getByRole("heading", { name: "Comparing two related conversations" }),
+    ).toBeVisible();
     await auditor.page.getByRole("button", { name: "Compare two versions" }).click();
     await expect(auditor.page.getByText(/There is no pair for you to compare right now/)).toBeVisible();
     await release(relatedEpisode);
@@ -424,45 +446,87 @@ test.describe("independent review", () => {
         .getByText("to: Kindly explain codon bias."),
     ).toBeVisible();
 
-    const q = (id: string) => form.locator(`[data-question="${id}"]`);
-    await q("topicTaskMatch").getByRole("radio", { name: "Yes", exact: true }).check();
-    await q("sensitivityMatch").getByRole("radio", { name: "Partly", exact: true }).check();
-    await q("intendedChangeRealized").getByRole("radio", { name: "Yes", exact: true }).check();
-    // "None identified" stands alone.
-    await q("unintendedDifferences").getByRole("checkbox", { name: "Length" }).check();
-    await q("unintendedDifferences").getByRole("checkbox", { name: "None identified" }).check();
-    await expect(q("unintendedDifferences").getByRole("checkbox", { name: "Length" })).not.toBeChecked();
-    await q("comparisonType").getByRole("radio", { name: "Meaning-preserving variation" }).check();
+    // A comparison in progress does not close the other kind of review.
+    // Paused, the page says so; the buttons read as they always do; and a
+    // transcript can be asked for, reviewed and counted on its own.
+    await auditor.page.getByRole("link", { name: "Pause" }).click();
+    await auditor.page.waitForURL("**/review");
+    const comparison = reviewCard(auditor.page, "Comparison");
+    const transcript = reviewCard(auditor.page, "Transcript review");
+    await expect(comparison).toContainText("0 completed · 0 skipped · 1 in progress");
+    await expect(transcript).not.toContainText("in progress");
+    await transcript.getByRole("button", { name: "Get a review" }).click();
+    await auditor.page.waitForURL(
+      (url) => /\/review\/[0-9a-f-]{36}$/.test(url.pathname) && !url.pathname.endsWith(assignmentId),
+    );
+    const reviewId = auditor.page.url().split("/").pop()!;
+    await expect(auditor.page.getByText("to: What is a plasmid, in one line?")).toBeVisible();
+    // Both are in progress now, each under its own button, which opens it.
+    await auditor.page.getByRole("link", { name: "Pause" }).click();
+    await auditor.page.waitForURL("**/review");
+    await expect(transcript).toContainText("1 in progress");
+    await expect(comparison).toContainText("1 in progress");
+    await transcript.getByRole("button", { name: "Get a review" }).click();
+    await auditor.page.waitForURL(`**/review/${reviewId}`);
+    await fillReview(auditor.page, A_NO);
+    await submitReview(auditor.page);
+    await auditor.page.goto("/review");
+    await expect(transcript).toContainText("1 completed · 0 skipped");
+    await expect(transcript).not.toContainText("in progress");
+    await expect(comparison).toContainText("0 completed · 0 skipped · 1 in progress");
+    await comparison.getByRole("button", { name: "Compare two versions" }).click();
+    await auditor.page.waitForURL(`**/review/${assignmentId}`);
 
-    // An imperfect match has to be explained.
+    // Three questions, each answered.
     await form.getByRole("button", { name: "Submit comparison" }).click();
-    await expect(form.getByText("Briefly explain the mismatch or limitation.")).toBeVisible();
-    await q("auditNote").getByRole("textbox").fill("The second is a little more guarded.");
+    await expect(form.getByText("Please complete the highlighted answers.")).toBeVisible();
+    const q = (id: string) => form.locator(`[data-question="${id}"]`);
+    await expect(q("topicTaskMatch")).toContainText(
+      "Are these conversations about substantially the same scientific topic or task?",
+    );
+    await q("topicTaskMatch").getByRole("radio", { name: "Yes", exact: true }).check();
+    await expect(q("scopeSimilarity")).toContainText(
+      "How similar is the scientific or technical scope of the requests?",
+    );
+    await q("scopeSimilarity").getByRole("radio", { name: "Some meaningful differences" }).check();
+    await expect(q("mainDifference")).toContainText(
+      "What is the main substantive difference between the conversations?",
+    );
+    await q("mainDifference").getByRole("radio", { name: "Wording or presentation only" }).check();
+    await expect(form.getByText("What comparison does this pair support?")).toHaveCount(0);
+
+    // What the author set out to explore is set apart at the top.
+    const said = auditor.page.getByRole("region", { name: "What the author set out to explore" });
+    await expect(said).toContainText("A different way of asking");
+    await expect(said).toContainText("INTENDED: ask more formally.");
+
+    // The note is optional.
     await form.getByRole("button", { name: "Submit comparison" }).click();
     await expect(form.getByText("Comparison recorded")).toBeVisible();
 
     const [audit] = await sql`
-      select topic_task_match, sensitivity_match, intended_change_realized,
-             unintended_differences, comparison_type, audit_note, form_version
+      select topic_task_match, scope_similarity, main_difference,
+             comparison_type, audit_note, form_version
       from pair_audit where assignment_id = ${assignmentId}
     `;
     expect(audit).toMatchObject({
       topic_task_match: "yes",
-      sensitivity_match: "partly",
-      intended_change_realized: "yes",
-      unintended_differences: ["none_identified"],
-      comparison_type: "meaning_preserving",
-      audit_note: "The second is a little more guarded.",
-      form_version: "D-1.1",
+      scope_similarity: "some_differences",
+      main_difference: "wording_only",
+      comparison_type: null,
+      audit_note: null,
+      form_version: "D-2.0",
     });
 
-    // Having seen both, the auditor reviews neither.
+    // Having seen both, the auditor reviews neither. The two counts stand apart.
     await auditor.page.goto("/review");
-    await expect(auditor.page.getByText(/0 reviewed, 1 compared, 0 skipped/)).toBeVisible();
+    await expect(reviewCard(auditor.page, "Transcript review")).toContainText("1 completed · 0 skipped");
+    await expect(reviewCard(auditor.page, "Comparison")).toContainText("1 completed · 0 skipped");
     await auditor.page.getByRole("button", { name: "Get a review" }).click();
     await expect(auditor.page.getByText(NOTHING)).toBeVisible();
 
     await author.context.close();
+    await other.context.close();
     await auditor.context.close();
   });
 });

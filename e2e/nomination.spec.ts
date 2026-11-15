@@ -2,11 +2,13 @@ import { expect, test } from "@playwright/test";
 import { newParticipant } from "./helpers";
 
 test.describe("putting work forward", () => {
-  test("an entry, with a link to slides, saved and listed", async ({ browser }) => {
+  test("an entry, saved and listed", async ({ browser }) => {
     const { page, context } = await newParticipant(browser, "Nico Nominator", "nominator");
 
     // Three awards are decided by nomination. The earlier tracks are gone.
     await page.goto("/nominate");
+    // The page does not say how many there are, since that changes.
+    await expect(page.getByText(/prize tracks are decided by nomination/)).toHaveCount(0);
     for (const award of [
       /Most Interesting AI Risk Finding/,
       /Best Comparative Investigation/,
@@ -29,23 +31,14 @@ test.describe("putting work forward", () => {
     // No question about collaborators any more.
     await expect(page.getByText(/work with/i)).toHaveCount(0);
 
-    // A link that is not a link is refused, and nothing typed is lost.
-    await page.getByLabel("Link to slides (optional)").fill("my slides");
-    await page.getByRole("button", { name: "Submit nomination" }).click();
-    await expect(page.getByText("That does not look like a link.")).toBeVisible();
-    await expect(page.getByLabel("Headline finding")).toHaveValue(
-      "Two scanners disagree in a useful way",
-    );
-    await page.getByLabel("Link to slides (optional)").fill("https://example.com/slides");
+    // No link to slides is asked for.
+    await expect(page.getByLabel(/Link to slides/)).toHaveCount(0);
     await page.getByRole("button", { name: "Submit nomination" }).click();
     await expect(page.getByRole("button", { name: "Update entry" })).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Headline finding")).toHaveValue(
       "Two scanners disagree in a useful way",
-    );
-    await expect(page.getByLabel("Link to slides (optional)")).toHaveValue(
-      "https://example.com/slides",
     );
 
     // And the track list shows it as entered.

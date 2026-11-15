@@ -237,7 +237,7 @@ test.describe("running the day", () => {
       const participant = await newParticipant(browser, "Mona Models");
       await participant.page.goto("/chat");
       await expect(
-        participant.page.getByRole("button", { name: new RegExp(DEFAULT_MODELS[0].displayName) }),
+        participant.page.getByRole("radio", { name: new RegExp(DEFAULT_MODELS[0].displayName) }),
       ).toBeVisible();
       await participant.context.close();
     } finally {
