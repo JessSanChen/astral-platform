@@ -51,7 +51,7 @@ test.describe("the organizer console", () => {
     await page.goto("/admin");
     await expect(page.getByText("Work submitted")).toBeVisible();
     await expect(page.getByText("Waiting to be released", { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Submissions" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Submissions", exact: true })).toBeVisible();
 
     await page.goto("/admin/participants");
     const headers = await page.locator("thead th").allInnerTexts();
