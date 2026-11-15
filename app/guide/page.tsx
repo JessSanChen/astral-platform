@@ -11,8 +11,8 @@ export default async function GuidePage() {
       <div className="mb-12 space-y-2">
         <h1 className="font-serif text-3xl font-medium tracking-tight">How today works</h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Why the day exists, what you will be doing, the prizes and their
-          deadlines, and what happens to what you write.
+          Why the day exists, how writing and reviewing work, the prizes, and
+          what happens to what you write.
         </p>
       </div>
       <AboutAstral />

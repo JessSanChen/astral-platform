@@ -41,8 +41,8 @@ export default async function Home() {
           </h1>
           <p className="mt-6 max-w-xl font-serif text-xl leading-relaxed text-muted-foreground sm:text-2xl sm:leading-relaxed">
             A one-day workshop building the dataset that AI biosecurity
-            scanners are missing. You talk to the models, you label what
-            happened, and the record goes to the research.
+            scanners are missing. You talk to the models, you review what
+            other people submitted, and the record goes to the research.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">

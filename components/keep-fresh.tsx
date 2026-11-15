@@ -7,8 +7,8 @@ import { useRouter } from "next/navigation";
  * Keeps a page that someone leaves open in step with the server.
  *
  * A page is rendered once, when it is opened. Without this, a participant
- * with the nominations page already on screen would go on seeing an open
- * form after an organizer closed nominations, until they happened to
+ * with the prizes page already on screen would go on seeing it open
+ * after an organizer closed prize entries, until they happened to
  * navigate. This asks the server again every so often, when the tab is
  * returned to, and at a moment known in advance (`at`, such as a closing
  * time). Asking again re-renders what came from the server and leaves

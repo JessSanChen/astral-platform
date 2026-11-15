@@ -20,7 +20,7 @@ const SECTIONS = [
   { href: "/guide", label: "How it works", icon: BookOpen },
   { href: "/chat", label: "My chats", icon: MessagesSquare },
   { href: "/review", label: "Review", icon: ClipboardCheck },
-  { href: "/nominate", label: "Submit", icon: Trophy },
+  { href: "/prizes", label: "Prizes", icon: Trophy },
 ] as const;
 
 const ADMIN_SECTION = {
