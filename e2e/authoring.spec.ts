@@ -68,25 +68,27 @@ test.describe("writing conversations", () => {
     );
     expect(overflow).toBeLessThanOrEqual(0);
 
-    // Whether the task is real is asked in the panel, and only has to be
-    // answered by the time the work is submitted.
-    const episodeId = await episodeOf(id);
-    const provenance = async () =>
-      (await sql`select task_provenance from episode where id = ${episodeId}`)[0].task_provenance;
-    expect(await provenance()).toBeNull();
-    await fillLabels(page);
-    await page.getByRole("button", { name: "Submit conversation" }).click();
+    // The questions about the conversation are one list in the panel,
+    // the scenario first, with no headings between them. Whether the task
+    // is real or invented is no longer asked.
+    const panel = page.locator("aside").filter({ has: page.locator("[data-label-question]") });
+    expect(
+      await panel.locator("[data-label-question]").evaluateAll((all) =>
+        all.map((q) => q.getAttribute("data-label-question")),
+      ),
+    ).toEqual(["scenario", "role", "taskKinds", "goal", "expectReferral", "expectConfidence"]);
     await expect(
-      page.getByRole("alert").filter({ hasText: "Say whether the task is real or was made up for today." }),
+      panel.getByRole("group", { name: "Which best describes the scenario you're constructing?" }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Yes, submit" })).toHaveCount(0);
-    await page.getByRole("radio", { name: "Based on a real task", exact: true }).check();
+    for (const gone of ["Real or invented?", "Conversation setup", "Your assessment"]) {
+      await expect(panel.getByText(gone, { exact: true })).toHaveCount(0);
+    }
+    await expect(page.getByRole("radio", { name: "Based on a real task" })).toHaveCount(0);
     await submitWork(page);
-    expect(await provenance()).toBe("real");
     // What was said about the work is on its one session too, so every
     // session reads the same way in the export.
     const [{ author_labels: onSession }] = await sql`select author_labels from conversation where id = ${id}`;
-    expect(onSession).toMatchObject({ role: "self", scenario: "ordinary", provenance: "real" });
+    expect(onSession).toMatchObject({ role: "self", scenario: "ordinary" });
     await context.close();
   });
 
@@ -155,7 +157,6 @@ test.describe("writing conversations", () => {
 
     // This session takes a different role from the folder's, and says so.
     await fillLabels(page, {
-      provenance: "Created for this exercise",
       role: "Another fictional role",
       tasks: [],
       scenario: "Fictional concerning or misuse-oriented scenario",
@@ -164,9 +165,40 @@ test.describe("writing conversations", () => {
     });
     // The folder cannot go until every session has answered.
     await page.getByRole("button", { name: "Submit folder" }).click();
-    await expect(page.getByText(/2 sessions will be submitted: 1, 2\./)).toBeVisible();
+    await expect(page.getByText(/2 sessions are in it: 1, 2\./)).toBeVisible();
     await page.getByRole("button", { name: "Yes, submit" }).click();
     await expect(page.getByText(/Session 1 still has unanswered questions/)).toBeVisible();
+
+    // One session can go in by itself. That closes it and leaves the
+    // folder open, and the list says which is which.
+    const nav = page.getByRole("navigation", { name: "My work" });
+    await expect(nav.getByRole("link", { name: /^Folder \d+/ })).toContainText("Not submitted");
+    await page.getByRole("button", { name: "Submit conversation" }).click();
+    await expect(page.getByText(/Only this conversation is submitted\. The rest of the folder stays open/)).toBeVisible();
+    await page.getByRole("button", { name: "Yes, submit" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "The folder is still open" })).toBeVisible();
+    await expect(page.getByPlaceholder("Send a message...")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Submit conversation" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Submit folder" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: /^Folder \d+/ })).toContainText("Not submitted");
+    await expect(nav.getByText("Submitted by itself")).toBeVisible();
+    expect(
+      await sql`
+        select c.status, e.status as folder,
+               (select count(*)::int from review_view v where v.episode_id = e.id) as views,
+               (select count(*)::int from review_view v where v.conversation_id = c.id and v.kind = 'session') as own
+        from conversation c join episode e on e.id = c.episode_id where c.id = ${second}
+      `,
+    ).toEqual([{ status: "submitted", folder: "draft", views: 1, own: 1 }]);
+    // Closed means closed: the server takes no more messages for it.
+    const late = await page.request.post("/api/chat", {
+      data: {
+        id: second,
+        modelId: other.id,
+        messages: [{ id: "late", role: "user", parts: [{ type: "text", text: "One more thing." }] }],
+      },
+    });
+    expect(late.ok()).toBe(false);
 
     // The folder's own page, from its name in the list: its answers can be
     // changed there, and that does not rewrite what a session says.
@@ -182,13 +214,14 @@ test.describe("writing conversations", () => {
       role: "fictional_other",
       taskKinds: ["research"],
       scenario: "fictional_concerning",
-      provenance: "invented",
     });
 
     // The first session answers, and the folder is submitted from it.
     await page.getByRole("link", { name: /^1\. SESSION-ONE-SECRET/ }).first().click();
     await page.waitForURL(`**/chat/${first}`);
-    await submitWork(page, { ...PLAIN_ANSWERS, provenance: "Based on a real task", role: "Researcher or scientist" });
+    await submitWork(page, { ...PLAIN_ANSWERS, role: "Researcher or scientist" });
+    await expect(nav.getByRole("link", { name: /^Folder \d+/ })).toContainText("Submitted");
+    await expect(nav.getByRole("link", { name: /^Folder \d+/ })).not.toContainText("Not submitted");
 
     // Each session by itself, and the two together in the order things
     // happened, under neutral names.
@@ -213,26 +246,53 @@ test.describe("writing conversations", () => {
     expect(JSON.stringify(views)).not.toContain("FOLDER-GOAL");
     expect(JSON.stringify(views)).not.toContain("fictional_concerning");
 
-    // A related version of a folder is a folder too, starting from the
-    // original folder's answers and with one empty session.
+    // A related version is of one conversation, not of the folder: made
+    // from this session, it is a single conversation linked to this
+    // session.
     await page.getByRole("link", { name: "Create related version" }).click();
+    await page.waitForURL(`**/chat/related/${first}`);
     // Saying what will change is optional: the choice is enough.
     await page.getByRole("radio", { name: "Something else" }).check();
     await page.getByRole("button", { name: "Create", exact: true }).click();
     await page.waitForURL(
       (url) => /\/chat\/[0-9a-f-]{36}$/.test(url.pathname) && ![first, second].some((id) => url.pathname.endsWith(id)),
     );
-    await expect(page.getByRole("button", { name: "New session" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Submit folder" })).toBeVisible();
-    const [related] = await sql`
-      select e.is_folder, e.source_family_id, e.author_labels from episode e
-      where e.id = ${await episodeOf(page.url().split("/").pop()!)}
-    `;
-    expect(related).toMatchObject({
-      is_folder: true,
+    const relatedId = page.url().split("/").pop()!;
+    await expect(page.getByRole("button", { name: "Submit folder" })).toHaveCount(0);
+    const link = async () =>
+      (
+        await sql`
+          select rv.source_conversation_id, rv.target_conversation_id, e.is_folder, e.source_family_id
+          from related_version rv join episode e on e.id = rv.target_episode_id
+          where rv.target_conversation_id = ${relatedId}
+        `
+      )[0];
+    expect(await link()).toEqual({
+      source_conversation_id: first,
+      target_conversation_id: relatedId,
+      is_folder: false,
       source_family_id: episodeId,
-      author_labels: { role: "student", taskKinds: ["research"] },
     });
+
+    // Put into a folder afterwards, it is still that one conversation
+    // that is related: the folder is not, and neither is what joins it.
+    await say(page, "The related question.");
+    await page.getByRole("button", { name: "Add a session (makes this a folder)" }).click();
+    await pickModel(page, DEFAULT_MODELS[1].displayName);
+    await say(page, "Something else in the same folder.");
+    await page.waitForURL((url) => /\/chat\/[0-9a-f-]{36}$/.test(url.pathname) && !url.pathname.endsWith(relatedId));
+    const joined = page.url().split("/").pop()!;
+    expect(await link()).toMatchObject({
+      source_conversation_id: first,
+      target_conversation_id: relatedId,
+      is_folder: true,
+    });
+    await expect(page.getByText("A related version", { exact: true })).toHaveCount(0);
+    expect(
+      (await sql`select count(*)::int as n from related_version where target_conversation_id = ${joined}`)[0].n,
+    ).toBe(0);
+    await page.goto(`/chat/${relatedId}`);
+    await expect(page.getByText("A related version", { exact: true })).toBeVisible();
     await context.close();
   });
 
@@ -319,7 +379,7 @@ test.describe("writing conversations", () => {
       expectReferral: "unsure",
       expectConfidence: "low",
     });
-    expect(version).toBe("L-1.0");
+    expect(version).toBe("L-1.1");
     // And shown back to the author, fixed.
     await expect(page.getByText("Dual-use work with potential safety relevance")).toBeVisible();
     await expect(page.getByRole("radio", { name: "Researcher or scientist" })).toHaveCount(0);
@@ -467,9 +527,8 @@ test.describe("writing conversations", () => {
       await sql`select conversation_id, after_work_began from episode_goal_revision where episode_id = ${episodeId}`,
     ).toEqual([{ conversation_id: first, after_work_began: true }]);
 
-    // A session's own goal and real-or-invented answer keep the same
-    // record a conversation's do: each saved goal, with whether the
-    // session had begun, and when the answer last changed.
+    // A session's own goal keeps the same record a conversation's does:
+    // each saved goal, with whether the session had begun.
     const second = page.url().split("/").pop()!;
     await page.getByLabel("Goal or notes").fill("Second-session goal.");
     await page.getByRole("button", { name: "Save note" }).click();
@@ -479,16 +538,11 @@ test.describe("writing conversations", () => {
         select goal_text, after_work_began from episode_goal_revision where conversation_id = ${second}
       `,
     ).toEqual([{ goal_text: "Second-session goal.", after_work_began: true }]);
-    const changed = async () =>
-      (await sql`select provenance_changed_at from conversation where id = ${second}`)[0].provenance_changed_at;
-    expect(await changed()).toBeNull();
-    await page.getByRole("radio", { name: "Created for this exercise" }).check();
-    await expect.poll(changed).not.toBeNull();
     // Saving another answer is not a change to the goal: no second revision.
     await page.getByRole("radio", { name: "Researcher or scientist", exact: true }).check();
     await expect
       .poll(async () => (await sql`select author_labels from conversation where id = ${second}`)[0].author_labels)
-      .toMatchObject({ role: "researcher", goal: "Second-session goal.", provenance: "invented" });
+      .toMatchObject({ role: "researcher", goal: "Second-session goal." });
     expect(
       (await sql`select count(*)::int as n from episode_goal_revision where conversation_id = ${second}`)[0].n,
     ).toBe(1);
@@ -510,18 +564,18 @@ test.describe("writing conversations", () => {
     await say(page, "ORIGINAL-TEXT: explain codon usage.");
 
     // Not from a draft: asking for the form directly is turned away.
-    await page.goto(`/chat/related/${sourceEpisode}`);
+    await page.goto(`/chat/related/${source}`);
     await page.waitForURL(`**/chat/${source}`);
 
     await fillLabels(page);
     await page.getByRole("button", { name: "Submit source and create related version" }).click();
     await page.getByRole("button", { name: "Submit and continue" }).click();
-    await page.waitForURL(`**/chat/related/${sourceEpisode}`);
+    await page.waitForURL(`**/chat/related/${source}`);
 
     // What is being explored has to be chosen before it starts.
     await page.getByRole("button", { name: "Create", exact: true }).click();
     await expect(page.locator("p.text-danger")).toBeVisible();
-    expect(page.url()).toContain(`/chat/related/${sourceEpisode}`);
+    expect(page.url()).toContain(`/chat/related/${source}`);
     await expect(page.getByText("What would you like to explore?")).toBeVisible();
     for (const choice of [
       "A different goal or purpose",
@@ -549,7 +603,8 @@ test.describe("writing conversations", () => {
     const [link] = await sql`
       select rv.comparison_intent, rv.intended_difference, rv.family_id,
              s.model_id as source_model, t.model_id as target_model,
-             t.source_family_id, t.creation_method, t.task_provenance
+             t.source_family_id, t.creation_method,
+             rv.source_conversation_id, rv.target_conversation_id
       from related_version rv
       join episode s on s.id = rv.source_episode_id
       join episode t on t.id = rv.target_episode_id
@@ -562,7 +617,9 @@ test.describe("writing conversations", () => {
       family_id: sourceEpisode,
       source_family_id: sourceEpisode,
       creation_method: "related_live",
-      task_provenance: "real",
+      // The link itself is between the two conversations.
+      source_conversation_id: source,
+      target_conversation_id: related,
     });
     expect(link.target_model).toBe(link.source_model);
 

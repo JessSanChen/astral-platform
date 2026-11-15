@@ -60,7 +60,7 @@ test.describe("independent review", () => {
       }),
     ).toBeVisible();
     await expect(page.getByRole("main").getByText(/reference policy/i)).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Get a review" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Review a transcript" })).toHaveCount(0);
 
     await page.getByRole("radio", { name: "Whether visible user activity warrants specialist review" }).check();
     await page.getByRole("radio", { name: "Automatically refer", exact: true }).check();
@@ -69,13 +69,13 @@ test.describe("independent review", () => {
     await page.getByRole("radio", { name: "Skip as recognized/discussed" }).check();
     await page.getByRole("button", { name: "Check my answers" }).click();
     await expect(page.getByText(/Not that one\. A refusal is something the assistant did/)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Get a review" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Review a transcript" })).toHaveCount(0);
 
     await page
       .getByRole("radio", { name: "Do not use the refusal as evidence; judge the user's activity" })
       .check();
     await page.getByRole("button", { name: "Check my answers" }).click();
-    await expect(page.getByRole("button", { name: "Get a review" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Review a transcript" })).toBeVisible();
 
     const [row] = await sql`
       select policy_ready_version, (select max(version) from review_policy) as current
@@ -84,7 +84,7 @@ test.describe("independent review", () => {
     expect(row.policy_ready_version).toBe(row.current);
 
     // With nothing released, the answer is that there is nothing, said plainly.
-    await page.getByRole("button", { name: "Get a review" }).click();
+    await page.getByRole("button", { name: "Review a transcript" }).click();
     await expect(page.getByText(NOTHING)).toBeVisible();
     await context.close();
   });
@@ -112,7 +112,7 @@ test.describe("independent review", () => {
       where email = ${author.email}
     `;
     await author.page.goto("/review");
-    await author.page.getByRole("button", { name: "Get a review" }).click();
+    await author.page.getByRole("button", { name: "Review a transcript" }).click();
     await expect(author.page.getByText(NOTHING)).toBeVisible();
 
     const page = reviewer.page;
@@ -216,7 +216,7 @@ test.describe("independent review", () => {
     await expect(reviewCard(page, "Transcript review")).toContainText("1 completed · 0 skipped");
     await expect(reviewCard(page, "Comparison")).toContainText("0 completed · 0 skipped");
     // The button reads the same however many have been done.
-    await page.getByRole("button", { name: "Get a review" }).click();
+    await page.getByRole("button", { name: "Review a transcript" }).click();
     await expect(page.getByText(NOTHING)).toBeVisible();
 
     await author.context.close();
@@ -252,7 +252,7 @@ test.describe("independent review", () => {
     await expect(reviewCard(page, "Transcript review")).toContainText("1 in progress");
     await expect(reviewCard(page, "Comparison")).not.toContainText("in progress");
     await expect(page.getByRole("button", { name: /Next|Continue/ })).toHaveCount(0);
-    await page.getByRole("button", { name: "Get a review" }).click();
+    await page.getByRole("button", { name: "Review a transcript" }).click();
     await page.waitForURL(`**/review/${assignmentId}`);
     await expect(page.locator('[data-turn="1"]')).toContainText(shown);
 
@@ -370,7 +370,7 @@ test.describe("independent review", () => {
     const assignmentId = await getReview(first.page);
     // The one place is taken while the first reviewer is reading.
     await second.page.goto("/review");
-    await second.page.getByRole("button", { name: "Get a review" }).click();
+    await second.page.getByRole("button", { name: "Review a transcript" }).click();
     await expect(second.page.getByText(NOTHING)).toBeVisible();
 
     // An organizer puts the record on hold while it is being read.
@@ -386,18 +386,49 @@ test.describe("independent review", () => {
     for (const p of [author, first, second]) await p.context.close();
   });
 
+  test("a session submitted by itself is reviewed while its folder is still open", async ({
+    browser,
+  }) => {
+    const author = await newParticipant(browser, "Faye Folder", "author");
+    const sessionId = await startConversation(author.page, { folder: true });
+    await say(author.page, "ONE-SESSION: what is an operon?");
+    await fillLabels(author.page);
+    await author.page.getByRole("button", { name: "Submit conversation" }).click();
+    await author.page.getByRole("button", { name: "Yes, submit" }).click();
+    await expect(author.page.getByRole("status").filter({ hasText: "The folder is still open" })).toBeVisible();
+    const [{ status }] = await sql`
+      select e.status from episode e join conversation c on c.episode_id = e.id where c.id = ${sessionId}
+    `;
+    expect(status).toBe("draft");
+
+    const reviewer = await newReviewer(browser, "Rae Reviewer");
+    await getReview(reviewer.page);
+    await expect(reviewer.page.getByText("to: ONE-SESSION: what is an operon?")).toBeVisible();
+    await fillReview(reviewer.page, A_NO);
+    await submitReview(reviewer.page);
+
+    // The organizer sees it among the submissions, as a folder not yet submitted.
+    const [{ listed }] = await sql`
+      select count(*)::int as listed from review_view v
+      join conversation c on c.id = v.conversation_id where c.id = ${sessionId} and v.kind = 'session'
+    `;
+    expect(listed).toBe(1);
+
+    await author.context.close();
+    await reviewer.context.close();
+  });
+
   test("comparing two related versions is a separate task with its own form", async ({
     browser,
   }) => {
     const author = await newParticipant(browser, "Zoe Author", "author");
     const page = author.page;
     const source = await startConversation(page);
-    const sourceEpisode = await episodeOf(source);
     await say(page, "Explain codon bias plainly.");
     await fillLabels(page);
     await page.getByRole("button", { name: "Submit source and create related version" }).click();
     await page.getByRole("button", { name: "Submit and continue" }).click();
-    await page.waitForURL(`**/chat/related/${sourceEpisode}`);
+    await page.waitForURL(`**/chat/related/${source}`);
     await page
     await expect(page.getByRole("heading", { name: "Create a related conversation" })).toBeVisible();
     await page.getByRole("radio", { name: "A different way of asking" }).check();
@@ -428,11 +459,11 @@ test.describe("independent review", () => {
         .getByRole("group", { name: "Comparison instructions" })
         .getByRole("heading", { name: "Comparing two related conversations" }),
     ).toBeVisible();
-    await auditor.page.getByRole("button", { name: "Compare two versions" }).click();
+    await auditor.page.getByRole("button", { name: "Compare two related transcripts" }).click();
     await expect(auditor.page.getByText(/There is no pair for you to compare right now/)).toBeVisible();
     await release(relatedEpisode);
 
-    await auditor.page.getByRole("button", { name: "Compare two versions" }).click();
+    await auditor.page.getByRole("button", { name: "Compare two related transcripts" }).click();
     await auditor.page.waitForURL(/\/review\/[0-9a-f-]{36}$/);
     const assignmentId = auditor.page.url().split("/").pop()!;
     const form = auditor.page.getByRole("complementary", { name: "Comparison form" });
@@ -455,7 +486,7 @@ test.describe("independent review", () => {
     const transcript = reviewCard(auditor.page, "Transcript review");
     await expect(comparison).toContainText("0 completed · 0 skipped · 1 in progress");
     await expect(transcript).not.toContainText("in progress");
-    await transcript.getByRole("button", { name: "Get a review" }).click();
+    await transcript.getByRole("button", { name: "Review a transcript" }).click();
     await auditor.page.waitForURL(
       (url) => /\/review\/[0-9a-f-]{36}$/.test(url.pathname) && !url.pathname.endsWith(assignmentId),
     );
@@ -482,7 +513,7 @@ test.describe("independent review", () => {
     await auditor.page.waitForURL("**/review");
     await expect(transcript).toContainText("1 in progress");
     await expect(comparison).toContainText("1 in progress");
-    await transcript.getByRole("button", { name: "Get a review" }).click();
+    await transcript.getByRole("button", { name: "Review a transcript" }).click();
     await auditor.page.waitForURL(`**/review/${reviewId}`);
     await fillReview(auditor.page, A_NO);
     await submitReview(auditor.page);
@@ -490,7 +521,7 @@ test.describe("independent review", () => {
     await expect(transcript).toContainText("1 completed · 0 skipped");
     await expect(transcript).not.toContainText("in progress");
     await expect(comparison).toContainText("0 completed · 0 skipped · 1 in progress");
-    await comparison.getByRole("button", { name: "Compare two versions" }).click();
+    await comparison.getByRole("button", { name: "Compare two related transcripts" }).click();
     await auditor.page.waitForURL(`**/review/${assignmentId}`);
 
     // Three questions, each answered.
@@ -538,7 +569,7 @@ test.describe("independent review", () => {
     await auditor.page.goto("/review");
     await expect(reviewCard(auditor.page, "Transcript review")).toContainText("1 completed · 0 skipped");
     await expect(reviewCard(auditor.page, "Comparison")).toContainText("1 completed · 0 skipped");
-    await auditor.page.getByRole("button", { name: "Get a review" }).click();
+    await auditor.page.getByRole("button", { name: "Review a transcript" }).click();
     await expect(auditor.page.getByText(NOTHING)).toBeVisible();
 
     await author.context.close();

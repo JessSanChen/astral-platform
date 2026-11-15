@@ -12,7 +12,7 @@ test.describe("putting work forward", () => {
     await expect(page.getByText(/prize tracks are decided by nomination/)).toHaveCount(0);
     for (const award of [
       /Most Interesting AI Risk Finding/,
-      /Best Comparative Investigation/,
+      /Best Matched Set Investigation/,
       /Best Multi-Session Investigation/,
     ]) {
       await expect(page.getByRole("link", { name: award })).toBeVisible();
@@ -62,7 +62,7 @@ test.describe("putting work forward", () => {
 
     // And the track list shows it as entered.
     await page.goto("/nominate");
-    await expect(page.getByRole("link", { name: /Best Comparative Investigation/ })).toContainText(
+    await expect(page.getByRole("link", { name: /Best Matched Set Investigation/ })).toContainText(
       "Submitted",
     );
     await context.close();

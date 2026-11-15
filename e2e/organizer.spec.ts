@@ -259,7 +259,7 @@ test.describe("the organizer console", () => {
     const reviewer = await newParticipant(browser, "Vera Versioned", "reviewer");
     await passInstructionCheck(reviewer.email);
     await reviewer.page.goto("/review");
-    await expect(reviewer.page.getByRole("button", { name: "Get a review" })).toBeVisible();
+    await expect(reviewer.page.getByRole("button", { name: "Review a transcript" })).toBeVisible();
 
     const organizer = await newOrganizer(browser, "Paula Policy");
     const page = organizer.page;
@@ -286,7 +286,7 @@ test.describe("the organizer console", () => {
       await reviewer.page.reload();
       await expect(reviewer.page.getByRole("heading", { name: "A newer policy" })).toBeVisible();
       await expect(reviewer.page.getByText(marker)).toBeVisible();
-      await expect(reviewer.page.getByRole("button", { name: "Get a review" })).toHaveCount(0);
+      await expect(reviewer.page.getByRole("button", { name: "Review a transcript" })).toHaveCount(0);
       await expect(reviewer.page.getByRole("button", { name: "Check my answers" })).toBeVisible();
 
       // A review made now records that it was made under the new version.

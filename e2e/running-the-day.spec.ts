@@ -92,7 +92,7 @@ test.describe("running the day", () => {
       await expect(page.getByText("change an entry until nominations close")).toHaveCount(0);
       // The entry made is there to read. A track never entered goes nowhere.
       await expect(page.getByRole("link", { name: /AI Risk Finding/ })).toContainText("read only");
-      await expect(page.getByRole("link", { name: /Comparative/ })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: /Matched Set/ })).toHaveCount(0);
 
       // Going to a track directly is no way round it, and neither is
       // sending the form without the page.

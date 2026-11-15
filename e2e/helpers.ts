@@ -200,11 +200,6 @@ export type AuthorAnswers = {
   scenario: string;
   expect: "Yes" | "No" | "Unsure";
   confidence: "High" | "Moderate" | "Low" | "Unsure";
-  /**
-   * Whether the task is real. Asked in the panel; left out here where it
-   * was already answered when the conversation was made.
-   */
-  provenance?: (typeof PROVENANCE)[keyof typeof PROVENANCE];
 };
 export const PLAIN_ANSWERS: AuthorAnswers = {
   role: "Myself, without a specific role",
@@ -217,9 +212,6 @@ export const PLAIN_ANSWERS: AuthorAnswers = {
 /** Answers the questions every submission needs, in the side panel. */
 export async function fillLabels(page: Page, answers: AuthorAnswers = PLAIN_ANSWERS) {
   const question = (id: string) => page.locator(`[data-label-question="${id}"]`);
-  if (answers.provenance) {
-    await question("provenance").getByRole("radio", { name: answers.provenance, exact: true }).check();
-  }
   await question("role").getByRole("radio", { name: answers.role, exact: true }).check();
   for (const task of answers.tasks) {
     await question("taskKinds").getByRole("checkbox", { name: task, exact: true }).check();
@@ -231,10 +223,15 @@ export async function fillLabels(page: Page, answers: AuthorAnswers = PLAIN_ANSW
     .check();
 }
 
-/** Submits whatever is on screen, answering its questions and confirming. */
+/**
+ * Submits the whole of the work on screen, answering its questions and
+ * confirming: the conversation, or, in a folder, the folder.
+ */
 export async function submitWork(page: Page, answers: AuthorAnswers = PLAIN_ANSWERS) {
   await fillLabels(page, answers);
-  await page.getByRole("button", { name: /^Submit (conversation|folder)$/ }).click();
+  const folder = page.getByRole("button", { name: "Submit folder" });
+  if (await folder.count()) await folder.click();
+  else await page.getByRole("button", { name: "Submit conversation" }).click();
   await page.getByRole("button", { name: "Yes, submit" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Submitted" })).toBeVisible();
 }
@@ -256,7 +253,7 @@ export function reviewForm(page: Page) {
 /** Asks for the next item and waits for it to open. */
 export async function getReview(page: Page) {
   await page.goto("/review");
-  await page.getByRole("button", { name: "Get a review" }).click();
+  await page.getByRole("button", { name: "Review a transcript" }).click();
   await page.waitForURL(/\/review\/[0-9a-f-]{36}$/);
   await expect(reviewForm(page)).toBeVisible();
   return page.url().split("/").pop()!;

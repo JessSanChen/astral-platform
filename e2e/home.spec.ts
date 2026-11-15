@@ -36,25 +36,29 @@ test.describe("the front page", () => {
     await expect(page.getByRole("table").getByRole("row")).not.toHaveCount(1);
     const main = page.getByRole("main");
     await expect(main.getByText(/collaborat/i)).toHaveCount(0);
-    // Six awards: three counted, three entered by nomination. The one
-    // for comparisons says its prize pool is smaller.
+    // Six awards: three counted, three entered by nomination.
     const awards = page.getByRole("table");
     await expect(awards.getByRole("row")).toHaveCount(7);
-    await expect(
-      awards.getByRole("row").filter({ hasText: "Most Qualified Comparisons" }),
-    ).toContainText("Smaller prize pool");
+    await expect(awards.getByText("Smaller prize pool")).toHaveCount(0);
     for (const award of [
       "Most Qualified Transcripts",
       "Most Qualified Reviews",
       "Most Qualified Comparisons",
       "Most Interesting AI Risk Finding",
-      "Best Comparative Investigation",
+      "Best Matched Set Investigation",
       "Best Multi-Session Investigation",
     ]) {
       await expect(awards.getByRole("row").filter({ hasText: award })).toBeVisible();
     }
     await expect(main.getByText(/Adversarial use cases|Dual-use use cases/)).toHaveCount(0);
     await expect(main.getByText("What changes the result?", { exact: false })).toBeVisible();
+    await expect(main.getByText(/Comparative Investigation/)).toHaveCount(0);
+    // Each kind of review has a part of its own, by the name on its button.
+    for (const part of ["1. Transcript review", "2. Comparison"]) {
+      await expect(main.getByRole("heading", { name: part, level: 3 })).toBeVisible();
+    }
+    await expect(main.getByText("Review a transcript", { exact: true })).toBeVisible();
+    await expect(main.getByText("Compare two related transcripts", { exact: true })).toBeVisible();
 
     // The infohazard guide is one click away, here and in the menu.
     await main.getByRole("link", { name: "infohazard guide" }).click();
