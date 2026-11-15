@@ -3223,6 +3223,13 @@ database from the organizer's own machine.
   participants' conversations and names, so it is for organizers, and
   the `audits` folder is kept out of git.
 
+- The same command takes **several people at once**
+  (`npm run prod:review-audit -- a@example.com b@example.com`), or
+  `--top 10` for the ten who reviewed most, or `--all`. It writes a page
+  each and one more, `audits/reviewers-<time>.html`, with their numbers
+  side by side (pace, verdict split, agreement with other reviewers and
+  with authors) and a link to each page. Run for everyone, that page is
+  the baseline one reviewer's numbers are read against.
 - **`scripts/verify-overview.sql`**: for checking the Overview page
   against the database. The first query recomputes every number on the
   page, one row each, in the order they appear; the rest count the same

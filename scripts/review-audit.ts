@@ -9,7 +9,14 @@
  *
  *   npm run prod:review-audit -- sophie@example.com
  *   npm run prod:review-audit -- sophie            (part of a name works too)
+ *   npm run prod:review-audit -- a@example.com b@example.com c@example.com
+ *   npm run prod:review-audit -- --top 10          (the ten who reviewed most)
+ *   npm run prod:review-audit -- --all             (everyone who reviewed)
  *   npm run review-audit -- someone@example.com    (your development database)
+ *
+ * Given more than one person it writes a page each, and one more,
+ * audits/reviewers-<time>.html, that puts their numbers side by side and
+ * links to each page.
  *
  * Beside each record: the reviewer's verdict, confidence, the user messages
  * they pointed to (marked in the record), their two ratings, how long they
@@ -124,32 +131,78 @@ function transcript(view: View | null, cited: number[] = []) {
 const item = (term: string, value: string) =>
   value ? `<div class="row"><dt>${escape(term)}</dt><dd>${value}</dd></div>` : "";
 
-async function main() {
-  const wanted = process.argv[2]?.trim();
-  if (!wanted) {
-    console.error("\nSay whose reviews: an email address, or part of a name.\n  npm run prod:review-audit -- sophie@example.com\n");
-    process.exit(1);
-  }
+type Person = { id: string; name: string; email: string };
 
-  const people = rows<{ id: string; name: string; email: string }>(
+/** What one reviewer's page comes to, for the page that lists several. */
+type Outcome = {
+  reviewer: Person;
+  file: string;
+  reviews: number;
+  comparisons: number;
+  skipped: number;
+  span: string;
+  medianTook: number;
+  medianPerUserMessage: number;
+  yes: number;
+  no: number;
+  indeterminate: number;
+  otherVerdicts: number;
+  same: number;
+  yesVsNo: number;
+  noVsYes: number;
+  disagreements: number;
+  withExpectation: number;
+  sameAsExpectation: number;
+};
+
+const USAGE = `
+Say whose reviews: one or more email addresses or parts of names, or
+--top and a number, or --all.
+  npm run prod:review-audit -- sophie@example.com
+  npm run prod:review-audit -- a@example.com b@example.com
+  npm run prod:review-audit -- --top 10
+  npm run prod:review-audit -- --all
+`;
+
+/** The one person an email address or part of a name means, or why not. */
+async function find(wanted: string): Promise<Person | string> {
+  const people = rows<Person>(
     await db.execute(sql`
       select id, name, email from "user"
       where lower(email) = lower(${wanted}) or name ilike ${"%" + wanted + "%"}
       order by (lower(email) = lower(${wanted})) desc, name
     `),
   );
-  if (people.length === 0) {
-    console.error(`\nNobody found for "${wanted}".\n`);
-    process.exit(1);
-  }
+  if (people.length === 0) return `Nobody found for "${wanted}".`;
   if (people.length > 1 && people[0].email.toLowerCase() !== wanted.toLowerCase()) {
-    console.error(`\n"${wanted}" matches more than one person. Use an email address:\n`);
-    for (const p of people) console.error(`  ${p.email}   ${p.name}`);
-    console.error("");
-    process.exit(1);
+    return `"${wanted}" matches more than one person. Use an email address:\n${people
+      .map((p) => `    ${p.email}   ${p.name}`)
+      .join("\n")}`;
   }
-  const reviewer = people[0];
+  return people[0];
+}
 
+/** The people who completed the most transcript reviews, most first. */
+async function busiest(limit: number | null) {
+  return rows<Person>(
+    await db.execute(sql`
+      select u.id, u.name, u.email
+      from "user" u
+      join review_assignment a on a.reviewer_id = u.id
+      where a.purpose = 'primary' and a.state = 'completed'
+      group by u.id, u.name, u.email
+      order by count(*) desc, u.name
+      limit ${limit ?? 100000}
+    `),
+  );
+}
+
+/** The page names used in this run. */
+const written = new Set<string>();
+
+const stamp = (made: Date) => made.toISOString().slice(0, 16).replace(/[:T]/g, "-");
+
+async function auditOne(reviewer: Person, made: Date): Promise<Outcome> {
   const reviews = rows<ReviewRow>(
     await db.execute(sql`
       select a.id as assignment_id, v.id as view_id, a.reserved_at, a.finished_at,
@@ -378,7 +431,6 @@ async function main() {
     )
     .join("\n");
 
-  const made = new Date();
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -475,14 +527,159 @@ async function main() {
 
   const folder = join(process.cwd(), "audits");
   mkdirSync(folder, { recursive: true });
-  const slug = reviewer.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "reviewer";
-  const stamp = made.toISOString().slice(0, 16).replace(/[:T]/g, "-");
-  const file = join(folder, `reviews-${slug}-${stamp}.html`);
-  writeFileSync(file, html);
-  console.log(`\n  ${reviewer.name} <${reviewer.email}>`);
-  console.log(`  ${measured.length} transcript reviews, ${audits.length} comparisons, ${skipped} skipped`);
-  console.log(`\n  Written to ${file}\n  Open it in a browser. It holds participants' conversations: keep it to the organizers.\n`);
-  process.exit(0);
+  const plain = reviewer.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "reviewer";
+  // Two people with one name would otherwise write over each other.
+  let slug = plain;
+  for (let n = 2; written.has(slug); n++) slug = `${plain}-${n}`;
+  written.add(slug);
+  const name = `reviews-${slug}-${stamp(made)}.html`;
+  writeFileSync(join(folder, name), html);
+  return {
+    reviewer,
+    file: name,
+    reviews: measured.length,
+    comparisons: audits.length,
+    skipped,
+    span: measured.length ? `${clock(new Date(first.reserved_at))} to ${clock(new Date(last.finished_at))}` : "",
+    medianTook: median(measured.map((m) => m.took)),
+    medianPerUserMessage: median(measured.map((m) => m.perUserMessage)),
+    yes: count("yes"),
+    no: count("no"),
+    indeterminate: count("indeterminate"),
+    otherVerdicts: pairs.length,
+    same: agree,
+    yesVsNo,
+    noVsYes,
+    disagreements: measured.filter((m) => m.disagrees).length,
+    withExpectation: withExpectation.length,
+    sameAsExpectation: withExpectation.filter((m) => m.verdict === m.expected).length,
+  };
+}
+
+/** Several reviewers' numbers side by side, with a link to each one's page. */
+function listing(outcomes: Outcome[], made: Date) {
+  const percent = (part: number, whole: number) => (whole ? `${Math.round((100 * part) / whole)}%` : "");
+  const body = outcomes
+    .map(
+      (o) => `<tr>
+        <td><a href="${escape(o.file)}">${escape(o.reviewer.name)}</a><br><span class="muted">${escape(o.reviewer.email)}</span></td>
+        <td class="num">${o.reviews}</td>
+        <td class="num">${o.comparisons}</td>
+        <td class="num">${o.skipped}</td>
+        <td>${escape(o.span)}</td>
+        <td class="num">${o.reviews ? duration(o.medianTook) : ""}</td>
+        <td class="num">${o.reviews ? duration(o.medianPerUserMessage) : ""}</td>
+        <td class="num">${o.yes} / ${o.no} / ${o.indeterminate}</td>
+        <td class="num">${percent(o.yes, o.reviews)}</td>
+        <td class="num">${o.otherVerdicts ? `${percent(o.same, o.otherVerdicts)} of ${o.otherVerdicts}` : `<span class="muted">none shared</span>`}</td>
+        <td class="num">${o.yesVsNo}</td>
+        <td class="num">${o.noVsYes}</td>
+        <td class="num">${o.withExpectation ? `${percent(o.sameAsExpectation, o.withExpectation)} of ${o.withExpectation}` : ""}</td>
+      </tr>`,
+    )
+    .join("\n");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reviewers side by side</title>
+<style>
+  body { margin:0; font:15px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif; color:#1c1b18; background:#f7f6f2; }
+  main { max-width: 1500px; margin: 0 auto; padding: 24px 20px 80px; }
+  h1 { font: 600 26px/1.2 Georgia, serif; margin: 0 0 4px; }
+  .muted { color:#6b6a63; } .small { font-size: 12px; }
+  .scroll { overflow-x:auto; margin-top:16px; }
+  table { width:100%; border-collapse: collapse; background:#fff; border:1px solid #d9d6cc; font-size:13px; }
+  th, td { text-align:left; padding: 7px 10px; border-top:1px solid #d9d6cc; vertical-align: top; }
+  th { background:#efede6; border-top:0; font-size:12px; color:#6b6a63; font-weight:600; }
+  td.num, th.num { text-align:right; } td.num { white-space:nowrap; }
+  td:first-child { min-width: 210px; } td:nth-child(5) { min-width: 150px; }
+  a { color:#4d6b53; font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Reviewers side by side</h1>
+  <p class="muted">${outcomes.length} reviewers · made ${escape(made.toLocaleString("en-US", { timeZone: "America/New_York" }))} Boston time · for organizers only. Each name opens that person's page, which must be in the same folder as this one.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr>
+      <th>Reviewer</th><th class="num">Transcript reviews</th><th class="num">Comparisons</th><th class="num">Skipped</th>
+      <th>First to last (Boston)</th><th class="num">Median time on a record</th><th class="num">Median per user message</th>
+      <th class="num">Yes / No / Cannot determine</th><th class="num">Said Yes</th>
+      <th class="num">Same as other reviewers</th><th class="num">Yes where another said No</th><th class="num">No where another said Yes</th>
+      <th class="num">Same as the author expected</th>
+    </tr></thead>
+    <tbody>${body}</tbody>
+  </table>
+  </div>
+  <p class="muted small">"Same as other reviewers" counts every other verdict on a record this person also reviewed. Time runs from being handed a record to submitting it, so a break counts; the reviewer is asked to judge the user's messages, which is why time per user message is shown. The author's expectation is not a right answer. None of these numbers settles whether a review is sound: open the person's page and read.</p>
+</main>
+</body>
+</html>
+`;
+}
+
+async function main() {
+  const args = process.argv.slice(2).map((a) => a.trim()).filter(Boolean);
+  const wanted: string[] = [];
+  let top: number | null = null;
+  let all = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--all") all = true;
+    else if (arg === "--top") top = Number(args[++i]);
+    else if (arg.startsWith("--top=")) top = Number(arg.slice(6));
+    else if (arg.startsWith("--")) {
+      console.error(`\nUnknown option ${arg}.\n${USAGE}`);
+      process.exit(1);
+    } else wanted.push(arg);
+  }
+  if (top !== null && (!Number.isInteger(top) || top < 1)) {
+    console.error(`\n--top needs a whole number, as in --top 10.\n${USAGE}`);
+    process.exit(1);
+  }
+  if (wanted.length === 0 && top === null && !all) {
+    console.error(USAGE);
+    process.exit(1);
+  }
+
+  const reviewers = new Map<string, Person>();
+  const problems: string[] = [];
+  for (const one of wanted) {
+    const found = await find(one);
+    if (typeof found === "string") problems.push(found);
+    else reviewers.set(found.id, found);
+  }
+  if (top !== null || all) {
+    for (const person of await busiest(all ? null : top)) reviewers.set(person.id, person);
+  }
+  for (const problem of problems) console.error(`\n  ${problem}`);
+  if (reviewers.size === 0) {
+    console.error("\n  Nothing written.\n");
+    process.exit(1);
+  }
+
+  const made = new Date();
+  const folder = join(process.cwd(), "audits");
+  const outcomes: Outcome[] = [];
+  for (const reviewer of reviewers.values()) {
+    const outcome = await auditOne(reviewer, made);
+    outcomes.push(outcome);
+    console.log(`\n  ${reviewer.name} <${reviewer.email}>`);
+    console.log(`  ${outcome.reviews} transcript reviews, ${outcome.comparisons} comparisons, ${outcome.skipped} skipped`);
+    console.log(`  ${join(folder, outcome.file)}`);
+  }
+  if (outcomes.length > 1) {
+    outcomes.sort((a, b) => b.reviews - a.reviews);
+    const name = `reviewers-${stamp(made)}.html`;
+    writeFileSync(join(folder, name), listing(outcomes, made));
+    console.log(`\n  Side by side, with a link to each page:\n  ${join(folder, name)}`);
+  }
+  console.log("\n  Open in a browser. These pages hold participants' conversations: keep them to the organizers.\n");
+  // Someone asked for was not found: say so in the exit code too.
+  process.exit(problems.length ? 1 : 0);
 }
 
 main().catch((error) => {
