@@ -7,6 +7,7 @@ import {
   fillLabels,
   fillReview,
   getReview,
+  myReviews,
   newParticipant,
   newReviewer,
   reviewCard,
@@ -208,9 +209,55 @@ test.describe("independent review", () => {
     // The exact version of the instructions it was made under.
     expect(stored.policy_version).toBe(stored.instructions);
 
-    // Final: the same address now only says it is done.
-    await page.goto(`/review/${assignmentId}`);
-    await expect(page.getByText("You have finished this one")).toBeVisible();
+    // With nothing else to go on to, it is back to Review, which says
+    // what was recorded and why nothing followed.
+    await page.waitForURL("**/review?recorded=primary");
+    const recorded = page.getByRole("status").filter({ hasText: "Your review was recorded" });
+    await expect(recorded).toContainText(/belongs to work you have already been shown/);
+
+    // It is in the reviewer's own list, by number and never by title, and
+    // opens again with the answers that were given.
+    const mine = myReviews(page);
+    await expect(mine.getByRole("link", { name: /Transcript 1/ })).toContainText("Yes");
+    expect(await mine.innerText()).not.toContain("ribosome");
+    await mine.getByRole("link", { name: /Transcript 1/ }).click();
+    await page.waitForURL(`**/review/${assignmentId}`);
+    const again = reviewForm(page);
+    await expect(again.getByRole("status").filter({ hasText: "You submitted this review" })).toBeVisible();
+    await expect(
+      again.locator('[data-question="verdict"]').getByRole("radio", { name: "Yes", exact: true }),
+    ).toBeChecked();
+    await expect(again.getByTestId("evidence-summary")).toHaveText("Chosen: 1");
+    await expect(again.getByRole("button", { name: "Skip this one" })).toHaveCount(0);
+
+    // The answers can be changed. What they replace is kept, so the
+    // first answer is never lost.
+    await again.locator('[data-question="confidence"]').getByRole("radio", { name: "Low", exact: true }).check();
+    await again.getByRole("button", { name: "Update review" }).click();
+    await expect(again.getByText("Updated. The earlier version is kept.")).toBeVisible();
+    const changed = async () =>
+      (
+        await sql`
+          select r.confidence, r.verdict, r.revision_count, r.revised_at is not null as revised,
+                 (select json_agg(json_build_object('version', v.version, 'confidence', v.previous->>'confidence')
+                          order by v.version)
+                    from review_revision v where v.assignment_id = r.assignment_id) as earlier
+          from review_response r where r.assignment_id = ${assignmentId}
+        `
+      )[0];
+    expect(await changed()).toEqual({
+      confidence: "low",
+      verdict: "yes",
+      revision_count: 1,
+      revised: true,
+      earlier: [{ version: 1, confidence: "moderate" }],
+    });
+    // Saving again with nothing different is not a change.
+    await again.getByRole("button", { name: "Update review" }).click();
+    await expect(again.getByText("Nothing was changed.")).toBeVisible();
+    expect((await changed()).revision_count).toBe(1);
+    await expect(mine.getByRole("link", { name: /Transcript 1/ })).toContainText("changed");
+
     await page.goto("/review");
     // Counted on its own card, apart from comparisons.
     await expect(reviewCard(page, "Transcript review")).toContainText("1 completed · 0 skipped");
@@ -260,6 +307,28 @@ test.describe("independent review", () => {
       select count(*)::int as n from review_assignment where id = ${assignmentId} and state = 'active'
     `;
     expect(n).toBe(1);
+    await expect(myReviews(page).getByRole("link", { name: /Transcript review/ })).toContainText("In progress");
+
+    // Submitting goes straight on to the next record: no page in between.
+    await fillReview(page, A_NO);
+    await reviewForm(page).getByRole("button", { name: "Submit review" }).click();
+    await page.waitForURL((url) => /\/review\/[0-9a-f-]{36}$/.test(url.pathname) && !url.pathname.endsWith(assignmentId));
+    const nextId = page.url().split("/").pop()!;
+    const nextShown = (await page.locator('[data-turn="1"] p.whitespace-pre-wrap').textContent())!;
+    expect(nextShown).not.toBe(shown);
+    await expect(
+      reviewForm(page).locator('[data-question="verdict"]').getByRole("radio", { name: "No", exact: true }),
+    ).not.toBeChecked();
+    await expect(page.getByText("You have finished this one")).toHaveCount(0);
+
+    // A record whose hold only ran out, with nothing recorded, can be
+    // given to the same person again.
+    await sql`update review_assignment set state = 'expired', finished_at = now() where id = ${nextId}`;
+    await page.goto("/review");
+    await page.getByRole("button", { name: "Review a transcript" }).click();
+    await page.waitForURL((url) => /\/review\/[0-9a-f-]{36}$/.test(url.pathname) && !url.pathname.endsWith(nextId));
+    await expect(page.locator('[data-turn="1"]')).toContainText(nextShown);
+
     await author.context.close();
     await other.context.close();
     await context.close();
@@ -278,7 +347,9 @@ test.describe("independent review", () => {
     await reviewForm(page).getByRole("radio", { name: "Outside my expertise" }).check();
     await reviewForm(page).getByLabel(/Anything to add/).fill("Not my field.");
     await reviewForm(page).getByRole("button", { name: "Confirm skip" }).click();
-    await expect(reviewForm(page).getByText("Skipped", { exact: true })).toBeVisible();
+    await page.waitForURL("**/review?skipped=primary");
+    const wasSkipped = page.getByRole("status").filter({ hasText: "Skipped, with your reason" });
+    await expect(wasSkipped).toBeVisible();
 
     const [row] = await sql`
       select state, skip_reason, skip_note,
@@ -292,9 +363,13 @@ test.describe("independent review", () => {
       responses: 0,
     });
 
-    // Shown once is shown: it is not offered to the same person again.
-    await reviewForm(page).getByRole("button", { name: "Next item" }).click();
-    await expect(reviewForm(page).getByText(/nothing more for you right now/)).toBeVisible();
+    // Shown once is shown: it is not offered to the same person again,
+    // and the page says that is why there is nothing.
+    await expect(wasSkipped).toContainText(/belongs to work you have already been shown/);
+    await page.getByRole("button", { name: "Review a transcript" }).click();
+    await expect(reviewCard(page, "Transcript review").getByRole("status")).toContainText(
+      /belongs to work you have already been shown/,
+    );
     await page.goto("/review");
     await expect(reviewCard(page, "Transcript review")).toContainText("0 completed · 1 skipped");
     await expect(reviewCard(page, "Comparison")).toContainText("0 completed · 0 skipped");
@@ -332,7 +407,7 @@ test.describe("independent review", () => {
     await first.click();
     await form.getByRole("radio", { name: "Outside my expertise" }).check();
     await form.getByRole("button", { name: "Confirm skip" }).click();
-    await expect(form.getByText("Skipped", { exact: true })).toBeVisible();
+    await expect(general.page.getByRole("status").filter({ hasText: "Skipped, with your reason" })).toBeVisible();
 
     // A specialist in the subject is given it the same way as anyone else.
     const specialist = await newReviewer(browser, "Spe Cialist", {
@@ -547,9 +622,39 @@ test.describe("independent review", () => {
     await expect(said).toContainText("A different way of asking");
     await expect(said).toContainText("INTENDED: ask more formally.");
 
+    // Laid out as a transcript review is: the way to skip first, then
+    // the instructions, folded away.
+    await expect(form.getByRole("button").first()).toHaveText("Skip this one");
+    const instructions = form.locator("details").filter({ hasText: "Comparison instructions" });
+    await expect(instructions).not.toHaveAttribute("open", "");
+    await instructions.locator("summary").click();
+    await expect(instructions.getByRole("heading", { name: "Comparing two related conversations" })).toBeVisible();
+
     // The note is optional.
     await form.getByRole("button", { name: "Submit comparison" }).click();
-    await expect(form.getByText("Comparison recorded")).toBeVisible();
+    await auditor.page.waitForURL("**/review?recorded=pair_audit");
+    await expect(
+      auditor.page.getByRole("status").filter({ hasText: "Your comparison was recorded" }),
+    ).toBeVisible();
+
+    // A finished comparison opens again from the list and can be changed.
+    await myReviews(auditor.page).getByRole("link", { name: /Comparison 1/ }).click();
+    await auditor.page.waitForURL(`**/review/${assignmentId}`);
+    await expect(form.getByRole("status").filter({ hasText: "You submitted this comparison" })).toBeVisible();
+    await expect(q("mainDifference").getByRole("radio", { name: "Wording or presentation only" })).toBeChecked();
+    await q("auditNote").getByRole("textbox").fill("The second is a little more guarded.");
+    await form.getByRole("button", { name: "Update comparison" }).click();
+    await expect(form.getByText("Updated. The earlier version is kept.")).toBeVisible();
+    const [kept] = await sql`
+      select a.audit_note, a.revision_count, v.previous->>'audit_note' as before
+      from pair_audit a join review_revision v on v.assignment_id = a.assignment_id
+      where a.assignment_id = ${assignmentId}
+    `;
+    expect(kept).toEqual({
+      audit_note: "The second is a little more guarded.",
+      revision_count: 1,
+      before: null,
+    });
 
     const [audit] = await sql`
       select topic_task_match, scope_similarity, main_difference,
@@ -561,7 +666,7 @@ test.describe("independent review", () => {
       scope_similarity: "some_differences",
       main_difference: "wording_only",
       comparison_type: null,
-      audit_note: null,
+      audit_note: "The second is a little more guarded.",
       form_version: "D-2.0",
     });
 
