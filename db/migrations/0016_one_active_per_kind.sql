@@ -1,0 +1,2 @@
+DROP INDEX "review_assignment_one_active_uq";--> statement-breakpoint
+CREATE UNIQUE INDEX "review_assignment_one_active_uq" ON "review_assignment" USING btree ("reviewer_id","purpose") WHERE state = 'active';

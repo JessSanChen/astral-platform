@@ -212,31 +212,6 @@ export const termsVersion = pgTable("terms_version", {
 });
 
 // Singleton settings row (id is always 1).
-/**
- * Every set of background answers a person has given, in order. The
- * `profile` row holds only the latest; this keeps what was there before a
- * correction, so that work and reviews done earlier can be read against
- * the answers that stood at the time.
- */
-export const profileRevision = pgTable(
-  "profile_revision",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    // The name on the account at that moment, since it can be corrected too.
-    name: text("name"),
-    intake: jsonb("intake"),
-    intakeVersion: text("intake_version"),
-    publicReleasePermission: text("public_release_permission"),
-    // "onboarding" for the first answers, "profile" for a later change.
-    source: text("source").notNull(),
-    savedAt: timestamp("saved_at").notNull().defaultNow(),
-  },
-  (t) => [index("profile_revision_user_idx").on(t.userId, t.savedAt)],
-);
-
 export const eventSettings = pgTable("event_settings", {
   id: integer("id").primaryKey().default(1),
   eventCode: text("event_code").notNull(),
@@ -315,6 +290,15 @@ export const conversation = pgTable(
     // this session belongs to, and its place in it. Null only for
     // conversations older than episodes that the migration could not place.
     episodeId: uuid("episode_id"),
+    // What the author says about this one session: the same questions as
+    // for a conversation that stands alone. For a session in a folder they
+    // start from the folder's answers and can differ from them. For a
+    // conversation that stands alone they are a copy, made at submission,
+    // of the answers kept on its episode, so every session reads the same
+    // way in the export. See lib/author-labels.ts.
+    authorLabels: jsonb("author_labels"),
+    authorLabelsVersion: text("author_labels_version"),
+    authorLabelsUpdatedAt: timestamp("author_labels_updated_at"),
     sessionOrder: integer("session_order").notNull().default(1),
   },
   (t) => [
@@ -823,10 +807,11 @@ export const reviewAssignment = pgTable(
   },
   (t) => [
     index("review_assignment_view_idx").on(t.viewId, t.state),
-    // One thing at a time per person, enforced here so that two tabs
-    // asking together cannot both be given something.
+    // One thing of each kind at a time per person (a transcript review and
+    // a comparison can both be in progress), enforced here so that two
+    // tabs asking together cannot both be given something.
     uniqueIndex("review_assignment_one_active_uq")
-      .on(t.reviewerId)
+      .on(t.reviewerId, t.purpose)
       .where(sql`state = 'active'`),
     // And one look at a family, ever, whatever became of it.
     uniqueIndex("review_assignment_family_uq").on(t.reviewerId, t.familyId),
@@ -890,11 +875,16 @@ export const pairAudit = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     topicTaskMatch: text("topic_task_match").notNull(),
-    sensitivityMatch: text("sensitivity_match").notNull(),
-    intendedChangeRealized: text("intended_change_realized").notNull(),
+    // Form D-2.0: how similar the technical scope is, and what the main
+    // substantive difference between the two is.
+    scopeSimilarity: text("scope_similarity"),
+    mainDifference: text("main_difference"),
+    // Asked by forms before D-2.0 and no longer; empty on later answers.
+    sensitivityMatch: text("sensitivity_match"),
+    intendedChangeRealized: text("intended_change_realized"),
     unintendedDifferences: text("unintended_differences").array().notNull().default([]),
     unintendedOther: text("unintended_other"),
-    comparisonType: text("comparison_type").notNull(),
+    comparisonType: text("comparison_type"),
     auditNote: text("audit_note"),
     formVersion: text("form_version").notNull(),
     submittedAt: timestamp("submitted_at").notNull().defaultNow(),
