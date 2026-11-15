@@ -1,12 +1,18 @@
 import { expect, test } from "@playwright/test";
 import { episodeOf, sql } from "./db";
-import { newParticipant, say, startConversation, submitWork } from "./helpers";
+import { fillLabels, newParticipant, say, startConversation, submitWork } from "./helpers";
 
 type Sent = { messages: { role: string; content: unknown }[] };
 const textOf = (m: { content: unknown }) =>
   typeof m.content === "string"
     ? m.content
     : (m.content as { text?: string }[]).map((c) => c.text ?? "").join("");
+
+/** Clicks Submit where an answer is known to be missing. */
+async function submitWorkExpectingRefusal(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "Submit conversation" }).click();
+  await expect(page.getByRole("button", { name: "Yes, submit" })).toHaveCount(0);
+}
 
 test.describe("writing conversations", () => {
   test("a conversation says where its task came from, is submitted once, and is then fixed", async ({
@@ -38,7 +44,33 @@ test.describe("writing conversations", () => {
     expect(sent.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
     expect(JSON.stringify(sent)).not.toContain("PRIVATE-GOAL");
 
-    await submitWork(page);
+    // The author's own account of the work is required: with nothing
+    // answered, submitting is refused and each question is named.
+    await page.getByRole("button", { name: "Submit conversation" }).click();
+    await expect(page.getByText(/Answer the marked questions above first/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Yes, submit" })).toHaveCount(0);
+    for (const complaint of [
+      "Choose the role you are taking.",
+      "Tick at least one kind of task.",
+      "Choose the scenario that fits best.",
+      "Say what you expect a reviewer to decide.",
+      "Say how confident you are.",
+    ]) {
+      await expect(page.getByRole("alert").filter({ hasText: complaint })).toBeVisible();
+    }
+    // "Other" has to say what it stands for.
+    await page.getByRole("checkbox", { name: "Other", exact: true }).check();
+    await submitWorkExpectingRefusal(page);
+    await expect(page.getByRole("alert").filter({ hasText: "You ticked Other, so say what." })).toBeVisible();
+    await page.getByLabel("Other kind of task: say what").fill("Checking a protocol I was sent");
+
+    await submitWork(page, {
+      role: "Researcher or scientist",
+      tasks: ["Analyze or interpret data or findings"],
+      scenario: "Dual-use work with potential safety relevance",
+      expect: "Unsure",
+      confidence: "Low",
+    });
 
     // Fixed: no composer, and it says so.
     await expect(page.getByPlaceholder("Send a message...")).toHaveCount(0);
@@ -59,6 +91,22 @@ test.describe("writing conversations", () => {
       assignment_state: "pending",
     });
     expect(episode.submitted_at).not.toBeNull();
+    // The answers are stored with the work, under their own identifiers.
+    const [{ author_labels: labels, author_labels_version: version }] = await sql`
+      select author_labels, author_labels_version from episode where id = ${episodeId}
+    `;
+    expect(labels).toEqual({
+      role: "researcher",
+      taskKinds: ["analyze", "other"],
+      taskOther: "Checking a protocol I was sent",
+      scenario: "dual_use",
+      expectReferral: "unsure",
+      expectConfidence: "low",
+    });
+    expect(version).toBe("L-1.0");
+    // And shown back to the author, fixed.
+    await expect(page.getByText("Dual-use work with potential safety relevance")).toBeVisible();
+    await expect(page.getByRole("radio", { name: "Researcher or scientist" })).toHaveCount(0);
 
     // What reviewers will be shown was written out at that moment: the
     // turns, numbered, and none of the author's notes.
@@ -73,6 +121,8 @@ test.describe("writing conversations", () => {
       [4, "assistant"],
     ]);
     expect(JSON.stringify(views[0].content)).not.toContain("PRIVATE-GOAL");
+    expect(JSON.stringify(views[0].content)).not.toContain("Checking a protocol");
+    expect(JSON.stringify(views[0].content)).not.toContain("dual_use");
     await context.close();
   });
 
@@ -162,6 +212,7 @@ test.describe("writing conversations", () => {
     await page.waitForURL((url) => !url.pathname.endsWith(second) && /\/chat\/[0-9a-f-]{36}$/.test(url.pathname));
     await expect(page.getByText("3. Session 3")).toBeVisible();
 
+    await fillLabels(page);
     await page.getByRole("button", { name: "Submit folder" }).click();
     await expect(page.getByText(/2 sessions will be submitted: 1, 2\./)).toBeVisible();
     await expect(page.getByText(/1 empty session is left out/)).toBeVisible();
@@ -187,6 +238,25 @@ test.describe("writing conversations", () => {
       [4, "B"],
     ]);
     expect(views.slice(1).map((v) => v.conversation_id).sort()).toEqual([first, second].sort());
+
+    // A related version of a folder is a folder too: one empty session to
+    // begin with, and room for more.
+    await page.getByRole("link", { name: "Create related version" }).click();
+    await page.getByRole("radio", { name: "Explore a related version without a precise contrast" }).check();
+    await page.getByLabel("Briefly describe what you will change.").fill("Ask the same of a different organism.");
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await page.waitForURL(
+      (url) => /\/chat\/[0-9a-f-]{36}$/.test(url.pathname) && ![first, second].some((id) => url.pathname.endsWith(id)),
+    );
+    await expect(page.getByRole("button", { name: "New session" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Submit folder" })).toBeVisible();
+    const [related] = await sql`
+      select e.is_folder, e.source_family_id, e.author_labels from episode e
+      where e.id = ${await episodeOf(page.url().split("/").pop()!)}
+    `;
+    expect(related).toMatchObject({ is_folder: true, source_family_id: episodeId });
+    // It is described afresh; nothing is carried over from the original.
+    expect(related.author_labels).toBeNull();
     await context.close();
   });
 
@@ -234,6 +304,7 @@ test.describe("writing conversations", () => {
     await page.goto(`/chat/related/${sourceEpisode}`);
     await page.waitForURL(`**/chat/${source}`);
 
+    await fillLabels(page);
     await page.getByRole("button", { name: "Submit source and create related version" }).click();
     await page.getByRole("button", { name: "Submit and continue" }).click();
     await page.waitForURL(`**/chat/related/${sourceEpisode}`);

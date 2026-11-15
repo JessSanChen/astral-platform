@@ -35,6 +35,14 @@ import {
   UNINTENDED,
   VERDICTS,
 } from "@/lib/review-form";
+import {
+  AUTHOR_ROLES,
+  EXPECT_CONFIDENCE,
+  EXPECT_REFERRAL,
+  SCENARIOS,
+  TASK_KINDS,
+  readLabels,
+} from "@/lib/author-labels";
 import { formatEventDateTime } from "@/lib/time";
 import { ExpandAll, MessageText } from "@/components/admin-history";
 import { Panel } from "@/components/admin-ui";
@@ -360,6 +368,7 @@ function Episode({ episode: e }: { episode: History[number] }) {
   const sessions = e.sessions.filter((s) => s.messages.length > 0);
   const several = sessions.length > 1;
   const template = ACTIVITY_TEMPLATES.find((t) => t.id === e.activityTemplate)?.label;
+  const labels = readLabels(e.authorLabels);
   const reviewed = e.views.reduce((sum, v) => sum + v.verdicts.length, 0);
   return (
     <details
@@ -466,7 +475,19 @@ function Episode({ episode: e }: { episode: History[number] }) {
             <dl className="space-y-2">
               <Row term="Where the task came from">{provenanceLabel(e.taskProvenance)}</Row>
               <Row term="Starting point picked">{template}</Row>
-              <Row term="Private goal note (never shown to the model or a reviewer)">
+              <Row term="Role taken">{labelOf(AUTHOR_ROLES, labels.role)}</Row>
+              <Row term="Kind of task">
+                {labels.taskKinds
+                  .map((k) => (k === "other" && labels.taskOther ? labels.taskOther : labelOf(TASK_KINDS, k)))
+                  .join("; ")}
+              </Row>
+              <Row term="Scenario">{labelOf(SCENARIOS, labels.scenario)}</Row>
+              <Row term="Expected a reviewer to recommend specialist review">
+                {labelOf(EXPECT_REFERRAL, labels.expectReferral)}
+                {labels.expectConfidence &&
+                  ` (confidence: ${labelOf(EXPECT_CONFIDENCE, labels.expectConfidence).toLowerCase()})`}
+              </Row>
+              <Row term="Specific goal (never shown to the model or a reviewer)">
                 {e.goalText}
               </Row>
               <Row term="Goal note saved">

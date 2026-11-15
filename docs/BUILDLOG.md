@@ -2407,6 +2407,32 @@ that), and "real or invented" is still asked when starting.
 
 ---
 
+## Round 24: author labels are back, and required
+
+The organizer wanted authors to describe their own work again, with new
+questions and none of them optional.
+
+- **Six questions in the side panel.** The role taken; the kind of task
+  (tick all that apply, with "Other" asking what); the scenario; whether
+  the author expects a reviewer to recommend specialist review; and how
+  confident they are in that. The free-text goal is the one optional
+  part, and is the same private goal note as before.
+- **Required to submit.** Pressing Submit with something unanswered names
+  each missing question and scrolls to the first. The server refuses too.
+  Answers are saved as they are given and fixed at submission.
+- **Author-only.** Not sent to the assistant, and not shown to a
+  reviewer, whose view is built from the messages. They appear on the
+  organizer's page for a participant and in the export.
+- **A related version of a folder now starts as a folder.** It used to
+  start as a single conversation that could be grown into one. The link
+  is between the two pieces of work as wholes, not between sessions.
+
+Stored in three new columns on `episode` (migration 0009). The questions
+and choices are in `lib/author-labels.ts`, with their own version,
+`L-1.0`, stored beside the answers.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

@@ -167,8 +167,39 @@ export async function say(page: Page, text: string) {
   await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
 }
 
-/** Submits whatever is on screen, confirming when asked. */
-export async function submitWork(page: Page) {
+/** The author's answers about their work, as they read in the side panel. */
+export type AuthorAnswers = {
+  role: string;
+  tasks: string[];
+  scenario: string;
+  expect: "Yes" | "No" | "Unsure";
+  confidence: "High" | "Moderate" | "Low" | "Unsure";
+};
+export const PLAIN_ANSWERS: AuthorAnswers = {
+  role: "Myself, without a specific role",
+  tasks: ["Learn or understand a concept"],
+  scenario: "Ordinary, legitimate use",
+  expect: "No",
+  confidence: "Moderate",
+};
+
+/** Answers the questions every submission needs, in the side panel. */
+export async function fillLabels(page: Page, answers: AuthorAnswers = PLAIN_ANSWERS) {
+  const question = (id: string) => page.locator(`[data-label-question="${id}"]`);
+  await question("role").getByRole("radio", { name: answers.role, exact: true }).check();
+  for (const task of answers.tasks) {
+    await question("taskKinds").getByRole("checkbox", { name: task, exact: true }).check();
+  }
+  await question("scenario").getByRole("radio", { name: answers.scenario, exact: true }).check();
+  await question("expectReferral").getByRole("radio", { name: answers.expect, exact: true }).check();
+  await question("expectConfidence")
+    .getByRole("radio", { name: answers.confidence, exact: true })
+    .check();
+}
+
+/** Submits whatever is on screen, answering its questions and confirming. */
+export async function submitWork(page: Page, answers: AuthorAnswers = PLAIN_ANSWERS) {
+  await fillLabels(page, answers);
   await page.getByRole("button", { name: /^Submit (conversation|folder)$/ }).click();
   await page.getByRole("button", { name: "Yes, submit" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Submitted" })).toBeVisible();

@@ -159,6 +159,9 @@ test.describe("the organizer console", () => {
     await expect(one).toContainText("to: What is a prion?");
     await expect(one).toContainText("Based on a real task");
     await expect(one).toContainText("See how much detail it gives on misfolding.");
+    // And their own answers about it.
+    await expect(one).toContainText("Myself, without a specific role");
+    await expect(one).toContainText("Ordinary, legitimate use");
     await expect(two).toContainText("Not submitted");
     await expect(two).toContainText("to: What is quorum sensing?");
 

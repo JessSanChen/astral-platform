@@ -50,10 +50,16 @@ settle, or went against it. Each is a small change to reverse.
    feedback from monitors, and showing a verdict would steer what people
    write.
 
-6. **Authors no longer label their own work.** Forms for transcript type,
-   role, model behaviour, topics and evidence turns are gone, as the
-   specification replaces them with provenance, an optional goal note, and
-   independent review.
+6. **Authors label their own work, with new questions.** The
+   specification replaced the old labels with provenance, an optional goal
+   note and independent review. The organizer asked for required author
+   labels back, in a new form: the role taken, the kind of task
+   (multi-select), the scenario, and what the author expects a reviewer to
+   decide and how confidently. They are answered in the side panel and
+   are required to submit; the free-text goal stays optional. Reviewers
+   never see them: a reviewer's view is built from the messages alone.
+   The questions are in `lib/author-labels.ts`; the answers are stored on
+   the episode (`author_labels`, migration 0009) and exported.
 
 7. **Everyone answers the new background questions once.** The old
    profile cannot be mapped onto form A, so migration 0007 marks every

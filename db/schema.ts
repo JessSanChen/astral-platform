@@ -638,6 +638,13 @@ export const episode = pgTable(
     // reviewer. Every saved change is also kept in episode_goal_revision.
     goalText: text("goal_text"),
     goalUpdatedAt: timestamp("goal_updated_at"),
+    // What the author says about the work: the role they took, the kind of
+    // task, the scenario, and what they expect a reviewer to decide. Asked
+    // before submitting, required, and never shown to a reviewer. The
+    // questions and choices are in lib/author-labels.ts.
+    authorLabels: jsonb("author_labels"),
+    authorLabelsVersion: text("author_labels_version"),
+    authorLabelsUpdatedAt: timestamp("author_labels_updated_at"),
 
     // "original_live", or "related_live" for one made with Create related
     // version. Every episode in a family shares sourceFamilyId; an original

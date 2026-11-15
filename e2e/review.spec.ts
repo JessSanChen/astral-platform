@@ -4,6 +4,7 @@ import { episodeOf, release, resetSettings, sql, userId } from "./db";
 import {
   A_NO,
   INTAKE,
+  fillLabels,
   fillReview,
   getReview,
   newParticipant,
@@ -341,6 +342,7 @@ test.describe("independent review", () => {
     const source = await startConversation(page);
     const sourceEpisode = await episodeOf(source);
     await say(page, "Explain codon bias plainly.");
+    await fillLabels(page);
     await page.getByRole("button", { name: "Submit source and create related version" }).click();
     await page.getByRole("button", { name: "Submit and continue" }).click();
     await page.waitForURL(`**/chat/related/${sourceEpisode}`);

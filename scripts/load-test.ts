@@ -30,7 +30,7 @@ import {
 } from "@/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { PROVENANCE_VALUES } from "@/lib/episode-options";
-import { submitEpisode } from "@/lib/episodes";
+import { saveAuthorLabels, submitEpisode } from "@/lib/episodes";
 import { INTAKE_VERSION, WORK_AREAS, intakeSchema } from "@/lib/intake";
 
 // The shortest set of intake answers the form would accept: no specialized
@@ -44,6 +44,15 @@ const INTAKE = intakeSchema.parse({
   work: Object.fromEntries(WORK_AREAS.map((w) => [w.key, "none"])),
   aiUse: "weekly",
 });
+
+// The author's answers every submission needs.
+const LABELS = {
+  role: "self",
+  taskKinds: ["learn"],
+  scenario: "ordinary",
+  expectReferral: "no",
+  expectConfidence: "moderate",
+};
 
 const USERS = Number(process.argv[2] ?? 20);
 const TURNS = Number(process.argv[3] ?? 3);
@@ -175,6 +184,7 @@ async function runUser(n: number): Promise<Result> {
   // the same reason onboarding is: the button is a server action.
   if (res.replies > 0) {
     try {
+      await saveAuthorLabels(episodeId, u.id, LABELS);
       await submitEpisode(episodeId, u.id);
       res.submitted = true;
     } catch (e) {

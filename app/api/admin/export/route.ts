@@ -174,6 +174,12 @@ export async function GET(req: Request) {
           // a reviewer.
           goal_text: e.goalText,
           goal_updated_at: e.goalUpdatedAt,
+          // The author's own answers about the work (role, kind of task,
+          // scenario, what they expected a reviewer to decide). Author-only,
+          // like the goal: never part of what a reviewer was shown.
+          author_labels: e.authorLabels,
+          author_labels_version: e.authorLabelsVersion,
+          author_labels_updated_at: e.authorLabelsUpdatedAt,
           creation_method: e.creationMethod,
           source_family_id: e.sourceFamilyId,
           status: e.status,

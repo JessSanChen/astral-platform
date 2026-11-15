@@ -1,3 +1,4 @@
+import { readLabels } from "@/lib/author-labels";
 import { outer } from "@/lib/sql";
 import { notFound } from "next/navigation";
 import type { UIMessage } from "ai";
@@ -122,6 +123,7 @@ export default async function ConversationPage({
         submittedAt: ep.submittedAt?.toISOString() ?? null,
         provenance: ep.taskProvenance,
         goal: ep.goalText ?? "",
+        labels: readLabels(ep.authorLabels),
         related: ep.creationMethod === "related_live",
         comparisonOpen: settings.comparisonActivityOpen,
         sessions: sessions.map((s) => ({

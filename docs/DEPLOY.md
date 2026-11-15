@@ -216,7 +216,7 @@ It prints a temporary password, which works once. If nobody is an
 organizer at all, `npm run prod:seed` makes organizers of the addresses in
 `ADMIN_EMAILS`. Both need the database credentials, which only you hold.
 
-## Moving to specification v1.1 (migrations 0007 and 0008)
+## Moving to specification v1.1 (migrations 0007 to 0009)
 
 This is the one release where the order matters more than usual, because
 the new code reads tables the old database does not have.

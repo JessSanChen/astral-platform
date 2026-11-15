@@ -5,6 +5,7 @@ import {
   EpisodeError,
   addSession,
   createRelatedVersion,
+  saveAuthorLabels,
   saveEpisodeDetails,
   submitEpisode,
 } from "@/lib/episodes";
@@ -13,6 +14,7 @@ import {
   LIMITS,
   PROVENANCE_VALUES,
 } from "@/lib/episode-options";
+import { authorLabelsInput } from "@/lib/author-labels";
 import { getCurrentUser, whyBlocked } from "@/lib/gate";
 import { getEventSettings } from "@/lib/openrouter";
 
@@ -41,6 +43,18 @@ export async function addSessionAction(episodeId: string) {
   return run(async (userId) => {
     const session = await addSession(episodeId, userId);
     return { id: session.id, sessionOrder: session.sessionOrder };
+  });
+}
+
+/** The author's answers about their work, saved as they are given. */
+export async function saveLabelsAction(episodeId: string, labels: unknown) {
+  const parsed = authorLabelsInput.safeParse(labels);
+  if (!parsed.success) {
+    return { ok: false as const, message: "Those answers could not be saved. Try again." };
+  }
+  return run(async (userId) => {
+    await saveAuthorLabels(episodeId, userId, parsed.data);
+    return {};
   });
 }
 
@@ -101,6 +115,11 @@ export async function createRelatedAction(
       userId,
       ...parsed.data,
     });
-    return { id: session.id, episodeId: episode.id };
+    return {
+      id: session.id,
+      episodeId: episode.id,
+      isFolder: episode.isFolder,
+      episodeTitle: episode.title,
+    };
   });
 }

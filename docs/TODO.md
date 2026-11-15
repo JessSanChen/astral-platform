@@ -29,9 +29,8 @@ These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
   (adversarial, dual use). Amounts, deadlines and any other awards are
   not stated anywhere; the briefing says the organizers will announce
   them. The tracks are one list in `lib/nominations.ts`.
-- **Self-labels and "real or invented".** Authors no longer label their
-  own conversations, and are asked only whether the task is real or
-  invented. Both were raised as questions and left as they are.
+- **"Real or invented".** Still asked when starting. It was raised as a
+  question and left as it is.
 - **Safe examples for the g and a scales.** The form shows the anchors
   from the specification with no examples.
 

@@ -37,7 +37,7 @@ const STEPS = [
   {
     icon: Send,
     title: "Submit it once",
-    body: "Submit at a natural stopping point. Submitting is final and closes the conversation or folder. Refusals and unfinished conversations can still be useful.",
+    body: "Submit at a natural stopping point, after answering a few questions about what you were doing. Submitting is final and closes the conversation or folder. Refusals and unfinished conversations can still be useful.",
   },
   {
     icon: GitCompareArrows,
@@ -136,6 +136,14 @@ export function AboutAstral() {
             A message that has been sent stays sent, and a reply stays the
             reply. Nothing can be edited or regenerated. If you want to
             correct or clarify something, say so in your next message.
+          </p>
+          <p>
+            Before you submit, the panel beside the conversation asks a few
+            questions: the role you were taking, the kind of task, which
+            scenario it best fits, and whether you expect a reviewer to
+            recommend specialist review. They are required, and they are
+            for the research team only. You know what you were doing, and
+            nothing else in the data does.
           </p>
           <p>
             Submit once, when you reach a natural stopping point. Submitting
@@ -279,7 +287,8 @@ export function AboutAstral() {
           <p>
             Other participants see your submitted work only when it is
             assigned to them for review, and then without your name, your
-            goal note, or whether you called the task real or invented. That
+            goal note, your answers about it, or whether you called the task
+            real or invented. That
             blindness is the point: it is what makes a second opinion worth
             having.
           </p>

@@ -1,3 +1,4 @@
+import { AUTHOR_LABELS_VERSION, labelsComplete, readLabels } from "@/lib/author-labels";
 import { outer } from "@/lib/sql";
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -189,6 +190,34 @@ export async function saveEpisodeDetails(
   });
 }
 
+/**
+ * Saves the author's answers about their work, as far as they have got.
+ * Anything may be left unanswered until submitting; nothing can be changed
+ * after.
+ */
+export async function saveAuthorLabels(episodeId: string, userId: string, raw: unknown) {
+  const labels = readLabels(raw);
+  const [saved] = await db
+    .update(episode)
+    .set({
+      authorLabels: labels,
+      authorLabelsVersion: AUTHOR_LABELS_VERSION,
+      authorLabelsUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(episode.id, episodeId), eq(episode.userId, userId), eq(episode.status, "draft")))
+    .returning({ id: episode.id });
+  if (!saved) {
+    // Not theirs, not there, or already submitted: which, is for them.
+    const ep = await getOwnedEpisode(episodeId, userId);
+    if (ep.status !== "draft") {
+      throw new EpisodeError("This has been submitted, so it can no longer be changed.");
+    }
+    throw new EpisodeError("That work could not be found.");
+  }
+  return { labels };
+}
+
 type SessionSummary = {
   id: string;
   order: number;
@@ -312,6 +341,12 @@ export async function submitEpisode(episodeId: string, userId: string) {
     );
     if (included.length === 0) {
       throw new EpisodeError("Send at least one message before submitting.");
+    }
+    // The author's own account of the work goes in with it, complete.
+    if (!labelsComplete(readLabels(ep.authorLabels))) {
+      throw new EpisodeError(
+        "Answer the questions in the panel about this work before submitting. They are marked.",
+      );
     }
     for (const s of included) {
       const list = bySession.get(s.id)!;
@@ -494,6 +529,9 @@ export async function createRelatedVersion(opts: {
     userId: opts.userId,
     modelId: source.modelId,
     provenance: opts.provenance,
+    // A related version of a folder starts as a folder, ready for more
+    // sessions; of a conversation, as a conversation.
+    folder: source.isFolder,
     related: { sourceEpisodeId: source.id, familyId: source.sourceFamilyId },
   });
   await db.insert(relatedVersion).values({
