@@ -5,7 +5,7 @@
  */
 export const INFOHAZARD_GUIDE = `# Infohazard guide
 
-**Boston Biosecurity Hackathon · Sunday, November 15, 2026**
+**Boston Biosecurity Hackathon · Sunday, November 15, 2026**\\
 Safety lead: Colby Fagan
 
 Read this before you start, and come back to it any time you're unsure.
