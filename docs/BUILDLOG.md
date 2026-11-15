@@ -2711,6 +2711,77 @@ that the plan can be left blank.
 
 ---
 
+## Round 31: four things a review of rounds 29 and 30 found
+
+A review of the two rounds above turned up ten points. The organizer
+asked for the first four to be fixed. The other six are listed at the
+end, unchanged.
+
+- **A paused review ran out of time while its reviewer worked on the
+  other kind.** With one transcript review and one comparison allowed
+  in progress together, only the one on screen was being kept alive.
+  After the reservation time (45 minutes unless changed) the one set
+  aside was released, and because a reviewer is shown a piece of work
+  only once, it was gone for them for good, with what they had filled
+  in. Now being at work on either keeps both. Both are still let go
+  once the reviewer stops reviewing altogether. (`touchAssignment` in
+  `lib/assignments.ts`)
+- **Editing a nomination cleared its saved link to slides.** Round 30
+  removed the field from the form, but the save still wrote the field,
+  so an edit set it to nothing. The save no longer touches it. Round
+  30's note that saved links are kept is true from this round.
+  (`app/nominate/actions.ts`)
+- **A folder session's goal had no history.** A conversation's goal
+  has always been kept as revisions, each marked with whether work had
+  begun, because a goal written afterwards is context and not a plan.
+  A session's goal, new in round 29, was saved with its other answers
+  and had none. Now each change to a session's goal is a revision
+  marked with whether that session had begun, and the time its
+  real-or-invented answer last changed is kept on the session. When a
+  conversation becomes a folder, its goal history and that time move to
+  its first session with the rest. (`saveSessionLabels` and
+  `addSession` in `lib/episodes.ts`; migration 0018 adds
+  `episode_goal_revision.conversation_id` and
+  `conversation.provenance_changed_at`; both are in the export)
+- **A draft conversation's session could carry old answers.** A
+  conversation that stands alone keeps its answers on its episode, with
+  a copy on its one session so every session reads the same way. The
+  copy was made only at submission, so in an export that includes
+  drafts the session could be empty or behind. The copy is now brought
+  up to date with every change, and migration 0018 brings existing
+  drafts level. (`mirrorOntoSession` in `lib/episodes.ts`)
+
+Saving a session's answers is also now one step that holds the folder
+while it writes, so it cannot cross with the folder being submitted
+(the fifth point of the review, fixed in passing because the same
+function was being rewritten).
+
+Not changed, from the same review:
+
+- The fix for a page shown as it was before is on the Review page only.
+  The folder's page may show a session's "Questions to answer" for a
+  moment after they were answered, until it is reloaded.
+- A related version drafted under the wording before round 30 with
+  "Change a substantive fact..." has to pick one of the new choices
+  before its plan can be reworded. Only drafts made before round 30.
+- A session added to a related version's folder is listed without the
+  related-version mark until the page is reloaded.
+- Some small things are written twice: the list of real-or-invented
+  values, a pattern for checking an id, and the role and kind-of-task
+  questions in the side panel.
+- `components/episode-panel.tsx` was reformatted as a whole in round
+  29, which makes that file's changes in that round harder to read.
+
+Tests: each of the four has one. A comparison set aside three hours
+ago is still there after its reviewer reloads the transcript they are
+on; a nomination edited after a link was saved still has the link; a
+session's goal is a revision marked as written after the session began,
+changing another answer does not add one, and a conversation's goal
+history moves with it into a folder; a draft conversation's session has
+its author's latest answers.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

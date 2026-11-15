@@ -39,6 +39,8 @@ These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
   either back.
 - **How much smaller** the comparisons prize pool is. The table says
   "Smaller prize pool" and no amount, like the other awards.
+- **Six smaller points from the review of rounds 29 and 30** are listed
+  at the end of round 31 in the build log, not fixed. None loses data.
 - **The revised infohazard guide.** You said you had tidied the wording;
   the new text did not reach me. Paste it, or edit
   `lib/infohazard-guide.ts`, which is the only place it lives.

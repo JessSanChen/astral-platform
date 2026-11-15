@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { sql, userId } from "./db";
 import { newParticipant } from "./helpers";
 
 test.describe("putting work forward", () => {
   test("an entry, saved and listed", async ({ browser }) => {
-    const { page, context } = await newParticipant(browser, "Nico Nominator", "nominator");
+    const { page, context, email } = await newParticipant(browser, "Nico Nominator", "nominator");
 
     // Three awards are decided by nomination. The earlier tracks are gone.
     await page.goto("/nominate");
@@ -40,6 +41,24 @@ test.describe("putting work forward", () => {
     await expect(page.getByLabel("Headline finding")).toHaveValue(
       "Two scanners disagree in a useful way",
     );
+
+    // A link saved while the form still asked for one is not cleared by a later edit.
+    const mine = await userId(email);
+    await sql`
+      update nomination set slides_url = 'https://example.com/slides'
+      where user_id = ${mine} and track = 'comparative'
+    `;
+    await page.getByLabel("Headline finding").fill("Two scanners disagree, usefully");
+    await page.getByRole("button", { name: "Update entry" }).click();
+    await expect
+      .poll(
+        async () =>
+          (await sql`select headline, slides_url from nomination where user_id = ${mine} and track = 'comparative'`)[0],
+      )
+      .toMatchObject({
+        headline: "Two scanners disagree, usefully",
+        slides_url: "https://example.com/slides",
+      });
 
     // And the track list shows it as entered.
     await page.goto("/nominate");

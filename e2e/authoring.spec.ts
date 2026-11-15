@@ -421,6 +421,16 @@ test.describe("writing conversations", () => {
     await expect
       .poll(async () => (await sql`select author_labels from episode where id = ${episodeId}`)[0].author_labels)
       .toMatchObject({ expectConfidence: "moderate" });
+    // A draft's session carries the same answers, up to date, so a draft
+    // read from its session says what its author last said.
+    await expect
+      .poll(async () => (await sql`select author_labels from conversation where id = ${first}`)[0].author_labels)
+      .toMatchObject({
+        role: "student",
+        expectConfidence: "moderate",
+        provenance: "real",
+        goal: "Thought of this afterwards.",
+      });
 
     await page.getByRole("button", { name: "Add a session (makes this a folder)" }).click();
     await expect(page.getByRole("heading", { name: "New session in a new folder" })).toBeVisible();
@@ -452,6 +462,37 @@ test.describe("writing conversations", () => {
       provenance: "real",
       goal: "Thought of this afterwards.",
     });
+    // The record of when its goal was written went with it too.
+    expect(
+      await sql`select conversation_id, after_work_began from episode_goal_revision where episode_id = ${episodeId}`,
+    ).toEqual([{ conversation_id: first, after_work_began: true }]);
+
+    // A session's own goal and real-or-invented answer keep the same
+    // record a conversation's do: each saved goal, with whether the
+    // session had begun, and when the answer last changed.
+    const second = page.url().split("/").pop()!;
+    await page.getByLabel("Goal or notes").fill("Second-session goal.");
+    await page.getByRole("button", { name: "Save note" }).click();
+    await expect(page.getByText("Saved.")).toBeVisible();
+    expect(
+      await sql`
+        select goal_text, after_work_began from episode_goal_revision where conversation_id = ${second}
+      `,
+    ).toEqual([{ goal_text: "Second-session goal.", after_work_began: true }]);
+    const changed = async () =>
+      (await sql`select provenance_changed_at from conversation where id = ${second}`)[0].provenance_changed_at;
+    expect(await changed()).toBeNull();
+    await page.getByRole("radio", { name: "Created for this exercise" }).check();
+    await expect.poll(changed).not.toBeNull();
+    // Saving another answer is not a change to the goal: no second revision.
+    await page.getByRole("radio", { name: "Researcher or scientist", exact: true }).check();
+    await expect
+      .poll(async () => (await sql`select author_labels from conversation where id = ${second}`)[0].author_labels)
+      .toMatchObject({ role: "researcher", goal: "Second-session goal.", provenance: "invented" });
+    expect(
+      (await sql`select count(*)::int as n from episode_goal_revision where conversation_id = ${second}`)[0].n,
+    ).toBe(1);
+
     // The first session kept its messages, and still shows its answers.
     await page.goto(`/chat/${first}`);
     await expect(page.getByText("to: What is a ribozyme?")).toBeVisible();

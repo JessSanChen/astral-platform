@@ -461,6 +461,22 @@ test.describe("independent review", () => {
     );
     const reviewId = auditor.page.url().split("/").pop()!;
     await expect(auditor.page.getByText("to: What is a plasmid, in one line?")).toBeVisible();
+    // The comparison set aside does not run out of time while its
+    // reviewer is at work on the transcript: being here keeps both.
+    await sql`
+      update review_assignment set last_seen_at = now() - interval '3 hours' where id = ${assignmentId}
+    `;
+    await auditor.page.reload();
+    await expect(auditor.page.getByText("to: What is a plasmid, in one line?")).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          (await sql`
+            select state, last_seen_at > now() - interval '5 minutes' as fresh
+            from review_assignment where id = ${assignmentId}
+          `)[0],
+      )
+      .toMatchObject({ state: "active", fresh: true });
     // Both are in progress now, each under its own button, which opens it.
     await auditor.page.getByRole("link", { name: "Pause" }).click();
     await auditor.page.waitForURL("**/review");
