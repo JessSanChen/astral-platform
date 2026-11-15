@@ -8,8 +8,7 @@ import { Input } from "@/components/ui/input";
 import {
   setDefaultBudget,
   setEventCode,
-  setReviewBatchSize,
-  setMaxReviewsPerTranscript,
+  setReviewSettings,
   adoptBuiltInModelList,
 } from "@/app/admin/actions";
 import { parseWholeNumber } from "@/lib/numbers";
@@ -17,51 +16,60 @@ import { parseWholeNumber } from "@/lib/numbers";
 export function EventSettingsForm({
   eventCode,
   defaultBudget,
-  reviewBatchSize,
-  maxReviewsPerTranscript,
+  reviewsPerView,
+  reviewReservationMinutes,
+  autoReleaseSubmissions,
+  comparisonActivityOpen,
 }: {
   eventCode: string;
   defaultBudget: number;
-  reviewBatchSize: number;
-  maxReviewsPerTranscript: number;
+  reviewsPerView: number;
+  reviewReservationMinutes: number;
+  autoReleaseSubmissions: boolean;
+  comparisonActivityOpen: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [code, setCode] = useState(eventCode);
   const [budget, setBudget] = useState(String(defaultBudget));
-  const [batch, setBatch] = useState(String(reviewBatchSize));
-  const [perTranscript, setPerTranscript] = useState(String(maxReviewsPerTranscript));
+  const [perView, setPerView] = useState(String(reviewsPerView));
+  const [reservation, setReservation] = useState(String(reviewReservationMinutes));
+  const [autoRelease, setAutoRelease] = useState(autoReleaseSubmissions);
+  const [comparisonOpen, setComparisonOpen] = useState(comparisonActivityOpen);
   const [note, setNote] = useState<string | null>(null);
 
   function save() {
     // Check every field before saving any of them. This one button writes
-    // all three settings, so an unreadable allowance must stop the save
+    // all the settings, so an unreadable allowance must stop the save
     // rather than be stored as zero alongside an event code that was the
     // only thing being changed.
     const tokens = parseWholeNumber(budget);
-    const size = parseWholeNumber(batch);
-    const reviewers = parseWholeNumber(perTranscript);
+    const reviews = parseWholeNumber(perView);
+    const minutes = parseWholeNumber(reservation);
     if (!code.trim()) return setNote("The event code cannot be empty.");
     if (tokens === null || tokens < 1)
       return setNote(
         "The daily allowance must be a whole number above zero. Nothing was saved.",
       );
-    if (size === null || size < 1 || size > 50)
+    if (reviews === null || reviews < 1 || reviews > 7)
       return setNote(
-        "The review batch must be a whole number from 1 to 50. Nothing was saved.",
+        "Reviews per view must be a whole number from 1 to 7. Nothing was saved.",
       );
-
-    if (reviewers === null || reviewers < 1 || reviewers > 10)
+    if (minutes === null || minutes < 5 || minutes > 240)
       return setNote(
-        "Reviews per transcript must be a whole number from 1 to 10. Nothing was saved.",
+        "The reservation must be a whole number of minutes from 5 to 240. Nothing was saved.",
       );
 
     start(async () => {
       const results = await Promise.all([
         setEventCode(code),
         setDefaultBudget(tokens),
-        setReviewBatchSize(size),
-        setMaxReviewsPerTranscript(reviewers),
+        setReviewSettings({
+          reviewsPerView: reviews,
+          reviewReservationMinutes: minutes,
+          autoReleaseSubmissions: autoRelease,
+          comparisonActivityOpen: comparisonOpen,
+        }),
       ]);
       const refused = results.find((r) => r && r.message)?.message;
       setNote(refused ?? "Saved.");
@@ -88,24 +96,58 @@ export function EventSettingsForm({
       </Field>
 
       <Field
-        label="Transcripts per review batch"
-        htmlFor="batch"
-        hint="How many a reviewer holds at once."
+        label="Reviews per view"
+        htmlFor="perView"
+        hint="How many different people each conversation, and each folder read as a whole, should be reviewed by. Three lets two agree. Nobody reviews the same thing twice, and lowering this keeps reviews already made."
       >
-        <Input id="batch" value={batch} onChange={(e) => setBatch(e.target.value)} />
+        <Input id="perView" value={perView} onChange={(e) => setPerView(e.target.value)} />
       </Field>
 
       <Field
-        label="Reviews per transcript"
-        htmlFor="perTranscript"
-        hint="How many different people may review the same transcript. Nobody reviews one twice. Lowering this keeps reviews already made."
+        label="Minutes a reviewer may hold an item"
+        htmlFor="reservation"
+        hint="After this long without any sign of them, the item can go to someone else. Their place is kept while the page is open and in use."
       >
         <Input
-          id="perTranscript"
-          value={perTranscript}
-          onChange={(e) => setPerTranscript(e.target.value)}
+          id="reservation"
+          value={reservation}
+          onChange={(e) => setReservation(e.target.value)}
         />
       </Field>
+
+      <label className="flex items-start gap-2.5 text-sm">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 shrink-0"
+          checked={autoRelease}
+          onChange={(e) => setAutoRelease(e.target.checked)}
+        />
+        <span>
+          <span className="font-medium">Release new submissions for review automatically</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+            On: each new submission goes straight out as General, which any
+            reviewer can be given. Off: it waits as Pending until an organizer
+            routes it from Submissions. Applies to submissions made from now
+            on.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2.5 text-sm">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 shrink-0"
+          checked={comparisonOpen}
+          onChange={(e) => setComparisonOpen(e.target.checked)}
+        />
+        <span>
+          <span className="font-medium">Related versions are open</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+            Whether participants can create a related version of something
+            they have submitted. Ones already started can still be finished.
+          </span>
+        </span>
+      </label>
 
       <div className="flex items-center gap-3">
         <Button onClick={save} disabled={pending}>

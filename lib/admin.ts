@@ -1,174 +1,208 @@
-import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
-import { TRACK_VALUES } from "@/lib/nominations";
+import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   clipboardEvent,
   conversation,
-  judgeRun,
+  episode,
+  episodeGoalRevision,
   message,
-  nomination,
+  pairAudit,
   profile,
-  review,
-  submission,
-  transcriptLabels,
+  relatedVersion,
+  reviewAssignment,
+  reviewPolicy,
+  reviewResponse,
+  reviewView,
   usageEvent,
   user,
 } from "@/db/schema";
+import { sessionLetter } from "@/lib/episode-options";
+import { DOMAINS, type IntakeDraft } from "@/lib/intake";
+import { getEventSettings } from "@/lib/openrouter";
+import { getPolicy } from "@/lib/policy";
+import { panelOutcome } from "@/lib/review-form";
 
 /**
- * A label as it was submitted, read from the current version's snapshot.
- *
- * The transcript_labels row is the author's working copy: it is saved as
- * they type, and they can go on editing it after submitting, towards a
- * version they may never submit. Counting from it meant relabelling a
- * submitted transcript and pressing Save moved it between prize columns
- * with no new version to show for it. What was submitted is in the
- * snapshot, and that is what the organizers are counting.
+ * What the organizer console reads. Everything here is in the terms of the
+ * v1.1 specification: episodes (a conversation, or a folder of sessions),
+ * the views reviewers are shown, and who was given what to judge.
  */
-const submittedLabel = (field: "type" | "modelBehaviour" | "goalText") =>
-  // The field name is written into the query rather than bound. As a bound
-  // value, the same expression in SELECT and GROUP BY would carry two
-  // different parameters and Postgres would not recognise them as one.
-  sql<string | null>`${submission.snapshot}->'labels'->>${sql.raw(`'${field}'`)}`;
-
-/** Joins a conversation to the snapshot of its current submitted version. */
-const currentSubmission = and(
-  eq(submission.conversationId, conversation.id),
-  eq(submission.version, conversation.currentVersion),
-);
 
 /** Headline numbers for the overview. */
 export async function overview() {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [policy, settings] = await Promise.all([getPolicy(), getEventSettings()]);
 
-  const [
-    participants,
-    conversations,
-    byType,
-    byBehaviour,
-    reviews,
-    nominations,
-    spend,
-    judgeRuns,
-  ] = await Promise.all([
-    db.select({ n: count() }).from(user),
-    db
-      .select({
-        total: count(),
-        submitted: sql<number>`count(*) filter (where ${conversation.status} = 'submitted')::int`,
-      })
-      .from(conversation),
-    db
-      .select({ type: submittedLabel("type"), n: count() })
-      .from(conversation)
-      .innerJoin(submission, currentSubmission)
-      .where(eq(conversation.status, "submitted"))
-      .groupBy(submittedLabel("type")),
-    db
-      .select({ behaviour: submittedLabel("modelBehaviour"), n: count() })
-      .from(conversation)
-      .innerJoin(submission, currentSubmission)
-      .where(eq(conversation.status, "submitted"))
-      .groupBy(submittedLabel("modelBehaviour")),
-    db.select({ n: count() }).from(review),
-    db
-      .select({ track: nomination.track, n: count() })
-      .from(nomination)
-      .where(inArray(nomination.track, TRACK_VALUES))
-      .groupBy(nomination.track),
-    db
-      .select({
-        tokens: sql<number>`coalesce(sum(${usageEvent.promptTokens} + ${usageEvent.completionTokens}), 0)::int`,
-        cost: sql<number>`coalesce(sum(${usageEvent.costUsd}), 0)::float`,
-      })
-      .from(usageEvent)
-      .where(gte(usageEvent.createdAt, since)),
-    db
-      .select({
-        total: count(),
-        failed: sql<number>`count(*) filter (where ${judgeRun.status} <> 'ok')::int`,
-      })
-      .from(judgeRun),
-  ]);
+  const [people, episodes, sessions, views, assignments, audits, spend, prizeEntries] =
+    await Promise.all([
+      db
+        .select({
+          total: count(),
+          intakeCompleted: sql<number>`count(*) filter (where ${user.profileCompletedAt} is not null)::int`,
+          instructionPassed: sql<number>`count(*) filter (where ${user.policyReadyVersion} = ${policy.version} and ${policy.version} > 0)::int`,
+        })
+        .from(user),
+      db
+        .select({
+          draft: sql<number>`count(*) filter (where ${episode.status} = 'draft')::int`,
+          submitted: sql<number>`count(*) filter (where ${episode.status} = 'submitted')::int`,
+          folders: sql<number>`count(*) filter (where ${episode.status} = 'submitted' and ${episode.isFolder})::int`,
+          related: sql<number>`count(*) filter (where ${episode.status} = 'submitted' and ${episode.creationMethod} = 'related_live')::int`,
+          real: sql<number>`count(*) filter (where ${episode.status} = 'submitted' and ${episode.taskProvenance} = 'real')::int`,
+          invented: sql<number>`count(*) filter (where ${episode.status} = 'submitted' and ${episode.taskProvenance} = 'invented')::int`,
+          pending: sql<number>`count(*) filter (where ${episode.status} = 'submitted' and ${episode.assignmentState} = 'pending')::int`,
+          ready: sql<number>`count(*) filter (where ${episode.status} = 'submitted' and ${episode.assignmentState} = 'ready')::int`,
+          held: sql<number>`count(*) filter (where ${episode.status} = 'submitted' and ${episode.assignmentState} = 'held')::int`,
+          withdrawn: sql<number>`count(*) filter (where ${episode.status} = 'submitted' and ${episode.assignmentState} = 'withdrawn')::int`,
+        })
+        .from(episode),
+      // A session is a conversation someone actually typed into.
+      db
+        .select({
+          total: count(),
+          submitted: sql<number>`count(*) filter (where ${conversation.status} = 'submitted')::int`,
+        })
+        .from(conversation)
+        .where(
+          sql`exists (select 1 from ${message} m where m.conversation_id = ${conversation.id})`,
+        ),
+      db.execute<{ total: number; started: number; full: number }>(sql`
+        select
+          count(*)::int as total,
+          count(*) filter (where done > 0)::int as started,
+          count(*) filter (where done >= ${settings.reviewsPerView}::int)::int as full
+        from (
+          select v.id,
+            (select count(*) from review_assignment a
+              where a.view_id = v.id and a.purpose = 'primary' and a.state = 'completed') as done
+          from review_view v
+          join episode e on e.id = v.episode_id
+          where e.status = 'submitted' and e.assignment_state <> 'withdrawn'
+        ) per_view
+      `),
+      db
+        .select({
+          reviews: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'completed' and ${reviewAssignment.purpose} = 'primary')::int`,
+          skips: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'skipped')::int`,
+          active: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'active')::int`,
+          expired: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'expired')::int`,
+        })
+        .from(reviewAssignment),
+      db.select({ n: count() }).from(pairAudit),
+      db
+        .select({
+          tokens: sql<number>`coalesce(sum(${usageEvent.promptTokens} + ${usageEvent.completionTokens}), 0)::int`,
+          cost: sql<number>`coalesce(sum(${usageEvent.costUsd}), 0)::float`,
+        })
+        .from(usageEvent)
+        .where(gte(usageEvent.createdAt, since)),
+      db
+        .select({ n: count() })
+        .from(episode)
+        .where(sql`${episode.prizeEntryAt} is not null`),
+    ]);
 
+  const [viewRow] = views as unknown as { total: number; started: number; full: number }[];
   return {
-    participants: participants[0]?.n ?? 0,
-    conversations: conversations[0] ?? { total: 0, submitted: 0 },
-    byType,
-    byBehaviour,
-    reviews: reviews[0]?.n ?? 0,
-    nominations,
+    policyVersion: policy.version,
+    reviewsPerView: settings.reviewsPerView,
+    participants: people[0]?.total ?? 0,
+    intakeCompleted: people[0]?.intakeCompleted ?? 0,
+    instructionPassed: people[0]?.instructionPassed ?? 0,
+    episodes: episodes[0] ?? {
+      draft: 0,
+      submitted: 0,
+      folders: 0,
+      related: 0,
+      real: 0,
+      invented: 0,
+      pending: 0,
+      ready: 0,
+      held: 0,
+      withdrawn: 0,
+    },
+    sessions: sessions[0] ?? { total: 0, submitted: 0 },
+    views: viewRow ?? { total: 0, started: 0, full: 0 },
+    reviews: assignments[0]?.reviews ?? 0,
+    skips: assignments[0]?.skips ?? 0,
+    activeAssignments: assignments[0]?.active ?? 0,
+    expiredAssignments: assignments[0]?.expired ?? 0,
+    pairAudits: audits[0]?.n ?? 0,
+    prizeEntries: prizeEntries[0]?.n ?? 0,
     spend: spend[0] ?? { tokens: 0, cost: 0 },
-    judgeRuns: judgeRuns[0] ?? { total: 0, failed: 0 },
   };
 }
 
+export type ParticipantTableRow = {
+  id: string;
+  name: string;
+  email: string;
+  intake: unknown;
+  intake_done: boolean;
+  policy_ready: boolean;
+  is_admin: boolean;
+  banned: boolean;
+  daily_token_budget: number | null;
+  submitted: number;
+  drafts: number;
+  reviews: number;
+  audits: number;
+  skips: number;
+  prize_entries: number;
+  tokens: number;
+  cost: number;
+};
+
 /**
- * One row per participant, carrying both counted prizes.
+ * One row per participant: what they made, and what they did as a reviewer.
  *
- * The benign count is transcripts the author submitted and labelled benign;
- * the review count is reviews they completed. Quality is judged offline, so
- * these are raw counts and the audit view is how you look behind them.
+ * Raw counts. Skips are shown beside reviews because skipping what you
+ * cannot judge is what reviewers are asked to do, and a count of reviews
+ * alone would hide it.
  */
 export async function participantTable() {
-  const rows = await db.execute<{
-    id: string;
-    name: string;
-    email: string;
-    affiliation: string | null;
-    role: string | null;
-    is_admin: boolean;
-    banned: boolean;
-    daily_token_budget: number | null;
-    submitted: number;
-    benign: number;
-    dual_use: number;
-    adversarial: number;
-    reviews: number;
-    nominations: number;
-    tokens: number;
-    cost: number;
-    last_active: Date | null;
-  }>(sql`
+  const policy = await getPolicy();
+  const rows = await db.execute<ParticipantTableRow>(sql`
     select
       u.id, u.name, u.email,
-      p.affiliation, p.role,
-      (u.role = 'admin') as is_admin,
+      p.intake,
+      (u.profile_completed_at is not null) as intake_done,
+      (${policy.version}::int > 0 and u.policy_ready_version = ${policy.version}::int) as policy_ready,
+      coalesce(u.role = 'admin', false) as is_admin,
       coalesce(u.banned, false) as banned,
       u.daily_token_budget,
-      coalesce(c.submitted, 0)::int     as submitted,
-      coalesce(c.benign, 0)::int        as benign,
-      coalesce(c.dual_use, 0)::int      as dual_use,
-      coalesce(c.adversarial, 0)::int   as adversarial,
-      coalesce(r.n, 0)::int             as reviews,
-      coalesce(n.n, 0)::int             as nominations,
-      coalesce(us.tokens, 0)::int       as tokens,
-      coalesce(us.cost, 0)::float       as cost,
-      greatest(c.last_at, r.last_at)    as last_active
+      coalesce(e.submitted, 0)::int      as submitted,
+      coalesce(e.drafts, 0)::int         as drafts,
+      coalesce(e.prize_entries, 0)::int  as prize_entries,
+      coalesce(a.reviews, 0)::int        as reviews,
+      coalesce(a.audits, 0)::int         as audits,
+      coalesce(a.skips, 0)::int          as skips,
+      coalesce(us.tokens, 0)::int        as tokens,
+      coalesce(us.cost, 0)::float        as cost
     from "user" u
     left join profile p on p.user_id = u.id
     left join (
-      select conv.user_id,
-             count(*) filter (where conv.status = 'submitted') as submitted,
-             count(*) filter (where conv.status = 'submitted' and s.snapshot->'labels'->>'type' = 'benign') as benign,
-             count(*) filter (where conv.status = 'submitted' and s.snapshot->'labels'->>'type' = 'dual_use') as dual_use,
-             count(*) filter (where conv.status = 'submitted' and s.snapshot->'labels'->>'type' = 'adversarial') as adversarial,
-             max(conv.last_submitted_at) as last_at
-      from conversation conv
-      -- The labels as submitted, not the author's working copy.
-      left join submission s
-        on s.conversation_id = conv.id and s.version = conv.current_version
-      group by conv.user_id
-    ) c on c.user_id = u.id
+      select ep.user_id,
+             count(*) filter (where ep.status = 'submitted') as submitted,
+             -- A draft nobody typed into is not work in progress.
+             count(*) filter (
+               where ep.status = 'draft' and exists (
+                 select 1 from conversation c
+                 join message m on m.conversation_id = c.id
+                 where c.episode_id = ep.id
+               )
+             ) as drafts,
+             count(*) filter (where ep.prize_entry_at is not null) as prize_entries
+      from episode ep
+      group by ep.user_id
+    ) e on e.user_id = u.id
     left join (
-      select reviewer_id, count(*) as n, max(updated_at) as last_at
-      from review group by reviewer_id
-    ) r on r.reviewer_id = u.id
-    left join (
-      select user_id, count(*) as n from nomination
-      where track in (${sql.join(TRACK_VALUES.map((t) => sql`${t}`), sql`, `)})
-      group by user_id
-    ) n on n.user_id = u.id
+      select reviewer_id,
+             count(*) filter (where state = 'completed' and purpose = 'primary') as reviews,
+             count(*) filter (where state = 'completed' and purpose = 'pair_audit') as audits,
+             count(*) filter (where state = 'skipped') as skips
+      from review_assignment group by reviewer_id
+    ) a on a.reviewer_id = u.id
     left join (
       select user_id, sum(prompt_tokens + completion_tokens) as tokens,
              sum(cost_usd) as cost
@@ -176,317 +210,516 @@ export async function participantTable() {
     ) us on us.user_id = u.id
     order by u.name
   `);
-  return rows as unknown as Array<{
-    id: string;
-    name: string;
-    email: string;
-    affiliation: string | null;
-    role: string | null;
-    is_admin: boolean;
-    banned: boolean;
-    daily_token_budget: number | null;
-    submitted: number;
-    benign: number;
-    dual_use: number;
-    adversarial: number;
-    reviews: number;
-    nominations: number;
-    tokens: number;
-    cost: number;
-    last_active: Date | null;
-  }>;
+  return rows as unknown as ParticipantTableRow[];
 }
 
 /**
- * One participant's account, what they wrote about other people's
- * transcripts, and what they put forward. Their own conversations come from
- * participantHistory.
+ * One participant's account and intake, and what they did as a reviewer:
+ * the reviews they completed, the comparisons they made, and what they
+ * skipped and why. Their own work comes from participantHistory.
  */
 export async function participantDetail(userId: string) {
-  const [[account], [theirProfile], reviews, nominations] = await Promise.all([
+  const [[account], [theirProfile], reviews, audits, skips] = await Promise.all([
     db.select().from(user).where(eq(user.id, userId)),
     db.select().from(profile).where(eq(profile.userId, userId)),
     db
       .select({
-        conversationId: review.conversationId,
-        intent: review.intent,
-        misusePresent: review.misusePresent,
-        actor: review.actor,
-        goalText: review.goalText,
-        confidence: review.confidence,
-        notes: review.notes,
-        updatedAt: review.updatedAt,
-        submissionCount: review.submissionCount,
-        title: conversation.title,
+        id: reviewResponse.id,
+        verdict: reviewResponse.verdict,
+        policyBasis: reviewResponse.policyBasis,
+        confidence: reviewResponse.confidence,
+        evidenceMode: reviewResponse.evidenceMode,
+        evidenceTurns: reviewResponse.evidenceTurns,
+        rationale: reviewResponse.rationale,
+        uncertaintyReasons: reviewResponse.uncertaintyReasons,
+        uncertaintyOther: reviewResponse.uncertaintyOther,
+        subjectSensitivity: reviewResponse.subjectSensitivity,
+        aimEvidence: reviewResponse.aimEvidence,
+        policyVersion: reviewResponse.policyVersion,
+        submittedAt: reviewResponse.submittedAt,
+        reservedAt: reviewAssignment.reservedAt,
+        viewKind: reviewView.kind,
+        episodeTitle: episode.title,
+        authorId: episode.userId,
       })
-      .from(review)
-      .innerJoin(conversation, eq(conversation.id, review.conversationId))
-      .where(eq(review.reviewerId, userId))
-      .orderBy(desc(review.updatedAt)),
+      .from(reviewResponse)
+      .innerJoin(reviewAssignment, eq(reviewAssignment.id, reviewResponse.assignmentId))
+      .innerJoin(reviewView, eq(reviewView.id, reviewResponse.viewId))
+      .innerJoin(episode, eq(episode.id, reviewView.episodeId))
+      .where(eq(reviewResponse.reviewerId, userId))
+      .orderBy(desc(reviewResponse.submittedAt)),
     db
-      .select()
-      .from(nomination)
+      .select({
+        id: pairAudit.id,
+        topicTaskMatch: pairAudit.topicTaskMatch,
+        sensitivityMatch: pairAudit.sensitivityMatch,
+        intendedChangeRealized: pairAudit.intendedChangeRealized,
+        unintendedDifferences: pairAudit.unintendedDifferences,
+        unintendedOther: pairAudit.unintendedOther,
+        comparisonType: pairAudit.comparisonType,
+        auditNote: pairAudit.auditNote,
+        submittedAt: pairAudit.submittedAt,
+        intendedDifference: relatedVersion.intendedDifference,
+      })
+      .from(pairAudit)
+      .innerJoin(relatedVersion, eq(relatedVersion.id, pairAudit.relatedVersionId))
+      .where(eq(pairAudit.reviewerId, userId))
+      .orderBy(desc(pairAudit.submittedAt)),
+    db
+      .select({
+        id: reviewAssignment.id,
+        purpose: reviewAssignment.purpose,
+        state: reviewAssignment.state,
+        skipReason: reviewAssignment.skipReason,
+        skipNote: reviewAssignment.skipNote,
+        reservedAt: reviewAssignment.reservedAt,
+        finishedAt: reviewAssignment.finishedAt,
+      })
+      .from(reviewAssignment)
       .where(
-        and(eq(nomination.userId, userId), inArray(nomination.track, TRACK_VALUES)),
-      ),
+        and(
+          eq(reviewAssignment.reviewerId, userId),
+          inArray(reviewAssignment.state, ["skipped", "expired"]),
+        ),
+      )
+      .orderBy(desc(reviewAssignment.finishedAt)),
   ]);
 
-  return { account, profile: theirProfile, reviews, nominations };
+  return { account, profile: theirProfile, reviews, audits, skips };
 }
 
-/** The labels as a snapshot or a working copy carries them. */
-export type HistoryLabels = {
-  type?: string | null;
-  rolePreset?: string | null;
-  roleText?: string | null;
-  goalText?: string | null;
-  modelBehaviour?: string | null;
-  domainTags?: string[] | null;
-  domainOther?: string | null;
-  evidenceTurns?: number[] | null;
-  challengeFlag?: string | null;
-  notes?: string | null;
-};
-
-/** A message as a submission's snapshot holds it. */
-type SnapshotMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content?: string | null;
-  finishReason?: string | null;
-  error?: unknown;
-  evidence?: boolean;
-};
-
 /**
- * Every conversation one participant has had, in full, with its labels.
+ * Everything one participant has made, in full: each episode with what they
+ * said about it, and every session inside it message by message.
  *
  * For reading, not counting: this is what an organizer scrolls through to
- * decide whether someone's transcripts and labels are careful work. Four
- * queries whatever the number of conversations, so a prolific participant
- * does not make the page slow.
- *
- * For a submitted conversation the labels and the messages are the ones
- * submitted with its current version, followed by anything added since. For
- * one never submitted they are the conversation as it stands and whatever
- * its author had filled in so far.
+ * decide whether someone's work is careful. A fixed number of queries
+ * whatever the number of episodes.
  */
 export async function participantHistory(userId: string) {
-  const [conversations, messages, reviews, clipboard] = await Promise.all([
-    db
-      .select({
-        id: conversation.id,
-        title: conversation.title,
-        modelId: conversation.modelId,
-        scenario: conversation.scenario,
-        status: conversation.status,
-        currentVersion: conversation.currentVersion,
-        createdAt: conversation.createdAt,
-        lastSubmittedAt: conversation.lastSubmittedAt,
-        lockedAt: conversation.lockedAt,
-        submittedLabels: sql<HistoryLabels | null>`${submission.snapshot}->'labels'`,
-        // The messages as they were submitted. Not the conversation as it
-        // is now: an author can keep chatting after submitting, and can
-        // regenerate the last reply, which replaces it.
-        submittedMessages: sql<SnapshotMessage[] | null>`${submission.snapshot}->'messages'`,
-        draftLabels: {
-          type: transcriptLabels.type,
-          rolePreset: transcriptLabels.rolePreset,
-          roleText: transcriptLabels.roleText,
-          goalText: transcriptLabels.goalText,
-          modelBehaviour: transcriptLabels.modelBehaviour,
-          domainTags: transcriptLabels.domainTags,
-          domainOther: transcriptLabels.domainOther,
-          evidenceTurns: transcriptLabels.evidenceTurns,
-          challengeFlag: transcriptLabels.challengeFlag,
-          notes: transcriptLabels.notes,
-        },
-      })
-      .from(conversation)
-      .leftJoin(transcriptLabels, eq(transcriptLabels.conversationId, conversation.id))
-      .leftJoin(submission, currentSubmission)
-      .where(eq(conversation.userId, userId))
-      .orderBy(desc(conversation.createdAt)),
-    db
-      .select({
-        id: message.id,
-        conversationId: message.conversationId,
-        seq: message.seq,
-        role: message.role,
-        content: message.content,
-        finishReason: message.finishReason,
-        failed: sql<boolean>`${message.error} is not null`,
-        createdAt: message.createdAt,
-      })
-      .from(message)
-      .innerJoin(conversation, eq(conversation.id, message.conversationId))
-      .where(and(eq(conversation.userId, userId), sql`${message.supersededBy} is null`))
-      .orderBy(message.conversationId, message.seq),
-    // What other people said about these transcripts.
-    db
-      .select({
-        conversationId: review.conversationId,
-        reviewerName: user.name,
-        intent: review.intent,
-        misusePresent: review.misusePresent,
-        actor: review.actor,
-        goalText: review.goalText,
-        confidence: review.confidence,
-        notes: review.notes,
-        reviewedVersion: review.reviewedVersion,
-        submittedAt: review.submittedAt,
-      })
-      .from(review)
-      .innerJoin(conversation, eq(conversation.id, review.conversationId))
-      .innerJoin(user, eq(user.id, review.reviewerId))
-      .where(eq(conversation.userId, userId))
-      .orderBy(review.submittedAt),
-    // The author's own copying and pasting, summed up per conversation.
-    db
-      .select({
-        conversationId: clipboardEvent.conversationId,
-        kind: clipboardEvent.kind,
-        surface: clipboardEvent.surface,
-        times: sql<number>`count(*)::int`,
-        characters: sql<number>`coalesce(sum(${clipboardEvent.charCount}), 0)::int`,
-      })
-      .from(clipboardEvent)
-      .where(eq(clipboardEvent.userId, userId))
-      .groupBy(clipboardEvent.conversationId, clipboardEvent.kind, clipboardEvent.surface),
-  ]);
+  const settings = await getEventSettings();
+  const [episodes, sessions, messages, clipboard, goalRevisions, links, views] =
+    await Promise.all([
+      db
+        .select()
+        .from(episode)
+        .where(eq(episode.userId, userId))
+        .orderBy(desc(episode.createdAt)),
+      db
+        .select({
+          id: conversation.id,
+          episodeId: conversation.episodeId,
+          title: conversation.title,
+          modelId: conversation.modelId,
+          scenario: conversation.scenario,
+          status: conversation.status,
+          sessionOrder: conversation.sessionOrder,
+          createdAt: conversation.createdAt,
+          lockedAt: conversation.lockedAt,
+        })
+        .from(conversation)
+        .where(eq(conversation.userId, userId))
+        .orderBy(asc(conversation.sessionOrder), asc(conversation.createdAt)),
+      db
+        .select({
+          id: message.id,
+          conversationId: message.conversationId,
+          seq: message.seq,
+          role: message.role,
+          content: message.content,
+          finishReason: message.finishReason,
+          failed: sql<boolean>`${message.error} is not null`,
+          createdAt: message.createdAt,
+        })
+        .from(message)
+        .innerJoin(conversation, eq(conversation.id, message.conversationId))
+        .where(and(eq(conversation.userId, userId), sql`${message.supersededBy} is null`))
+        .orderBy(message.conversationId, message.seq),
+      // The author's own copying and pasting, summed up per session.
+      db
+        .select({
+          conversationId: clipboardEvent.conversationId,
+          kind: clipboardEvent.kind,
+          surface: clipboardEvent.surface,
+          times: sql<number>`count(*)::int`,
+          characters: sql<number>`coalesce(sum(${clipboardEvent.charCount}), 0)::int`,
+        })
+        .from(clipboardEvent)
+        .where(eq(clipboardEvent.userId, userId))
+        .groupBy(clipboardEvent.conversationId, clipboardEvent.kind, clipboardEvent.surface),
+      db
+        .select({
+          episodeId: episodeGoalRevision.episodeId,
+          n: sql<number>`count(*)::int`,
+          afterWorkBegan: sql<number>`count(*) filter (where ${episodeGoalRevision.afterWorkBegan})::int`,
+        })
+        .from(episodeGoalRevision)
+        .innerJoin(episode, eq(episode.id, episodeGoalRevision.episodeId))
+        .where(eq(episode.userId, userId))
+        .groupBy(episodeGoalRevision.episodeId),
+      // Related-version links this person made, either end.
+      db
+        .select({
+          id: relatedVersion.id,
+          sourceEpisodeId: relatedVersion.sourceEpisodeId,
+          targetEpisodeId: relatedVersion.targetEpisodeId,
+          comparisonIntent: relatedVersion.comparisonIntent,
+          intendedDifference: relatedVersion.intendedDifference,
+        })
+        .from(relatedVersion)
+        .where(eq(relatedVersion.createdBy, userId)),
+      // What reviewers said, per view of each episode.
+      db
+        .select({
+          viewId: reviewView.id,
+          episodeId: reviewView.episodeId,
+          kind: reviewView.kind,
+          conversationId: reviewView.conversationId,
+          verdicts: sql<string[]>`coalesce(
+            (select array_agg(r.verdict order by r.submitted_at)
+               from review_response r where r.view_id = ${reviewView.id}),
+            '{}'::text[])`,
+        })
+        .from(reviewView)
+        .innerJoin(episode, eq(episode.id, reviewView.episodeId))
+        .where(eq(episode.userId, userId)),
+    ]);
 
-  const group = <T extends { conversationId: string | null }>(rows: T[]) => {
-    const byConversation = new Map<string, T[]>();
+  const group = <T, K extends string | null>(rows: T[], key: (row: T) => K) => {
+    const grouped = new Map<string, T[]>();
     for (const row of rows) {
-      if (!row.conversationId) continue;
-      const list = byConversation.get(row.conversationId);
+      const k = key(row);
+      if (!k) continue;
+      const list = grouped.get(k);
       if (list) list.push(row);
-      else byConversation.set(row.conversationId, [row]);
+      else grouped.set(k, [row]);
     }
-    return byConversation;
+    return grouped;
   };
-  const messagesFor = group(messages);
-  const reviewsFor = group(reviews);
-  const clipboardFor = group(clipboard);
+  const messagesFor = group(messages, (m) => m.conversationId);
+  const clipboardFor = group(clipboard, (c) => c.conversationId);
+  const sessionsFor = group(sessions, (s) => s.episodeId);
+  const viewsFor = group(views, (v) => v.episodeId);
+  const revisionsFor = new Map(goalRevisions.map((g) => [g.episodeId, g]));
+  const titleOf = new Map(episodes.map((e) => [e.id, e.title]));
 
-  return conversations.map(({ submittedLabels, draftLabels, submittedMessages, ...c }) => {
-    const live = messagesFor.get(c.id) ?? [];
-    const submitted = c.status === "submitted";
-    const labels: HistoryLabels | null = submitted ? submittedLabels : draftLabels;
-    const marked = new Set(labels?.evidenceTurns ?? []);
-
-    type Turn = {
-      id: string;
-      turn: number;
-      role: "user" | "assistant";
-      content: string;
-      finishReason: string | null;
-      failed: boolean;
-      evidence: boolean;
-      /** Written after the version these labels describe. */
-      afterSubmission: boolean;
-      /** Stands where a submitted reply was, having been regenerated. */
-      replacesTurn: number | null;
-    };
-
-    let turns: Turn[];
-    if (!submitted) {
-      turns = live.map((m, i) => ({
+  return episodes.map((ep) => {
+    const own = (sessionsFor.get(ep.id) ?? []).map((s) => ({
+      ...s,
+      messages: (messagesFor.get(s.id) ?? []).map((m, i) => ({
         id: m.id,
         turn: i + 1,
         role: m.role,
         content: m.content,
         finishReason: m.finishReason,
         failed: m.failed,
-        evidence: marked.has(i + 1),
-        afterSubmission: false,
-        replacesTurn: null,
-      }));
-    } else {
-      // What was submitted, exactly: these are the messages the labels and
-      // the reviews are about.
-      const snapshot = submittedMessages ?? [];
-      const inVersion = new Set(snapshot.map((m) => m.id));
-      turns = snapshot.map((m, i) => ({
-        id: m.id,
-        turn: i + 1,
-        role: m.role,
-        content: m.content ?? "",
-        finishReason: m.finishReason ?? null,
-        failed: m.error != null,
-        // Marked on the message itself since evidence turns existed; the
-        // numbers on the labels cover anything submitted the same day.
-        evidence: m.evidence ?? marked.has(i + 1),
-        afterSubmission: false,
-        replacesTurn: null,
-      }));
-      // Then whatever the conversation has gained since, which nobody has
-      // labelled or reviewed. A message standing at a number the submitted
-      // version also has is a reply regenerated afterwards.
-      live.forEach((m, i) => {
-        if (inVersion.has(m.id)) return;
-        turns.push({
-          id: m.id,
-          turn: i + 1,
-          role: m.role,
-          content: m.content,
-          finishReason: m.finishReason,
-          failed: m.failed,
-          evidence: false,
-          afterSubmission: true,
-          replacesTurn: i + 1 <= snapshot.length ? i + 1 : null,
-        });
-      });
-    }
-
+      })),
+      clipboard: clipboardFor.get(s.id) ?? [],
+    }));
+    // The letters a reviewer saw: A, B, C over the sessions that were
+    // submitted, in order.
+    const letters = new Map(
+      own.filter((s) => s.status === "submitted").map((s, i) => [s.id, sessionLetter(i + 1)]),
+    );
+    const asTarget = links.find((l) => l.targetEpisodeId === ep.id) ?? null;
     return {
-      ...c,
-      submitted,
-      labels,
-      messages: turns,
-      reviews: reviewsFor.get(c.id) ?? [],
-      clipboard: clipboardFor.get(c.id) ?? [],
+      ...ep,
+      submitted: ep.status === "submitted",
+      sessions: own,
+      messageCount: own.reduce((sum, s) => sum + s.messages.length, 0),
+      goalRevisions: revisionsFor.get(ep.id) ?? { episodeId: ep.id, n: 0, afterWorkBegan: 0 },
+      // If this was made as a related version of something.
+      relatedTo: asTarget
+        ? {
+            ...asTarget,
+            sourceTitle: titleOf.get(asTarget.sourceEpisodeId) ?? "an earlier submission",
+          }
+        : null,
+      // Related versions made of this one.
+      relatedVersions: links
+        .filter((l) => l.sourceEpisodeId === ep.id)
+        .map((l) => ({ ...l, targetTitle: titleOf.get(l.targetEpisodeId) ?? "a draft" })),
+      views: (viewsFor.get(ep.id) ?? []).map((v) => ({
+        id: v.viewId,
+        name:
+          v.kind === "linked"
+            ? "All sessions together"
+            : letters.size > 1 && v.conversationId
+              ? `Session ${letters.get(v.conversationId) ?? "?"}`
+              : "The conversation",
+        verdicts: v.verdicts,
+        outcome: panelOutcome(v.verdicts, settings.reviewsPerView),
+      })),
     };
   });
 }
 
-/** Nominations for the organizers to read, newest first within a track. */
-export async function nominationsByTrack() {
-  return db
+/** Whether prize entries can still be made or taken back, and until when. */
+export async function prizeEntryStatus() {
+  const settings = await getEventSettings();
+  const pastDeadline =
+    settings.nominationsCloseAt != null && settings.nominationsCloseAt.getTime() <= Date.now();
+  return {
+    locked: settings.nominationsLocked || pastDeadline,
+    closedByOrganizer: settings.nominationsLocked,
+    closeAt: settings.nominationsCloseAt,
+  };
+}
+
+export type SubmissionState = "pending" | "ready" | "held" | "withdrawn";
+
+type ViewCoverageRow = {
+  view_id: string;
+  episode_id: string;
+  kind: string;
+  conversation_id: string | null;
+  session_order: number | null;
+  completed: number;
+  active: number;
+  skipped: number;
+  expired: number;
+  verdicts: string[];
+};
+
+/**
+ * Every submitted episode, newest first, with who may review it and how far
+ * the reviewing has got on each thing a reviewer can be shown.
+ */
+export async function submissionsList(state?: SubmissionState) {
+  const settings = await getEventSettings();
+  const episodes = await db
     .select({
-      id: nomination.id,
-      track: nomination.track,
-      headline: nomination.headline,
-      details: nomination.details,
-      slidesUrl: nomination.slidesUrl,
-      collaborators: nomination.collaborators,
-      updatedAt: nomination.updatedAt,
-      submissionCount: nomination.submissionCount,
-      name: user.name,
-      email: user.email,
+      id: episode.id,
+      title: episode.title,
+      isFolder: episode.isFolder,
+      modelId: episode.modelId,
+      taskProvenance: episode.taskProvenance,
+      activityTemplate: episode.activityTemplate,
+      creationMethod: episode.creationMethod,
+      sourceFamilyId: episode.sourceFamilyId,
+      submittedAt: episode.submittedAt,
+      reviewLevel: episode.reviewLevel,
+      eligibleDomains: episode.eligibleDomains,
+      assignmentState: episode.assignmentState,
+      prizeEntryAt: episode.prizeEntryAt,
+      authorId: user.id,
+      authorName: user.name,
+      sessions: sql<number>`(
+        select count(*) from conversation c
+        where c.episode_id = ${episode.id} and c.status = 'submitted'
+      )::int`,
     })
-    .from(nomination)
-    .innerJoin(user, eq(user.id, nomination.userId))
-    .where(inArray(nomination.track, TRACK_VALUES))
-    .orderBy(nomination.track, desc(nomination.updatedAt));
+    .from(episode)
+    .innerJoin(user, eq(user.id, episode.userId))
+    .where(
+      state
+        ? and(eq(episode.status, "submitted"), eq(episode.assignmentState, state))
+        : eq(episode.status, "submitted"),
+    )
+    .orderBy(desc(episode.submittedAt));
+  if (episodes.length === 0) return [];
+
+  const ids = episodes.map((e) => e.id);
+  const idList = sql.join(
+    ids.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  const [coverage, links] = await Promise.all([
+    db.execute<ViewCoverageRow>(sql`
+      select
+        v.id as view_id, v.episode_id, v.kind, v.conversation_id,
+        c.session_order,
+        count(a.id) filter (where a.state = 'completed')::int as completed,
+        count(a.id) filter (where a.state = 'active')::int as active,
+        count(a.id) filter (where a.state = 'skipped')::int as skipped,
+        count(a.id) filter (where a.state = 'expired')::int as expired,
+        coalesce(
+          (select array_agg(r.verdict order by r.submitted_at)
+             from review_response r where r.view_id = v.id),
+          '{}'::text[]) as verdicts
+      from review_view v
+      left join conversation c on c.id = v.conversation_id
+      left join review_assignment a on a.view_id = v.id and a.purpose = 'primary'
+      where v.episode_id in (${idList})
+      group by v.id, c.session_order
+      order by v.kind desc, c.session_order asc nulls last
+    `),
+    // Pairs these episodes belong to, with the audit if one was done.
+    db
+      .select({
+        id: relatedVersion.id,
+        sourceEpisodeId: relatedVersion.sourceEpisodeId,
+        targetEpisodeId: relatedVersion.targetEpisodeId,
+        comparisonIntent: relatedVersion.comparisonIntent,
+        intendedDifference: relatedVersion.intendedDifference,
+        sourceTitle: sql<string>`(select title from episode s where s.id = ${relatedVersion.sourceEpisodeId})`,
+        targetTitle: sql<string>`(select title from episode t where t.id = ${relatedVersion.targetEpisodeId})`,
+        targetStatus: sql<string>`(select status from episode t where t.id = ${relatedVersion.targetEpisodeId})`,
+        auditComparisonType: pairAudit.comparisonType,
+        auditInProgress: sql<boolean>`exists (
+          select 1 from review_assignment a
+          where a.related_version_id = ${relatedVersion.id}
+            and a.purpose = 'pair_audit' and a.state = 'active')`,
+      })
+      .from(relatedVersion)
+      .leftJoin(pairAudit, eq(pairAudit.relatedVersionId, relatedVersion.id))
+      .where(
+        sql`${relatedVersion.sourceEpisodeId} in (${idList}) or ${relatedVersion.targetEpisodeId} in (${idList})`,
+      ),
+  ]);
+
+  const byEpisode = new Map<string, ViewCoverageRow[]>();
+  for (const row of coverage as unknown as ViewCoverageRow[]) {
+    const list = byEpisode.get(row.episode_id);
+    if (list) list.push(row);
+    else byEpisode.set(row.episode_id, [row]);
+  }
+
+  return episodes.map((ep) => {
+    const rows = byEpisode.get(ep.id) ?? [];
+    const sessionViews = rows.filter((r) => r.kind === "session");
+    const views = [
+      ...sessionViews.map((r, i) => ({
+        ...r,
+        name: sessionViews.length > 1 ? `Session ${sessionLetter(i + 1)}` : "Conversation",
+      })),
+      ...rows.filter((r) => r.kind === "linked").map((r) => ({ ...r, name: "All sessions together" })),
+    ].map((r) => ({
+      id: r.view_id,
+      name: r.name,
+      completed: r.completed,
+      active: r.active,
+      skipped: r.skipped,
+      expired: r.expired,
+      outcome: panelOutcome(r.verdicts, settings.reviewsPerView),
+    }));
+    return {
+      ...ep,
+      views,
+      // The pair this episode is the newer half of, if it is one.
+      relatedTo: links.find((l) => l.targetEpisodeId === ep.id) ?? null,
+      // Related versions made of this one.
+      relatedVersions: links.filter((l) => l.sourceEpisodeId === ep.id),
+    };
+  });
 }
 
 /**
- * How far the reviewing has got: of the submitted transcripts, how many have
- * no review, at least one, and as many as the limit allows.
+ * Who is able to review what: how many people have passed the instruction
+ * check for the policy in force, and for each subject how many of them say
+ * they can assess routine work (F2 or F3) or specialised work (F3) in it.
+ *
+ * This is what to look at before marking something Routine or Specialist in
+ * a subject: with nobody in the right-hand columns, it will sit unreviewed.
  */
-export async function reviewCoverage(limit: number) {
-  const rows = await db.execute<{ submitted: number; reviewed: number; full: number }>(sql`
-    select
-      count(*)::int as submitted,
-      count(*) filter (where n > 0)::int as reviewed,
-      count(*) filter (where n >= ${limit}::int)::int as full
-    from (
-      select c.id, (select count(*) from review r where r.conversation_id = c.id) as n
-      from conversation c
-      where c.status = 'submitted'
-    ) per_transcript
-  `);
-  const [row] = rows as unknown as { submitted: number; reviewed: number; full: number }[];
-  return row ?? { submitted: 0, reviewed: 0, full: 0 };
+export async function reviewerPool() {
+  const policy = await getPolicy();
+  const people = await db
+    .select({ id: user.id, policyReadyVersion: user.policyReadyVersion, intake: profile.intake })
+    .from(user)
+    .leftJoin(profile, eq(profile.userId, user.id))
+    .where(sql`${user.profileCompletedAt} is not null and coalesce(${user.banned}, false) = false`);
+
+  const ready = people.filter((p) => policy.version > 0 && p.policyReadyVersion === policy.version);
+  const tally = (list: typeof people) =>
+    DOMAINS.filter((d) => d.id !== "other").map((d) => {
+      const levels = list.map(
+        (p) => ((p.intake ?? {}) as Partial<IntakeDraft>).familiarity?.[d.id] ?? null,
+      );
+      return {
+        id: d.id,
+        label: d.label,
+        routine: levels.filter((l) => l === "F2" || l === "F3").length,
+        specialist: levels.filter((l) => l === "F3").length,
+      };
+    });
+  return {
+    policyVersion: policy.version,
+    onboarded: people.length,
+    ready: ready.length,
+    // Among those who can review now, and among everyone who has joined.
+    domains: tally(ready).map((row, i) => ({ ...row, everyone: tally(people)[i] })),
+  };
+}
+
+/** Work put forward for a prize, grouped by who entered it, earliest first. */
+export async function prizeEntries() {
+  const settings = await getEventSettings();
+  const rows = await db
+    .select({
+      id: episode.id,
+      title: episode.title,
+      isFolder: episode.isFolder,
+      modelId: episode.modelId,
+      taskProvenance: episode.taskProvenance,
+      creationMethod: episode.creationMethod,
+      sourceFamilyId: episode.sourceFamilyId,
+      assignmentState: episode.assignmentState,
+      reviewLevel: episode.reviewLevel,
+      prizeEntryAt: episode.prizeEntryAt,
+      submittedAt: episode.submittedAt,
+      authorId: user.id,
+      authorName: user.name,
+      authorEmail: user.email,
+      // One list per view, each the verdicts that view has had.
+      panels: sql<string[][] | null>`(
+        select jsonb_agg(coalesce(
+          (select jsonb_agg(r.verdict order by r.submitted_at)
+             from review_response r where r.view_id = v.id), '[]'::jsonb))
+        from review_view v where v.episode_id = ${episode.id}
+      )`,
+    })
+    .from(episode)
+    .innerJoin(user, eq(user.id, episode.userId))
+    .where(sql`${episode.prizeEntryAt} is not null`)
+    .orderBy(asc(user.name), asc(episode.prizeEntryAt));
+
+  const byAuthor = new Map<
+    string,
+    { authorId: string; authorName: string; authorEmail: string; entries: Entry[] }
+  >();
+  type Entry = Omit<(typeof rows)[number], "panels"> & { outcomes: string[]; reviews: number };
+  for (const { panels, ...row } of rows) {
+    const lists = panels ?? [];
+    const entry: Entry = {
+      ...row,
+      outcomes: lists.map((verdicts) => panelOutcome(verdicts, settings.reviewsPerView)),
+      reviews: lists.reduce((sum, verdicts) => sum + verdicts.length, 0),
+    };
+    const group = byAuthor.get(row.authorId);
+    if (group) group.entries.push(entry);
+    else
+      byAuthor.set(row.authorId, {
+        authorId: row.authorId,
+        authorName: row.authorName,
+        authorEmail: row.authorEmail,
+        entries: [entry],
+      });
+  }
+  return [...byAuthor.values()];
+}
+
+/** Every published version of the review policy, newest first. */
+export async function listPolicyVersions() {
+  const rows = await db.select().from(reviewPolicy).orderBy(desc(reviewPolicy.version));
+  return rows.map((r) => ({
+    version: r.version,
+    body: r.body,
+    rules: (r.rules ?? []) as { id: string; label: string; verdicts: string[] }[],
+    publishedAt: r.publishedAt,
+  }));
+}
+
+/** How many accounts have passed the instruction check for a version. */
+export async function policyReadiness(version: number) {
+  const [row] = await db
+    .select({
+      total: count(),
+      ready: sql<number>`count(*) filter (where ${user.policyReadyVersion} = ${version} and ${version} > 0)::int`,
+      // Responses already made under any version: they keep the version
+      // they were made under, whatever is published next.
+      responses: sql<number>`(select count(*) from review_response)::int`,
+    })
+    .from(user);
+  return { total: row?.total ?? 0, ready: row?.ready ?? 0, responses: row?.responses ?? 0 };
 }

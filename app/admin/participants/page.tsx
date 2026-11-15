@@ -3,16 +3,30 @@ import { requireAdmin } from "@/lib/gate";
 import { participantTable } from "@/lib/admin";
 import { getEventSettings } from "@/lib/openrouter";
 import { ParticipantRow } from "@/components/admin-controls";
+import { ROLES, domainLabel, type IntakeDraft } from "@/lib/intake";
 import { cn } from "@/lib/utils";
 
-type Sort = "benign" | "reviews" | "submitted" | "name";
+type Sort = "submitted" | "reviews" | "drafts" | "name";
 
-const SORTS: { key: Sort; label: string; note?: string }[] = [
-  { key: "benign", label: "Benign transcripts", note: "prize: benign use cases" },
-  { key: "reviews", label: "Reviews completed", note: "prize: independent reviewer" },
-  { key: "submitted", label: "Transcripts submitted" },
+const SORTS: { key: Sort; label: string }[] = [
+  { key: "submitted", label: "Work submitted" },
+  { key: "reviews", label: "Reviews completed" },
+  { key: "drafts", label: "Drafts" },
   { key: "name", label: "Name" },
 ];
+
+/** A line about someone from their intake: role, then what they rate highest. */
+function intakeLine(stored: unknown) {
+  const intake = (stored ?? {}) as Partial<IntakeDraft>;
+  const role =
+    intake.role === "other" && intake.roleOther
+      ? intake.roleOther
+      : ROLES.find((r) => r.value === intake.role)?.label;
+  const rated = Object.entries(intake.familiarity ?? {})
+    .sort((a, b) => b[1].localeCompare(a[1]))
+    .map(([id, level]) => `${level} ${domainLabel(id)}`);
+  return [role, rated.join(", ")].filter(Boolean).join(" · ");
+}
 
 export default async function Participants({
   searchParams,
@@ -21,7 +35,7 @@ export default async function Participants({
 }) {
   const me = await requireAdmin();
   const { sort } = await searchParams;
-  const by = (SORTS.find((s) => s.key === sort)?.key ?? "benign") as Sort;
+  const by = (SORTS.find((s) => s.key === sort)?.key ?? "submitted") as Sort;
 
   const [rows, settings] = await Promise.all([
     participantTable(),
@@ -54,11 +68,12 @@ export default async function Participants({
         ))}
       </div>
 
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Two prizes are decided by counting: most benign transcripts, and most
-        independent reviews. These are raw counts. Quality is yours to judge,
-        so open someone to read what they actually produced before awarding
-        anything.
+      <p className="max-w-4xl text-xs leading-relaxed text-muted-foreground">
+        Raw counts: what each person submitted, and what they did as a
+        reviewer. Skipping something outside one&apos;s expertise is what
+        reviewers are asked to do, so skips are shown, not held against
+        anyone. Quality is yours to judge: open someone to read what they
+        actually produced.
       </p>
 
       <div className="@container overflow-x-auto rounded-[var(--radius)] border border-border">
@@ -66,64 +81,70 @@ export default async function Participants({
           <thead className="bg-muted/60 text-left">
             <tr>
               <Th>Participant</Th>
-              <Th right>Benign</Th>
-              <Th right>Dual use</Th>
-              <Th right>Adversarial</Th>
               <Th right>Submitted</Th>
+              <Th right>Drafts</Th>
               <Th right>Reviews</Th>
-              <Th right>Nominations</Th>
+              <Th right>Comparisons</Th>
+              <Th right>Skips</Th>
+              <Th right>Prize entries</Th>
               <Th right>Tokens</Th>
               <Th>Status</Th>
               <Th />
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row) => (
-              <ParticipantRow
-                key={row.id}
-                columns={10}
-                userId={row.id}
-                name={row.name}
-                paused={row.banned}
-                isOrganizer={row.is_admin}
-                isSelf={row.id === me.user.id}
-                budget={row.daily_token_budget}
-                defaultBudget={settings.defaultDailyTokenBudget}
-              >
-                <td className="px-3 py-2">
-                  <Link
-                    href={`/admin/participants/${row.id}`}
-                    prefetch
-                    className="font-medium text-accent underline"
-                  >
-                    {row.name}
-                  </Link>
-                  <p className="text-xs text-muted-foreground">{row.email}</p>
-                  {row.affiliation && (
-                    <p className="text-xs text-muted-foreground">
-                      {row.affiliation}
-                      {row.role ? ` · ${row.role}` : ""}
-                    </p>
-                  )}
-                </td>
-                <Td right strong={by === "benign"}>{row.benign}</Td>
-                <Td right>{row.dual_use}</Td>
-                <Td right>{row.adversarial}</Td>
-                <Td right>{row.submitted}</Td>
-                <Td right strong={by === "reviews"}>{row.reviews}</Td>
-                <Td right>{row.nominations}</Td>
-                <Td right>{Number(row.tokens).toLocaleString()}</Td>
-                <td className="px-3 py-2">
-                  {row.banned ? (
-                    <span className="text-xs font-medium text-danger">Paused</span>
-                  ) : row.is_admin ? (
-                    <span className="text-xs text-muted-foreground">Organizer</span>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">Active</span>
-                  )}
-                </td>
-              </ParticipantRow>
-            ))}
+            {sorted.map((row) => {
+              const about = intakeLine(row.intake);
+              return (
+                <ParticipantRow
+                  key={row.id}
+                  columns={10}
+                  userId={row.id}
+                  name={row.name}
+                  paused={row.banned}
+                  isOrganizer={row.is_admin}
+                  isSelf={row.id === me.user.id}
+                  budget={row.daily_token_budget}
+                  defaultBudget={settings.defaultDailyTokenBudget}
+                >
+                  <td className="px-3 py-2">
+                    <Link
+                      href={`/admin/participants/${row.id}`}
+                      prefetch
+                      className="font-medium text-accent underline"
+                    >
+                      {row.name}
+                    </Link>
+                    <p className="text-xs text-muted-foreground">{row.email}</p>
+                    {about && <p className="text-xs text-muted-foreground">{about}</p>}
+                  </td>
+                  <Td right strong={by === "submitted"}>{row.submitted}</Td>
+                  <Td right strong={by === "drafts"}>{row.drafts}</Td>
+                  <Td right strong={by === "reviews"}>{row.reviews}</Td>
+                  <Td right>{row.audits}</Td>
+                  <Td right>{row.skips}</Td>
+                  <Td right>{row.prize_entries}</Td>
+                  <Td right>{Number(row.tokens).toLocaleString()}</Td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={cn(
+                        "text-xs",
+                        row.banned ? "font-medium text-danger" : "text-muted-foreground",
+                      )}
+                    >
+                      {row.banned ? "Paused" : row.is_admin ? "Organizer" : "Active"}
+                    </span>
+                    {!row.intake_done ? (
+                      <p className="text-xs text-muted-foreground">Intake not finished</p>
+                    ) : (
+                      !row.policy_ready && (
+                        <p className="text-xs text-muted-foreground">Not yet able to review</p>
+                      )
+                    )}
+                  </td>
+                </ParticipantRow>
+              );
+            })}
             {sorted.length === 0 && (
               <tr>
                 <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">

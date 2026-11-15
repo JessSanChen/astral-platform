@@ -1,23 +1,50 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Bookmark, ChevronDown, Lock } from "lucide-react";
+import { ArrowLeft, ChevronDown, Trophy } from "lucide-react";
 import { requireAdmin } from "@/lib/gate";
+import { participantDetail, participantHistory } from "@/lib/admin";
 import {
-  participantDetail,
-  participantHistory,
-  type HistoryLabels,
-} from "@/lib/admin";
-import { CHALLENGE_FLAGS, MODEL_BEHAVIOURS, TRANSCRIPT_TYPES } from "@/lib/labels";
-import { trackLabel } from "@/lib/nominations";
-import { withOther } from "@/lib/onboarding-schema";
-import { REVIEW_ACTORS, REVIEW_INTENTS } from "@/lib/review-schema";
+  ACTIVITY_TEMPLATES,
+  comparisonIntentLabel,
+  provenanceLabel,
+  sessionLetter,
+} from "@/lib/episode-options";
+import {
+  AI_USE,
+  BACKGROUND_RESPONSES,
+  EXPERIENCE_BANDS,
+  FAMILIARITY_RESPONSES,
+  FOCUS_TAGS,
+  ROLES,
+  SAFETY_LEVELS,
+  WORK_AREAS,
+  domainLabel,
+  intakeDraft,
+} from "@/lib/intake";
+import {
+  AIM_EVIDENCE,
+  ASSIGNMENT_STATES,
+  BUILT_IN_BASES,
+  COMPARISON_TYPES,
+  CONFIDENCE,
+  MATCH,
+  OUTCOME_LABELS,
+  REVIEW_LEVELS,
+  SKIP_REASONS,
+  SUBJECT_SENSITIVITY,
+  UNCERTAINTY_REASONS,
+  UNINTENDED,
+  VERDICTS,
+} from "@/lib/review-form";
 import { formatEventDateTime } from "@/lib/time";
 import { ExpandAll, MessageText } from "@/components/admin-history";
 import { Panel } from "@/components/admin-ui";
 import { cn } from "@/lib/utils";
 
-const labelOf = (list: readonly { value: string; label: string }[], value: string | null | undefined) =>
-  list.find((item) => item.value === value)?.label ?? value ?? "";
+const labelOf = (
+  list: readonly { value: string; label: string }[],
+  value: string | null | undefined,
+) => list.find((item) => item.value === value)?.label ?? value ?? "";
 
 function when(d: Date | null | undefined) {
   return d ? formatEventDateTime(d) : "";
@@ -31,12 +58,13 @@ const FILTERS = [
 type Filter = (typeof FILTERS)[number]["key"];
 
 type History = Awaited<ReturnType<typeof participantHistory>>;
+type Detail = Awaited<ReturnType<typeof participantDetail>>;
 
 /**
- * One participant's whole output, for the quality judgement that decides the
- * two counted prizes. Counts alone cannot tell apart careful work from
- * someone clicking through, so this shows what they actually wrote: every
- * conversation in full, beside the labels they gave it.
+ * One participant's whole output: who they said they are, every piece of
+ * work in full with what they said about it, and what they did as a
+ * reviewer. Counts cannot tell careful work from clicking through, so this
+ * shows what was actually written.
  */
 export default async function ParticipantDetail({
   params,
@@ -55,18 +83,18 @@ export default async function ParticipantDetail({
     participantHistory(userId),
   ]);
   if (!detail.account) notFound();
-  const { account, profile, reviews, nominations } = detail;
+  const { account, profile, reviews, audits, skips } = detail;
 
-  // A conversation opened and never typed into is not a transcript.
-  const transcripts = history.filter((c) => c.messages.length > 0);
-  const empty = history.length - transcripts.length;
+  // Something opened and never typed into is not work.
+  const work = history.filter((e) => e.messageCount > 0);
+  const empty = history.length - work.length;
   const counts: Record<Filter, number> = {
-    all: transcripts.length,
-    submitted: transcripts.filter((c) => c.submitted).length,
-    drafts: transcripts.filter((c) => !c.submitted).length,
+    all: work.length,
+    submitted: work.filter((e) => e.submitted).length,
+    drafts: work.filter((e) => !e.submitted).length,
   };
-  const shown = transcripts.filter((c) =>
-    filter === "all" ? true : filter === "submitted" ? c.submitted : !c.submitted,
+  const shown = work.filter((e) =>
+    filter === "all" ? true : filter === "submitted" ? e.submitted : !e.submitted,
   );
 
   return (
@@ -82,26 +110,13 @@ export default async function ParticipantDetail({
       <div>
         <h1 className="font-serif text-2xl font-medium tracking-tight">{account.name}</h1>
         <p className="text-sm text-muted-foreground">{account.email}</p>
-        {profile && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {profile.affiliation} · {withOther(profile.role, profile.roleOther)} ·{" "}
-            {withOther(profile.highestDegree, profile.highestDegreeOther)} ·{" "}
-            {profile.yearsExperience} years ·{" "}
-            {withOther(profile.primaryBackground, profile.primaryBackgroundOther)}
-            {profile.subdomains.length > 0 &&
-              ` · ${profile.subdomains
-                .map((s) => withOther(s, profile.subdomainsOther))
-                .join(", ")}`}
-          </p>
-        )}
-        {profile?.expertiseNote && (
-          <p className="mt-1 max-w-3xl text-sm">{profile.expertiseNote}</p>
-        )}
       </div>
 
-      <section aria-label="Conversations" className="space-y-3">
+      <IntakeAnswers profile={profile} completed={account.profileCompletedAt != null} />
+
+      <section aria-label="Work" className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="mr-1 text-sm font-semibold">Conversations</h2>
+          <h2 className="mr-1 text-sm font-semibold">Work</h2>
           {FILTERS.map((f) => (
             <Link
               key={f.key}
@@ -128,70 +143,86 @@ export default async function ParticipantDetail({
           )}
         </div>
         <p className="max-w-3xl text-xs leading-relaxed text-muted-foreground">
-          Every conversation in full, newest first, beside the labels given to
-          it. A submitted conversation is shown as it was submitted, with
-          anything added since marked as such; one never submitted shows the
-          conversation as it stands and whatever its author had filled in.
+          Every conversation and folder in full, newest first, beside what its
+          author said about it. Submitted work is frozen as it was submitted;
+          a draft is shown as it stands.
           {empty > 0 &&
-            ` ${empty} conversation${empty === 1 ? " was" : "s were"} opened and never typed into, and ${empty === 1 ? "is" : "are"} left out.`}
+            ` ${empty} ${empty === 1 ? "was" : "were"} opened and never typed into, and ${empty === 1 ? "is" : "are"} left out.`}
         </p>
 
         {shown.length === 0 ? (
           <p className="rounded-[var(--radius)] border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-            {transcripts.length === 0 ? "No conversations yet." : "None of this kind."}
+            {work.length === 0 ? "Nothing yet." : "None of this kind."}
           </p>
         ) : (
-          shown.map((c) => <Transcript key={c.id} conversation={c} />)
+          shown.map((e) => <Episode key={e.id} episode={e} />)
         )}
       </section>
 
       <Panel
-        title={`Independent reviews they wrote (${reviews.length})`}
-        description="What they said about other people's transcripts. Thin or repetitive answers are what to look for."
+        title={`Reviews they completed (${reviews.length})`}
+        description="Their answers about other people's work. Thin or repetitive reasons are what to look for."
       >
         {reviews.length === 0 ? (
           <p className="text-sm text-muted-foreground">None yet.</p>
         ) : (
           <ul className="divide-y divide-border">
             {reviews.map((r) => (
-              <li key={r.conversationId} className="py-2.5">
-                <p className="text-sm">
-                  <span className="font-medium">{labelOf(REVIEW_INTENTS, r.intent)}</span>
-                  {r.misusePresent ? ", misuse present" : ", no misuse"} ·
-                  confidence {r.confidence}/5
-                </p>
-                <p className="mt-0.5 text-sm text-muted-foreground">{r.goalText}</p>
-                {r.notes && <p className="mt-0.5 text-xs">{r.notes}</p>}
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  On &ldquo;{r.title}&rdquo; · {when(r.updatedAt)}
-                  {r.submissionCount > 1 && ` · changed ${r.submissionCount - 1} time(s)`}
-                </p>
-              </li>
+              <ReviewItem key={r.id} review={r} />
             ))}
           </ul>
         )}
       </Panel>
 
-      {nominations.length > 0 && (
-        <Panel title={`Nominations (${nominations.length})`}>
+      {audits.length > 0 && (
+        <Panel
+          title={`Comparisons they completed (${audits.length})`}
+          description="How well they judged a pair of related versions to match."
+        >
           <ul className="divide-y divide-border">
-            {nominations.map((n) => (
-              <li key={n.id} className="py-2.5">
-                <p className="text-xs text-muted-foreground">{trackLabel(n.track)}</p>
-                <p className="text-sm font-medium">{n.headline}</p>
-                <p className="mt-1 max-w-3xl whitespace-pre-wrap text-sm">
-                  {n.details}
+            {audits.map((a) => (
+              <li key={a.id} className="space-y-0.5 py-2.5 text-sm">
+                <p className="font-medium">{labelOf(COMPARISON_TYPES, a.comparisonType)}</p>
+                <p className="text-muted-foreground">
+                  Topic and task comparable: {labelOf(MATCH, a.topicTaskMatch)} · sensitivity held
+                  constant: {labelOf(MATCH, a.sensitivityMatch)} · intended change visible:{" "}
+                  {labelOf(MATCH, a.intendedChangeRealized)}
                 </p>
-                {n.slidesUrl && (
-                  <a
-                    href={n.slidesUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 inline-block text-xs text-accent underline"
-                  >
-                    Slides
-                  </a>
-                )}
+                <p className="text-muted-foreground">
+                  Unintended differences:{" "}
+                  {a.unintendedDifferences.map((d) => labelOf(UNINTENDED, d)).join(", ")}
+                  {a.unintendedOther && ` (${a.unintendedOther})`}
+                </p>
+                {a.auditNote && <p>{a.auditNote}</p>}
+                <p className="text-xs text-muted-foreground">
+                  The author meant to change: {a.intendedDifference} · {when(a.submittedAt)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {skips.length > 0 && (
+        <Panel
+          title={`Items they did not finish (${skips.length})`}
+          description="Skipped with a reason, or left until the reservation ran out. Neither counts against anyone."
+        >
+          <ul className="divide-y divide-border">
+            {skips.map((s) => (
+              <li key={s.id} className="py-2 text-sm">
+                <span className="font-medium">
+                  {s.state === "expired"
+                    ? "Ran out of time"
+                    : `Skipped: ${labelOf(SKIP_REASONS, s.skipReason)}`}
+                </span>
+                {s.skipNote && <span> · {s.skipNote}</span>}
+                <span className="text-xs text-muted-foreground">
+                  {" "}
+                  · {s.purpose === "pair_audit" ? "a comparison" : "a review"} · given{" "}
+                  {when(s.reservedAt)}
+                  {s.finishedAt && `, ended ${when(s.finishedAt)}`}
+                </span>
               </li>
             ))}
           </ul>
@@ -201,11 +232,127 @@ export default async function ParticipantDetail({
   );
 }
 
-/** One conversation: what was said on the left, what was said about it on the right. */
-function Transcript({ conversation: c }: { conversation: History[number] }) {
-  const after = c.messages.filter((m) => m.afterSubmission).length;
-  // For a submitted conversation, the turns that were submitted.
-  const turnCount = c.messages.length - after;
+/** One completed review, as the reviewer answered form C. */
+function ReviewItem({ review: r }: { review: Detail["reviews"][number] }) {
+  const minutes = Math.max(
+    1,
+    Math.round((r.submittedAt.getTime() - r.reservedAt.getTime()) / 60000),
+  );
+  return (
+    <li className="space-y-0.5 py-2.5 text-sm">
+      <p>
+        <span className="font-medium">
+          Warrants specialist review: {labelOf(VERDICTS, r.verdict)}
+        </span>{" "}
+        · basis: {labelOf(BUILT_IN_BASES, r.policyBasis)} · confidence{" "}
+        {labelOf(CONFIDENCE, r.confidence).toLowerCase()}
+      </p>
+      <p className="whitespace-pre-wrap">{r.rationale}</p>
+      <p className="text-muted-foreground">
+        Evidence:{" "}
+        {r.evidenceMode === "turns"
+          ? `turn${r.evidenceTurns.length === 1 ? "" : "s"} ${r.evidenceTurns.join(", ")}`
+          : "none specific; judged on what is absent"}
+        {r.uncertaintyReasons.length > 0 &&
+          ` · unsure because: ${r.uncertaintyReasons
+            .map((u) => labelOf(UNCERTAINTY_REASONS, u))
+            .join(", ")}${r.uncertaintyOther ? ` (${r.uncertaintyOther})` : ""}`}
+      </p>
+      <p className="text-muted-foreground">
+        Subject sensitivity: {labelOf(SUBJECT_SENSITIVITY, r.subjectSensitivity)}
+      </p>
+      <p className="text-muted-foreground">
+        Evidence of aim: {labelOf(AIM_EVIDENCE, r.aimEvidence)}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        On &ldquo;{r.episodeTitle}&rdquo;
+        {r.viewKind === "linked" ? " (all sessions together)" : ""} · policy version{" "}
+        {r.policyVersion} · {when(r.submittedAt)} · about {minutes} min after being given it
+      </p>
+    </li>
+  );
+}
+
+/** What someone answered on the intake form (form A). */
+function IntakeAnswers({ profile, completed }: { profile: Detail["profile"]; completed: boolean }) {
+  if (!profile?.intake) {
+    return (
+      <p className="rounded-[var(--radius)] border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+        {completed
+          ? "No intake answers are stored for this account."
+          : "Has not finished the intake form yet."}
+      </p>
+    );
+  }
+  const a = intakeDraft(profile.intake);
+  const domains = a.backgroundDomains.map((d) =>
+    d === "other" && a.otherDomainText ? `Other: ${a.otherDomainText}` : domainLabel(d),
+  );
+  const work = WORK_AREAS.filter((w) => a.work[w.key]).map(
+    (w) =>
+      `${w.key === "other" && a.workOtherText ? a.workOtherText : w.label}: ${labelOf(EXPERIENCE_BANDS, a.work[w.key])}`,
+  );
+  const rated = Object.entries(a.familiarity).map(([id, level]) => `${domainLabel(id)}: ${level}`);
+  return (
+    <details className="group rounded-[var(--radius)] border border-border bg-card" open>
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+        <ChevronDown className="h-4 w-4 -rotate-90 text-muted-foreground transition-transform group-open:rotate-0" />
+        Intake answers
+        <span className="text-xs font-normal text-muted-foreground">
+          form {profile.intakeVersion ?? "?"} · updated {when(profile.updatedAt)}
+        </span>
+      </summary>
+      <dl className="grid gap-x-8 gap-y-2 border-t border-border px-4 py-3 text-sm md:grid-cols-2">
+        <Row term="Role">
+          {a.role === "other" && a.roleOther ? a.roleOther : labelOf(ROLES, a.role)}
+        </Row>
+        <Row term="Subject background">
+          {a.backgroundResponse === "selected_areas"
+            ? domains.join("; ")
+            : labelOf(BACKGROUND_RESPONSES, a.backgroundResponse)}
+        </Row>
+        <Row term="Primary area">
+          {a.primaryDomain === "no_single"
+            ? "No single primary area"
+            : a.primaryDomain
+              ? domainLabel(a.primaryDomain)
+              : ""}
+        </Row>
+        <Row term="Specialization">{a.specializationText}</Row>
+        <Row term="Also works on">{a.focusTags.map((t) => labelOf(FOCUS_TAGS, t)).join("; ")}</Row>
+        <Row term="Work personally performed">
+          {a.workResponse === "prefer_not_to_say" ? "Prefer not to say" : work.join("\n")}
+        </Row>
+        <Row term="Familiarity for reviewing (self-rated; used for routing)">
+          {a.familiarityResponse === "rated_areas"
+            ? rated.join("\n")
+            : labelOf(FAMILIARITY_RESPONSES, a.familiarityResponse)}
+        </Row>
+        <Row term="Biosafety">{labelOf(SAFETY_LEVELS, a.biosafety)}</Row>
+        <Row term="Biosecurity and dual-use assessment">
+          {labelOf(SAFETY_LEVELS, a.biosecurity)}
+        </Row>
+        <Row term="Uses AI assistants">{labelOf(AI_USE, a.aiUse)}</Row>
+        <Row term="Agreed to take part">{when(profile.participationAgreedAt)}</Row>
+        <Row term="Agreed to restricted research use">{when(profile.researchUseAgreedAt)}</Row>
+        <Row term="Public release of their records">
+          {profile.publicReleasePermission === "yes"
+            ? "Yes"
+            : profile.publicReleasePermission === "no"
+              ? "No"
+              : "Not answered (treated as no)"}
+        </Row>
+      </dl>
+    </details>
+  );
+}
+
+/** One episode: what was said on the left, what was said about it on the right. */
+function Episode({ episode: e }: { episode: History[number] }) {
+  const sessions = e.sessions.filter((s) => s.messages.length > 0);
+  const several = sessions.length > 1;
+  const template = ACTIVITY_TEMPLATES.find((t) => t.id === e.activityTemplate)?.label;
+  const reviewed = e.views.reduce((sum, v) => sum + v.verdicts.length, 0);
   return (
     <details
       open
@@ -213,135 +360,169 @@ function Transcript({ conversation: c }: { conversation: History[number] }) {
       className="group rounded-[var(--radius)] border border-border bg-card"
     >
       <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-        <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-0 -rotate-90" />
+        <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 -rotate-90 text-muted-foreground transition-transform group-open:rotate-0" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{c.title}</p>
+          <p className="truncate text-sm font-medium">{e.title}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {turnCount} turn{turnCount === 1 ? "" : "s"} · {c.modelId} ·
-            started {when(c.createdAt)}
+            {e.isFolder || several
+              ? `Folder, ${sessions.length} session${sessions.length === 1 ? "" : "s"}`
+              : "Conversation"}{" "}
+            · {e.messageCount} turn{e.messageCount === 1 ? "" : "s"} · {e.modelId} · started{" "}
+            {when(e.createdAt)}
           </p>
         </div>
+        {e.prizeEntryAt && (
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+            <Trophy className="h-3 w-3" />
+            Prize entry
+          </span>
+        )}
         <span
           className={cn(
             "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
-            c.submitted ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground",
+            e.submitted ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground",
           )}
         >
-          {c.submitted ? `Submitted v${c.currentVersion}` : "Not submitted"}
+          {e.submitted ? "Submitted" : "Not submitted"}
         </span>
-        {c.lockedAt && (
-          <span title="Reviewed, so its author can no longer change it">
-            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          </span>
-        )}
       </summary>
 
       <div className="grid gap-x-6 gap-y-4 border-t border-border px-4 py-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <ol className="space-y-3">
-          {c.scenario && (
-            <li className="rounded-[var(--radius)] bg-muted/60 px-3 py-2 text-sm">
-              <p className="text-xs font-medium text-muted-foreground">
-                Scenario set by the author (sent to the model first)
-              </p>
-              <p className="mt-0.5 whitespace-pre-wrap">{c.scenario}</p>
-            </li>
-          )}
-          {c.messages.map((m) => {
-            const mine = m.role === "user";
-            const empty = !mine && m.content.trim().length === 0;
-            return (
-              <li
-                key={m.id}
-                className={cn(
-                  "rounded-[var(--radius)] border px-3 py-2 text-sm",
-                  mine ? "border-accent/25 bg-accent/5" : "border-border",
-                  m.evidence && "ring-1 ring-accent",
-                  m.afterSubmission && "opacity-70",
-                )}
-              >
-                <p className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                  <span className="font-mono">[{m.turn}]</span>
-                  <span className="font-medium text-foreground">
-                    {mine ? "Participant" : "Model"}
-                  </span>
-                  {m.evidence && (
-                    <span className="flex items-center gap-1 font-medium text-accent">
-                      <Bookmark className="h-3 w-3 fill-current" />
-                      Marked as evidence
-                    </span>
+        <div className="space-y-5">
+          {sessions.map((s, i) => (
+            <section key={s.id} aria-label={several ? `Session ${sessionLetter(i + 1)}` : undefined}>
+              {several && (
+                <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Session {sessionLetter(i + 1)}
+                  <span className="normal-case tracking-normal"> · {s.title}</span>
+                  {e.submitted && s.status !== "submitted" && (
+                    <span className="normal-case tracking-normal"> · not part of the submission</span>
                   )}
-                  {m.afterSubmission && (
-                    <span>
-                      ·{" "}
-                      {m.replacesTurn
-                        ? `regenerated after submitting: this replaced turn ${m.replacesTurn} above, and is not part of what was submitted`
-                        : "added after submitting, not part of it"}
-                    </span>
-                  )}
-                </p>
-                {empty ? (
-                  <p className="italic text-muted-foreground">
-                    No reply
-                    {m.failed
-                      ? ": the request failed or was blocked."
-                      : m.finishReason === "content-filter"
-                        ? ": a content filter stopped it."
-                        : ": the model returned nothing, which usually means it refused."}
-                  </p>
-                ) : (
-                  <MessageText text={m.content} />
+                </h3>
+              )}
+              <ol className="space-y-3">
+                {s.scenario && (
+                  <li className="rounded-[var(--radius)] bg-muted/60 px-3 py-2 text-sm">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Scenario set by the author (sent to the model first)
+                    </p>
+                    <p className="mt-0.5 whitespace-pre-wrap">{s.scenario}</p>
+                  </li>
                 )}
-              </li>
-            );
-          })}
-        </ol>
+                {s.messages.map((m) => {
+                  const mine = m.role === "user";
+                  const blank = !mine && m.content.trim().length === 0;
+                  return (
+                    <li
+                      key={m.id}
+                      className={cn(
+                        "rounded-[var(--radius)] border px-3 py-2 text-sm",
+                        mine ? "border-accent/25 bg-accent/5" : "border-border",
+                      )}
+                    >
+                      <p className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                        <span className="font-mono">[{m.turn}]</span>
+                        <span className="font-medium text-foreground">
+                          {mine ? "Participant" : "Model"}
+                        </span>
+                        {!mine && !blank && m.finishReason === "aborted" && <span>· cut short</span>}
+                      </p>
+                      {blank ? (
+                        <p className="italic text-muted-foreground">
+                          No reply
+                          {m.failed
+                            ? ": the request failed or was blocked."
+                            : m.finishReason === "content-filter"
+                              ? ": a content filter stopped it."
+                              : ": the model returned nothing, which usually means it refused."}
+                        </p>
+                      ) : (
+                        <MessageText text={m.content} />
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+              {s.clipboard.length > 0 && (
+                <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                  {s.clipboard.map((c) => (
+                    <li key={`${c.kind}-${c.surface}`}>
+                      {clipboardLine(c.kind, c.surface, c.times, c.characters)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))}
+        </div>
 
         <aside className="space-y-4 text-sm lg:sticky lg:top-4 lg:self-start">
-          <LabelsBlock labels={c.labels} submitted={c.submitted} />
-
-          {c.submitted && (
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Submitted {when(c.lastSubmittedAt)}
-              {after > 0 &&
-                `. ${after} later message${after === 1 ? "" : "s"} not submitted`}
-              .
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              What the author said about it
             </p>
-          )}
+            <dl className="space-y-2">
+              <Row term="Where the task came from">{provenanceLabel(e.taskProvenance)}</Row>
+              <Row term="Starting point picked">{template}</Row>
+              <Row term="Private goal note (never shown to the model or a reviewer)">
+                {e.goalText}
+              </Row>
+              <Row term="Goal note saved">
+                {e.goalRevisions.n > 0
+                  ? `${e.goalRevisions.n} time${e.goalRevisions.n === 1 ? "" : "s"}${
+                      e.goalRevisions.afterWorkBegan > 0
+                        ? `, ${e.goalRevisions.afterWorkBegan} of them after the first message`
+                        : ", all before the first message"
+                    }`
+                  : ""}
+              </Row>
+              {e.relatedTo && (
+                <Row term="Made as a related version of">
+                  &ldquo;{e.relatedTo.sourceTitle}&rdquo;
+                  <span className="block text-muted-foreground">
+                    {comparisonIntentLabel(e.relatedTo.comparisonIntent)}
+                  </span>
+                  <span className="block">Meant to change: {e.relatedTo.intendedDifference}</span>
+                </Row>
+              )}
+              {e.relatedVersions.length > 0 && (
+                <Row term="Related versions made of this">
+                  {e.relatedVersions.map((l) => `“${l.targetTitle}”`).join(", ")}
+                </Row>
+              )}
+              <Row term="Entered for a prize">{when(e.prizeEntryAt)}</Row>
+            </dl>
+          </div>
 
-          {c.reviews.length > 0 && (
+          {e.submitted && (
             <div className="space-y-2 border-t border-border pt-3">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                What reviewers said ({c.reviews.length})
+                Review
               </p>
-              {c.reviews.map((r, i) => (
-                <div key={i} className="space-y-0.5">
-                  <p>
-                    <span className="font-medium">{labelOf(REVIEW_INTENTS, r.intent)}</span>
-                    {r.misusePresent ? ", misuse present" : ", no misuse"} ·{" "}
-                    {labelOf(REVIEW_ACTORS, r.actor)} · confidence {r.confidence}/5
-                  </p>
-                  <p className="text-muted-foreground">{r.goalText}</p>
-                  {r.notes && <p className="text-xs">{r.notes}</p>}
-                  <p className="text-xs text-muted-foreground">
-                    {r.reviewerName} · v{r.reviewedVersion} · {when(r.submittedAt)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {c.clipboard.length > 0 && (
-            <div className="space-y-1 border-t border-border pt-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Copy and paste
-              </p>
-              <ul className="space-y-0.5 text-xs text-muted-foreground">
-                {c.clipboard.map((e) => (
-                  <li key={`${e.kind}-${e.surface}`}>
-                    {clipboardLine(e.kind, e.surface, e.times, e.characters)}
-                  </li>
-                ))}
-              </ul>
+              <dl className="space-y-2">
+                <Row term="Submitted">{when(e.submittedAt)}</Row>
+                <Row term="Routing">
+                  {labelOf(ASSIGNMENT_STATES, e.assignmentState)}
+                  {e.reviewLevel ? ` · ${labelOf(REVIEW_LEVELS, e.reviewLevel)}` : " · no level set"}
+                  {e.eligibleDomains.length > 0 && (
+                    <span className="block text-muted-foreground">
+                      {e.eligibleDomains.map(domainLabel).join(", ")}
+                    </span>
+                  )}
+                </Row>
+                <Row term={`What reviewers said (${reviewed})`}>
+                  {e.views
+                    .map(
+                      (v) =>
+                        `${v.name}: ${
+                          v.verdicts.length > 0
+                            ? v.verdicts.map((x) => labelOf(VERDICTS, x)).join(", ")
+                            : "no reviews yet"
+                        } · ${OUTCOME_LABELS[v.outcome]}`,
+                    )
+                    .join("\n")}
+                </Row>
+              </dl>
             </div>
           )}
         </aside>
@@ -353,7 +534,7 @@ function Transcript({ conversation: c }: { conversation: History[number] }) {
 const SURFACE_WORDS: Record<string, { to: string; from: string }> = {
   composer: { to: "into the message box", from: "from the message box" },
   message: { to: "onto a message", from: "from the conversation" },
-  labels: { to: "into the labels", from: "from the labels" },
+  labels: { to: "into the details", from: "from the details" },
   review: { to: "into a review", from: "from a review" },
   other: { to: "elsewhere on the page", from: "from elsewhere on the page" },
 };
@@ -367,66 +548,7 @@ function clipboardLine(kind: string, surface: string, times: number, characters:
   return `${verb} ${where} ${times} time${times === 1 ? "" : "s"}, ${characters.toLocaleString("en-US")} characters in all`;
 }
 
-function LabelsBlock({
-  labels,
-  submitted,
-}: {
-  labels: HistoryLabels | null;
-  submitted: boolean;
-}) {
-  const filled =
-    labels &&
-    (labels.type ||
-      labels.rolePreset ||
-      labels.goalText ||
-      labels.modelBehaviour ||
-      (labels.domainTags?.length ?? 0) > 0 ||
-      labels.notes);
-  const heading = (
-    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-      {submitted ? "Labels, as submitted" : "Labels so far (not submitted)"}
-    </p>
-  );
-  if (!labels || !filled) {
-    return (
-      <div className="space-y-1">
-        {heading}
-        <p className="text-muted-foreground">None filled in.</p>
-      </div>
-    );
-  }
-
-  const topics = (labels.domainTags ?? []).map((t) => withOther(t, labels.domainOther));
-  const evidence = labels.evidenceTurns ?? [];
-  return (
-    <div className="space-y-2">
-      {heading}
-      <dl className="space-y-2">
-        <Row term="Kind">{labelOf(TRANSCRIPT_TYPES, labels.type)}</Row>
-        <Row term="Role played">
-          {labels.rolePreset}
-          {labels.roleText && (
-            <span className="block text-muted-foreground">{labels.roleText}</span>
-          )}
-        </Row>
-        <Row term="Trying to get the model to">{labels.goalText}</Row>
-        <Row term="The model">{labelOf(MODEL_BEHAVIOURS, labels.modelBehaviour)}</Row>
-        <Row term="Topics">{topics.join(", ")}</Row>
-        <Row term="Evidence">
-          {evidence.length > 0
-            ? `Turn${evidence.length === 1 ? "" : "s"} ${evidence.join(", ")}`
-            : ""}
-        </Row>
-        <Row term="Disagrees with the model">
-          {labelOf(CHALLENGE_FLAGS, labels.challengeFlag)}
-        </Row>
-        <Row term="Notes">{labels.notes}</Row>
-      </dl>
-    </div>
-  );
-}
-
-/** One label. Left out entirely when there is nothing to show. */
+/** One answer. Left out entirely when there is nothing to show. */
 function Row({ term, children }: { term: string; children: React.ReactNode }) {
   if (children == null || children === "" || children === false) return null;
   if (Array.isArray(children) && children.every((c) => c == null || c === "" || c === false))

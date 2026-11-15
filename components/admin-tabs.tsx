@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/participants", label: "Participants" },
-  { href: "/admin/nominations", label: "Nominations" },
+  { href: "/admin/submissions", label: "Submissions" },
+  { href: "/admin/policy", label: "Policy" },
+  { href: "/admin/prizes", label: "Prize entries" },
   { href: "/admin/terms", label: "Terms" },
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/activity", label: "Activity" },

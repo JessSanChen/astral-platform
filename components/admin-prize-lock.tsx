@@ -16,10 +16,11 @@ import {
 } from "@/lib/time";
 
 /**
- * Two ways to close nominations, because an organizer may need either: a
- * time set in advance, and a switch for closing early or reopening.
+ * Two ways to close prize entries, because an organizer may need either: a
+ * time set in advance, and a switch for closing early or reopening. Once
+ * closed, nobody can enter work or take an entry back.
  */
-export function NominationLock({
+export function PrizeEntryLock({
   locked,
   closeAt,
 }: {
@@ -49,7 +50,7 @@ export function NominationLock({
             })
           }
         >
-          {locked ? "Reopen nominations" : "Close nominations now"}
+          {locked ? "Reopen prize entries" : "Close prize entries now"}
         </Button>
 
         <div className="flex items-center gap-2">
