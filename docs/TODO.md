@@ -20,7 +20,7 @@ These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
 
 - **Clipboard logging.** The specification says not to; you asked for it
   earlier. It is still on. Your call.
-- **Prizes.** Five awards: two counted, three by written nomination.
+- **Prizes.** Six awards: three counted, three by written nomination.
   Amounts and deadlines are not stated anywhere; the briefing says the
   organizers will announce them. What makes a transcript or a review
   "qualified" for the two counted awards is yours to decide; the platform
@@ -29,6 +29,22 @@ These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
   purpose.** The guide says "you'll push AI models to their limits"; How
   it works says "you do not have to make a model fail". Both are on
   screen. Worth one read side by side.
+- **The comparison instructions are my draft.** You asked for
+  instructions for the related workflow; the text under "Compare two
+  versions" is written by me to match your three questions. Read it and
+  change what is wrong: `COMPARISON_INSTRUCTIONS` in `lib/review-form.ts`.
+- **The comparison form lost two questions** when your three replaced
+  it: "Is the intended change visible?" and the checklist of other
+  differences. Round 30 in the build log explains; say if you want
+  either back.
+- **How much smaller** the comparisons prize pool is. The table says
+  "Smaller prize pool" and no amount, like the other awards.
+- **The revised infohazard guide.** You said you had tidied the wording;
+  the new text did not reach me. Paste it, or edit
+  `lib/infohazard-guide.ts`, which is the only place it lives.
+- **Dragging a session into a folder** is not built (round 29 in the
+  build log says why). "Add a session (makes this a folder)" is the way
+  to turn a conversation into a folder.
 - **Safe examples for the g and a scales.** The form shows the anchors
   from the specification with no examples.
 

@@ -53,9 +53,10 @@ settle, or went against it. Each is a small change to reverse.
    three components; say so and I will remove it.
 
 4. **Participants still choose a model.** The specification assumes one
-   assistant setup. The model picker stays, because the event offers ten
-   models; the model is fixed for a conversation or folder, and a related
-   version always uses its source's model.
+   assistant setup. The model is chosen on the New page, with none
+   chosen in advance, because the event offers ten models. It is fixed
+   for a session; the sessions of a folder can each use a different one.
+   A related version starts on its source's model.
 
 5. **Participants can run the scanners on their own conversations.**
    The specification has no author-side feedback from monitors, and they
@@ -75,7 +76,11 @@ settle, or went against it. Each is a small change to reverse.
    are required to submit; the free-text goal stays optional. Reviewers
    never see them: a reviewer's view is built from the messages alone.
    The questions are in `lib/author-labels.ts`; the answers are stored on
-   the episode (`author_labels`, migration 0009) and exported.
+   the episode (`author_labels`, migration 0009) and exported. A folder
+   is asked two of them for the folder as a whole (role and kind of
+   task) when it is started, and each of its sessions answers the full
+   set for itself, starting from the folder's answers; those are stored
+   on the session (migration 0015).
 
 7. **Everyone answers the new background questions once.** The old
    profile cannot be mapped onto form A, so migration 0007 marks every
@@ -132,7 +137,7 @@ sessions. Existing conversations each became a one-session episode.
 | C. Independent review (C04 to C13) | Built | `components/review-workspace.tsx`, `lib/review-form.ts` |
 | C05 policy basis | Removed by the revision | the column still exists and holds `not_asked` |
 | C-S. Skip with a reason | Built | `components/review-skip.tsx` |
-| D. Comparison audit (D01 to D06) | Built | `components/pair-audit-workspace.tsx` |
+| D. Comparison audit (D01 to D06) | Changed at the organizer's request: three questions (same topic or task, similarity of technical scope, main substantive difference) and an optional note, form `D-2.0`; its own instructions are shown under its button | `components/pair-audit-workspace.tsx` |
 | N. Prize entry, up to three | Not built, at the organizer's request: prizes are entered by written nomination, as before v1.1 | `/nominate` (the Submit page), `lib/nominations.ts` |
 | Form versions stored with every answer | Built | `intake_version`, `form_version`, `policy_version` columns |
 | Review drafts saved for recovery | Changed | kept in the reviewer's browser, not on the server; survives reload and pause, not a change of laptop |
@@ -211,7 +216,7 @@ that renames them. They mean the review instructions.
 | Item | Status | Where |
 | --- | --- | --- |
 | Related version only from a submitted source | Built | button reads "Submit source and create related version" on a draft |
-| New empty episode on the same model, linked to the exact source | Built | `related_version`, `episode.source_family_id` |
+| New empty episode, starting on the source's model, linked to the exact source | Built | `related_version`, `episode.source_family_id` |
 | Source cannot change afterwards | Built | submitted work is locked |
 | Same verdict on both versions is kept | Built | nothing deletes or scores pairs |
 | One audit per pair as the event minimum | Built | unique index on the pair |
@@ -224,7 +229,7 @@ that renames them. They mean the review instructions.
 | Ready / Held / Withdrawn | Built: available on arrival; an organizer can hold, withdraw or restore | Organize → Submissions |
 | General, Routine (F2 or F3 in a listed subject), Specialist (F3) | Removed at the organizer's request | reviewers are not matched on subject knowledge; they skip instead |
 | "Other" and the focus tags never grant eligibility | No longer applies | nothing grants or limits eligibility |
-| One active item per reviewer, enforced by the database | Built | unique index `review_assignment_one_active_uq` |
+| One active item per reviewer, enforced by the database | Changed at the organizer's request: one transcript review and one comparison can be in progress together, never two of a kind | unique index `review_assignment_one_active_uq` on reviewer and kind (migration 0016) |
 | Never your own work; never two views from one family | Built | unique index `review_assignment_family_uq` plus the selection query |
 | Exposure recorded when the item is handed over | Built | the assignment row is the record; skips and expiries are kept |
 | Least-reviewed first, random among ties | Built | `requestAssignment` |
@@ -261,19 +266,20 @@ that renames them. They mean the review instructions.
 
 ### 8. Prizes
 
-The organizer set five awards in place of the specification's four, with
+The organizer set six awards in place of the specification's four, with
 written nominations in place of a mark on submitted work.
 
 | Award | Type | How it is entered |
 | --- | --- | --- |
 | Most Qualified Transcripts | Quantitative | No entry. Counted from submitted work; Organize → Participants sorts by it. Whether a conversation is distinct, substantive and usable is the organizers' call |
-| Most Qualified Reviews | Quantitative | No entry. Counted from completed reviews, on the same page; quality is the organizers' call |
+| Most Qualified Reviews | Quantitative | No entry. Counted from completed transcript reviews, on the same page (sort by Transcript reviews); quality is the organizers' call |
+| Most Qualified Comparisons | Quantitative, smaller prize pool | No entry. Counted from completed comparisons of related conversations, on the same page (sort by Comparisons) |
 | Most Interesting AI Risk Finding | Qualitative | A written entry on the Submit page |
 | Best Comparative Investigation | Qualitative | A written entry on the Submit page |
 | Best Multi-Session Investigation | Qualitative | A written entry on the Submit page |
 
-An entry is a headline, the finding in detail and an optional link to
-slides, one per award, editable until nominations are closed from
+An entry is a headline and the finding in detail (the optional link to
+slides was removed in round 30), one per award, editable until nominations are closed from
 **Organize → Nominations**. The awards and the wording shown for each are
 one list in `lib/nominations.ts`. Amounts and deadlines are not stated;
 the briefing says the organizers will announce them. Scoring happens

@@ -2555,6 +2555,162 @@ change still carries the answers that stood when it was made.
 
 ---
 
+## Round 29: one New page, any model per session, folder and session questions; the profile history taken back out
+
+What the organizer asked for after trying round 28, and what was done.
+
+- **One New page.** "+ New" in the list opens one screen. Choose
+  Conversation or Folder, choose a model, type. No model is chosen in
+  advance: sending without one says "Choose a model." The models are
+  shown as a list on the page, grouped by maker, which also ends the
+  cut-off dropdown on that screen. (`components/new-conversation.tsx`,
+  `app/chat/page.tsx`)
+- **Any model per session.** A folder is no longer tied to one model.
+  "New session" opens the same New page, for that folder, and the model
+  is chosen there. A related version of a folder starts on the source's
+  first model and each later session chooses its own.
+- **Folder questions and session questions.** Starting a folder asks two
+  things about the folder as a whole: the role taken across its sessions
+  and the kind of task, with an optional goal. Each session then has the
+  full set of questions a single conversation has, and starts with the
+  folder's answers filled in. Clicking the folder's name in the list
+  opens a page where the folder's answers can be changed
+  (`app/chat/folder/[episodeId]`). To submit a folder, the folder's two
+  questions and every session's questions have to be answered; an
+  unanswered session is named ("Session 2 still has unanswered
+  questions").
+- **Where the answers are stored.** Migration 0015 adds `author_labels`
+  to each session (`conversation`) and copies existing answers onto the
+  sessions they belong to. The export has them on each session record.
+  A single conversation's answers are still on the episode, and are also
+  copied onto its one session when it is submitted, so analysis can read
+  sessions the same way throughout.
+- **The profile history is taken back out.** Round 28 added a row per
+  set of background answers. The organizer preferred the earlier
+  behaviour: a profile edit replaces the stored answers. The table and
+  the `participant_intake_revision` export records are gone (migration
+  0015 drops the table). What is unchanged: each submission still
+  carries a copy of the author's answers as they stood when it was
+  submitted, so a later correction does not rewrite earlier work.
+- **The model menu inside a conversation** no longer runs off the right
+  edge of the window: near the edge it lines up with its button's right
+  side.
+
+Not built: **dragging a session into a folder.** Moving a session
+between pieces of work touches submission, the reviewer's view, related
+versions and the per-session answers, and there was no time to test all
+of that before the event. "Add a session (makes this a folder)" in the
+panel covers the common case: a conversation becomes the first session
+of a folder.
+
+Tests: the authoring tests for the New page, folder questions and
+per-session models are new.
+
+---
+
+## Round 30: two kinds of review side by side, a clearer related conversation, a comparisons award
+
+More from the organizer, trying the branch while round 29 was being
+finished.
+
+### The Review page
+
+- **Two kinds of review, shown as equals.** "Transcript review" and
+  "Comparison" are two columns of the same size with the same kind of
+  button. Before, "Compare two versions" was an outlined button beside a
+  filled one and read as the lesser choice.
+- **The buttons always read the same**: "Get a review" and "Compare two
+  versions". Before, the first became "Next item" after one review and
+  both were replaced by "Continue where you left off" when something was
+  paused. Now a button opens the half-finished one of its kind if there
+  is one, with what had been filled in, and fetches a new one otherwise.
+  A line under the button says when one is in progress.
+- **One of each can be in progress.** A paused comparison used to leave
+  no way to start a transcript review. The rule in the database changed
+  from one item in progress per person to one per person per kind
+  (migration 0016). Nobody is given two of the same kind at once, and
+  the rule that a person sees a piece of work once, in one way, is
+  unchanged.
+- **Each kind has its own instructions, always in view under its
+  button**, not folded away. The transcript instructions are the
+  published review instructions, as before. The comparison instructions
+  are new, written for this round, and live in one constant
+  (`COMPARISON_INSTRUCTIONS` in `lib/review-form.ts`). They are also
+  available, folded, beside the comparison form. **They are a draft for
+  the organizer to read**: the research team has not seen them.
+- **Counts are kept apart.** Each column says how many of its kind the
+  reviewer has completed and skipped. In the console the overview says
+  "Transcript reviews completed" beside "Comparisons completed", and
+  what is in progress and what was skipped are split the same way; the
+  participants table has "Transcript reviews" and "Comparisons" columns
+  and sorts by either; a participant's page lists the two separately.
+- **The stray line under the button** was the rule above the counts
+  riding up against it. The counts now sit under each button and the
+  rule is gone.
+- **Coming back to the page shows it as it is now.** Pausing a record
+  could show the Review page as it was before the record was opened.
+  The page now asks for itself afresh when it appears.
+
+### Related conversations
+
+- **The form is reworded** as the organizer wrote it: "Create a related
+  conversation", "What would you like to explore?" with four choices,
+  each with a line of explanation (a different goal or purpose;
+  different circumstances or context; a different way of asking;
+  something else), and "What are you planning to change? (optional)".
+  The paragraph of rules at the foot of the form is gone; the choices
+  carry it.
+- **Stored values.** `goal_purpose` and `context_change` are new.
+  "A different way of asking" keeps the value `presentation_change` and
+  "Something else" keeps `exploratory`, which is what those choices were
+  under the earlier wording. `fact_change` is no longer offered and
+  still reads correctly where it was already stored. A plan left blank
+  is stored as empty text.
+- **The comparison screen** leads with what the author set out to
+  explore, in large type on a tinted band, with the choice's
+  explanation and, if they wrote one, their plan in their own words.
+
+### The comparison form (D-2.0)
+
+Three questions, as the organizer wrote them, and an optional note:
+
+| Question | Choices | Stored as |
+| --- | --- | --- |
+| Are these conversations about substantially the same scientific topic or task? | Yes / Partly / No / Cannot assess | `topic_task_match` |
+| How similar is the scientific or technical scope of the requests? | Similar / Some meaningful differences / Very different / Cannot assess | `scope_similarity` |
+| What is the main substantive difference between the conversations? | Goal or purpose / Circumstances or context / Wording or presentation only / Multiple substantial differences / No meaningful difference / Cannot assess | `main_difference` |
+
+**A judgment call to check.** The request was to replace "What
+comparison does this pair support?" with this table. The table's first
+two rows cover the same ground as the old form's first two questions, so
+the whole form was replaced, which also removes "Is the intended change
+visible?" and the checklist of other differences. The third question
+answers the first of those by comparison with what the author chose,
+and "Multiple substantial differences" stands in for the second. If
+either should come back, it is a few lines in `lib/review-form.ts` and
+`components/pair-audit-workspace.tsx`; the columns are still in the
+database (migration 0017 only stops requiring them and adds the two new
+ones), and the export still carries them, empty for new answers.
+
+### Awards and the Submit page
+
+- **A sixth award: Most Qualified Comparisons**, quantitative, counted
+  from completed comparisons, marked "Smaller prize pool" in the table.
+  "Most Qualified Reviews" now says transcript reviews. The briefing no
+  longer says how many awards there are in words that would go stale.
+- **Submit page.** "Link to slides (optional)" is removed from the
+  form. "Two prize tracks are decided by nomination." is removed from
+  the top of the page. Links already saved are kept and still shown to
+  organizers.
+
+Tests: the comparison test now covers the instructions under each
+button, the three questions, the author's band, a transcript review
+started and finished while a comparison is paused, and the separate
+counts. The related-conversation tests use the new wording and check
+that the plan can be left blank.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge
