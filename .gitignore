@@ -268,3 +268,7 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /blob-report/
+
+# Spot-check pages written by scripts/review-audit.ts. They hold
+# participants' conversations and names.
+/audits/

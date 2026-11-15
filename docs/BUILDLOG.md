@@ -3201,6 +3201,36 @@ history in it is not the same test. `docs/TESTING.md` says how.
 
 ---
 
+## Round 39: checking a reviewer's work, without deploying
+
+One participant completed 64 transcript reviews in under an hour and a
+half, and the organizer wanted to know whether they were sound. People
+were using the site, so nothing here touches it: both tools read the
+database from the organizer's own machine.
+
+- **`scripts/reviewer-quality.sql`**: queries for the Neon SQL editor.
+  Time on each record against its length; pace and agreement compared
+  with every other reviewer; verdicts against what authors expected; a
+  reading list of the fastest reviews and the disagreements.
+- **`npm run prod:review-audit -- <email or name>`** writes one page,
+  `audits/reviews-<name>-<time>.html`, for reading a reviewer's work:
+  every record they judged, in full, with the user messages they
+  pointed to marked, beside their answers, the time they took, what
+  other reviewers said of the same record and what its author said of
+  it. The top has the totals and buttons to show only the fastest, only
+  the disagreements, or one verdict. Comparisons are at the end. The
+  page is a single file that loads nothing from elsewhere; it holds
+  participants' conversations and names, so it is for organizers, and
+  the `audits` folder is kept out of git.
+
+There is no right answer to check a review against. What can be
+checked is whether the records were read (time, against how much the
+reviewer is asked to read, which is the user's messages) and whether the
+judgments move with everyone else's. The page is for the part only a
+person can do: reading the record and the answer side by side.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge
