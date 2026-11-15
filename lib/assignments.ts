@@ -680,7 +680,7 @@ export function nothingMessage(
       ? "There is nothing for you to review right now."
       : "There is no pair for you to compare right now.";
   if (c.total === 0) {
-    return `${lead} ${purpose === "primary" ? "Nothing has been submitted yet." : "No related version has been submitted alongside its original yet."} Try again in a little while.`;
+    return `${lead} ${purpose === "primary" ? "Nothing has been submitted yet." : "No related conversation has been submitted alongside its original yet."} Try again in a little while.`;
   }
   const reasons = [
     c.own > 0 && `${n(c.own)} ${c.own === 1 ? "is" : "are"} your own work`,

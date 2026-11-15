@@ -40,7 +40,7 @@ const STEPS = [
   },
   {
     icon: GitCompareArrows,
-    title: "Try a related version",
+    title: "Try a related conversation",
     body: "Optional. From a submitted conversation, start a fresh one that changes the goal, the context or the wording.",
   },
   {
@@ -96,7 +96,7 @@ export function AboutAstral() {
           </p>
           <p>
             Today we collect both. Ordinary scientific work, novice
-            questions, ambiguous cases and related versions of one task are
+            questions, ambiguous cases and related conversations on one task are
             all useful. You do not have to make a model fail, and nothing
             today rewards a dangerous answer.
           </p>
@@ -199,11 +199,11 @@ export function AboutAstral() {
           </Points>
         </Part>
 
-        <Part title="Related versions">
+        <Part title="Related conversations">
           <Points>
             <li>
               From any submitted conversation, including one session of a folder, use{" "}
-              <Ui>Create related version</Ui>.
+              <Ui>Create related conversation</Ui>.
             </li>
             <li>
               Say what you want to explore: a different goal or purpose, different
@@ -289,7 +289,7 @@ export function AboutAstral() {
           <Points>
             <li>
               Press <Ui>Compare two related transcripts</Ui>. You are given an original
-              conversation and a related version of it, side by side.
+              conversation and a related conversation made from it, side by side.
             </li>
             <li>What the author set out to explore is shown above them.</li>
             <li>

@@ -334,7 +334,7 @@ export function EpisodePanel({
         )}
 
         {episode.madeFrom && (
-          <Block title="A related version">
+          <Block title="A related conversation">
             <p className="text-sm">
               Made from{" "}
               {episode.madeFrom.other?.sessionId ? (
@@ -404,8 +404,8 @@ export function EpisodePanel({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  You can revise this until you submit. A reviewer comparing the two versions is
-                  shown it; nothing else you write here.
+                  You can revise this until you submit. A reviewer comparing the two conversations
+                  is shown it; nothing else you write here.
                 </p>
               </div>
             )}
@@ -548,7 +548,7 @@ export function EpisodePanel({
         )}
 
         {episode.versions.length > 0 && (
-          <Block title={`Related versions made from this (${episode.versions.length})`}>
+          <Block title={`Related conversations made from this (${episode.versions.length})`}>
             <ul className="space-y-1.5">
               {episode.versions.map((v, i) => (
                 <li key={i} className="text-sm">
@@ -557,7 +557,7 @@ export function EpisodePanel({
                       {v.other.title}
                     </Link>
                   ) : (
-                    "A related version"
+                    "A related conversation"
                   )}
                   <span className="text-muted-foreground">
                     {" "}
@@ -642,14 +642,14 @@ export function EpisodePanel({
                 onClick={() => attempt("conversation-then-related")}
               >
                 <GitCompareArrows className="h-4 w-4" />
-                Submit source and create related version
+                Submit source and create related conversation
               </Button>
             )}
             {submitted && episode.comparisonOpen && (
               <Link href={`/chat/related/${currentSessionId}`} className="block">
                 <Button className="w-full" variant={episode.isFolder && !folderSubmitted ? "outline" : "default"}>
                   <GitCompareArrows className="h-4 w-4" />
-                  Create related version
+                  Create related conversation
                 </Button>
               </Link>
             )}

@@ -28,7 +28,6 @@ const NOTHING: Record<Kind, string> = {
  */
 export function ReviewStart({
   reviewInstructions,
-  reviewInstructionsVersion,
   reviewInProgress,
   comparisonInProgress,
   reviewed,
@@ -37,7 +36,6 @@ export function ReviewStart({
   skippedComparisons,
 }: {
   reviewInstructions: string;
-  reviewInstructionsVersion: number;
   reviewInProgress: boolean;
   comparisonInProgress: boolean;
   reviewed: number;
@@ -90,7 +88,7 @@ export function ReviewStart({
       inProgress: reviewInProgress,
       done: reviewed,
       skipped: skippedReviews,
-      instructionsLabel: `Transcript review instructions (version ${reviewInstructionsVersion})`,
+      instructionsLabel: "Transcript review instructions",
       instructions: reviewInstructions,
     },
     {

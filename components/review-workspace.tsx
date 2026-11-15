@@ -221,7 +221,7 @@ export default function ReviewWorkspace({
             <p className="text-xs leading-relaxed text-muted-foreground">{REVIEW_REMINDER}</p>
             <details className="rounded-[var(--radius)] border border-border bg-card px-3 py-2">
               <summary className="cursor-pointer text-sm font-medium">
-                Review instructions (version {policy.version})
+                Review instructions
               </summary>
               <div className="markdown mt-2 text-sm leading-relaxed">
                 <ReactMarkdown>{policy.body}</ReactMarkdown>

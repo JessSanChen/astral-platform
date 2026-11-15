@@ -72,7 +72,6 @@ export default async function ReviewHome({
       {summary.policyReady ? (
         <ReviewStart
           reviewInstructions={summary.policy.body}
-          reviewInstructionsVersion={summary.policy.version}
           reviewInProgress={Boolean(summary.active.primary)}
           comparisonInProgress={Boolean(summary.active.pair_audit)}
           reviewed={summary.reviewed}
@@ -85,9 +84,6 @@ export default async function ReviewHome({
           <section className="space-y-3">
             <h2 className="font-serif text-xl font-medium">
               Review instructions
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                version {summary.policy.version}
-              </span>
             </h2>
             <div className="markdown rounded-[var(--radius)] border border-border bg-card p-4 text-sm leading-relaxed">
               <ReactMarkdown>{summary.policy.body}</ReactMarkdown>

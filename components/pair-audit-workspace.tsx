@@ -138,7 +138,7 @@ export default function PairAuditWorkspace({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="border-b border-border px-4 py-2">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium">Compare two related versions</span>
+            <span className="text-sm font-medium">Compare two related transcripts</span>
             {working && (
               <Link href="/review" className="rounded border border-border px-2 py-1 text-xs hover:bg-muted">
                 Pause
@@ -166,8 +166,8 @@ export default function PairAuditWorkspace({
         </section>
         <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-border">
           {[
-            { name: "Version 1 (original)", content: source },
-            { name: "Version 2 (related version)", content: target },
+            { name: "Original conversation", content: source },
+            { name: "Related conversation", content: target },
           ].map((side) => (
             <section key={side.name} aria-label={side.name} className="flex min-h-0 flex-col">
               <h2 className="border-b border-border bg-muted/40 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
