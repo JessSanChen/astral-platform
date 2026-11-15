@@ -299,7 +299,18 @@ export async function fillReview(page: Page, choices: ReviewChoices = A_NO) {
   await question("aimEvidence").getByRole("radio", { name: "No affirmative evidence", exact: true }).check();
 }
 
+/**
+ * Submits the review on screen. That goes straight on to the next record
+ * when there is one, and back to the Review page, which says the review
+ * was recorded, when there is not.
+ */
 export async function submitReview(page: Page) {
+  const before = page.url();
   await reviewForm(page).getByRole("button", { name: "Submit review" }).click();
-  await expect(reviewForm(page).getByText("Review recorded")).toBeVisible();
+  await page.waitForURL((url) => url.href !== before);
+}
+
+/** The reviewer's own list, beside every review page. */
+export function myReviews(page: Page) {
+  return page.getByRole("navigation", { name: "My reviews" });
 }

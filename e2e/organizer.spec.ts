@@ -54,7 +54,10 @@ test.describe("the organizer console", () => {
 
     // The overview counts in the new terms.
     await page.goto("/admin");
-    await expect(page.getByText("Work submitted")).toBeVisible();
+    // A folder is one piece of work holding several sessions, and the
+    // count says so.
+    await expect(page.getByText("Conversations and folders submitted")).toBeVisible();
+    await expect(page.getByText(/A folder counts once and holds several sessions/)).toBeVisible();
     await expect(page.getByText("Passed the instruction check", { exact: true })).toBeVisible();
     // Nothing waits on an organizer any more.
     await expect(page.getByText(/waiting to be released/i)).toHaveCount(0);
