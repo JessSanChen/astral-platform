@@ -2347,6 +2347,37 @@ lists which test covers each acceptance test in the specification.
 
 ---
 
+## Round 22: the intake form, after trying it
+
+The organizer ran the branch locally and found the background questions
+confusing. Changes, all in `lib/intake.ts` and
+`components/intake-fields.tsx`:
+
+- **Role first, and required.** "Prefer not to say" is one of its choices.
+- **Subject areas are always visible.** "No specialized background" and
+  "Prefer not to say" are in the same list. Ticking one of them together
+  with an area says so at once and is refused if sent.
+- **What you could assess is asked where the areas are.** The separate
+  "What you could review" section and its three-way question are gone:
+  each ticked area gets a rating beneath the list, up to three. What is
+  stored has the same shape as before, so routing is unchanged.
+- **Fewer rows about kinds of work.** Writing, teaching and "other" are
+  removed; five remain.
+- **The biosafety and biosecurity experience questions are removed.**
+- **One "Biosecurity" tag** in place of two.
+- "Related technical fields" is now "Other technical fields".
+
+The form version stored with each answer is now `A-1.2`. Answers given on
+`A-1.1` are still read, and nobody is asked again. The status document
+has a table of how this differs from the specification's form A.
+
+Also in this round: the model list on the new conversation page ran off
+the bottom of the screen with no way to scroll. It now fits the room it
+has, opens upwards when there is more room above, and scrolls. And the
+README said Node 20 where the libraries need 22.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

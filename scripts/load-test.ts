@@ -38,11 +38,9 @@ import { INTAKE_VERSION, intakeSchema } from "@/lib/intake";
 // fails loudly here if the form changes rather than storing something the
 // platform would never have let through.
 const INTAKE = intakeSchema.parse({
-  backgroundResponse: "none",
+  role: "prefer_not_to_say",
+  backgroundFlags: ["none"],
   workResponse: "prefer_not_to_say",
-  familiarityResponse: "none_to_rate",
-  biosafety: "none",
-  biosecurity: "none",
 });
 
 const USERS = Number(process.argv[2] ?? 20);

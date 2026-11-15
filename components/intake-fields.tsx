@@ -5,24 +5,24 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
   AI_USE,
-  BACKGROUND_RESPONSES,
+  BACKGROUND_ALONE,
+  BACKGROUND_CONFLICT,
   DOMAIN_GROUPS,
   EXPERIENCE_BANDS,
   FAMILIARITY_LEVELS,
-  FAMILIARITY_RESPONSES,
   FOCUS_TAGS,
   MAX_RATED_AREAS,
   ROLES,
-  SAFETY_LEVELS,
-  SAFETY_ROWS,
   WORK_AREAS,
   domainLabel,
   type IntakeDraft,
 } from "@/lib/intake";
+import { cn } from "@/lib/utils";
 
 /**
- * The questions asked on joining (specification section 2.A), shared by
- * onboarding and the profile page so the two cannot drift apart.
+ * The questions asked on joining (specification section 2.A, as revised
+ * for the event), shared by onboarding and the profile page so the two
+ * cannot drift apart.
  *
  * Everything is held by the parent and sent as one value, because several
  * answers are tables or lists that a plain form cannot carry. Nothing is
@@ -37,80 +37,186 @@ export function IntakeFields({
   errors?: Record<string, string>;
   onChange: (patch: Partial<IntakeDraft>) => void;
 }) {
-  const hasAreas = values.backgroundResponse === "selected_areas";
   const toggle = (list: string[], value: string, on: boolean) =>
     on ? [...list, value] : list.filter((v) => v !== value);
   // Areas that can be rated for reviewing: the ones ticked, less "Other".
   const rateable = values.backgroundDomains.filter((id) => id !== "other");
   const ratedCount = Object.keys(values.familiarity).length;
+  // Said as soon as it happens, not only when the form is sent.
+  const conflict =
+    (values.backgroundDomains.length > 0 && values.backgroundFlags.length > 0) ||
+    values.backgroundFlags.length > 1;
 
   return (
     <div className="space-y-10">
       <input type="hidden" name="intake" value={JSON.stringify(values)} />
 
-      {/* A02 */}
+      {/* A03 */}
+      <Section title="Current role">
+        <Field
+          label="Which best describes your current main role?"
+          htmlFor="role"
+          error={errors.role}
+        >
+          <Select
+            id="role"
+            value={values.role}
+            onChange={(v) => onChange({ role: v })}
+            required
+            invalid={Boolean(errors.role)}
+            placeholder="Select..."
+            options={ROLES}
+          />
+        </Field>
+        {values.role === "other" && (
+          <Field label="Your role (optional)" htmlFor="roleOther">
+            <Input
+              id="roleOther"
+              maxLength={120}
+              value={values.roleOther}
+              onChange={(e) => onChange({ roleOther: e.target.value })}
+            />
+          </Field>
+        )}
+      </Section>
+
+      {/* A02 and A05 */}
       <Section
         title="Subject background"
-        question="Which areas have you studied or worked in? Select all that apply, including substantive coursework, research, or professional work."
+        question="Which areas have you studied or worked in? Tick all that apply, including substantive coursework, research, or professional work."
       >
-        <Radios
-          name="backgroundResponse"
-          legend="Subject background"
-          value={values.backgroundResponse}
-          options={BACKGROUND_RESPONSES}
-          error={errors.backgroundResponse}
-          onChange={(v) => onChange({ backgroundResponse: v })}
-        />
+        <div
+          className={cn(
+            "space-y-4 rounded-[var(--radius)] border bg-card p-4",
+            conflict || errors.backgroundDomains ? "border-danger/50" : "border-border",
+          )}
+        >
+          {DOMAIN_GROUPS.map((group) => (
+            <fieldset key={group.group}>
+              <legend className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {group.group}
+              </legend>
+              <div className="mt-1.5 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+                {group.domains.map((d) => (
+                  <label key={d.id} className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                      checked={values.backgroundDomains.includes(d.id)}
+                      onChange={(e) => {
+                        const next = toggle(values.backgroundDomains, d.id, e.target.checked);
+                        const familiarity = { ...values.familiarity };
+                        if (!e.target.checked) delete familiarity[d.id];
+                        onChange({
+                          backgroundDomains: next,
+                          familiarity,
+                          primaryDomain: next.includes(values.primaryDomain)
+                            ? values.primaryDomain
+                            : values.primaryDomain === "no_single"
+                              ? "no_single"
+                              : "",
+                        });
+                      }}
+                    />
+                    {d.label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ))}
 
-        {hasAreas && (
-          <div className="space-y-4 rounded-[var(--radius)] border border-border bg-card p-4">
-            {DOMAIN_GROUPS.map((group) => (
-              <fieldset key={group.group}>
-                <legend className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {group.group}
-                </legend>
-                <div className="mt-1.5 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
-                  {group.domains.map((d) => (
-                    <label key={d.id} className="flex items-start gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 h-4 w-4 shrink-0"
-                        checked={values.backgroundDomains.includes(d.id)}
-                        onChange={(e) => {
-                          const next = toggle(values.backgroundDomains, d.id, e.target.checked);
-                          const familiarity = { ...values.familiarity };
-                          if (!e.target.checked) delete familiarity[d.id];
-                          onChange({
-                            backgroundDomains: next,
-                            familiarity,
-                            primaryDomain: next.includes(values.primaryDomain)
-                              ? values.primaryDomain
-                              : values.primaryDomain === "no_single"
-                                ? "no_single"
-                                : "",
-                          });
-                        }}
-                      />
-                      {d.label}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            ))}
-            {errors.backgroundDomains && <Complaint>{errors.backgroundDomains}</Complaint>}
+          <fieldset className="border-t border-border pt-3">
+            <legend className="sr-only">Or</legend>
+            <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+              {BACKGROUND_ALONE.map((answer) => (
+                <label key={answer.value} className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    checked={values.backgroundFlags.includes(answer.value)}
+                    onChange={(e) =>
+                      onChange({
+                        backgroundFlags: toggle(values.backgroundFlags, answer.value, e.target.checked),
+                      })
+                    }
+                  />
+                  {answer.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
-            {values.backgroundDomains.includes("other") && (
-              <Field label="Which other area?" htmlFor="otherDomainText" error={errors.otherDomainText}>
-                <Input
-                  id="otherDomainText"
-                  maxLength={120}
-                  value={values.otherDomainText}
-                  onChange={(e) => onChange({ otherDomainText: e.target.value })}
+          {conflict ? (
+            <p role="alert" className="text-xs text-danger">
+              {BACKGROUND_CONFLICT}
+            </p>
+          ) : (
+            errors.backgroundDomains && <Complaint>{errors.backgroundDomains}</Complaint>
+          )}
+
+          {values.backgroundDomains.includes("other") && (
+            <Field label="Which other area?" htmlFor="otherDomainText" error={errors.otherDomainText}>
+              <Input
+                id="otherDomainText"
+                maxLength={120}
+                value={values.otherDomainText}
+                onChange={(e) => onChange({ otherDomainText: e.target.value })}
+              />
+            </Field>
+          )}
+        </div>
+
+        {/* What they could assess, asked where the areas are chosen. */}
+        {rateable.length > 0 && (
+          <div className="space-y-3 rounded-[var(--radius)] border border-border bg-card p-4">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">
+                In up to {MAX_RATED_AREAS} of these, what could you assess?
+              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Pick the areas you know best and say how far you could judge
+                whether a conversation in that area is scientifically or
+                technically plausible. This decides which conversations you
+                can be asked to review. It is your own estimate, not a
+                credential; you can leave an area unrated, and you can always
+                skip a review that turns out to be beyond you.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {ratedCount} of up to {MAX_RATED_AREAS} rated.
+              </p>
+            </div>
+            {rateable.map((id) => (
+              <div
+                key={id}
+                className="grid items-center gap-x-4 gap-y-1 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]"
+              >
+                <p className="text-sm">{domainLabel(id)}</p>
+                <Select
+                  id={`familiarity-${id}`}
+                  aria-label={`${domainLabel(id)}: what you could assess`}
+                  value={values.familiarity[id] ?? ""}
+                  onChange={(v) => {
+                    const familiarity = { ...values.familiarity };
+                    if (v) familiarity[id] = v;
+                    else delete familiarity[id];
+                    onChange({ familiarity });
+                  }}
+                  placeholder="Not rated"
+                  options={[{ value: "", label: "Not rated" }, ...FAMILIARITY_LEVELS]}
                 />
-              </Field>
+              </div>
+            ))}
+            {(errors.familiarity || ratedCount > MAX_RATED_AREAS) && (
+              <Complaint>
+                {errors.familiarity ?? `Rate at most ${MAX_RATED_AREAS} areas: the ones you know best.`}
+              </Complaint>
             )}
+          </div>
+        )}
 
-            {values.backgroundDomains.length > 0 && (
+        {values.backgroundDomains.length > 0 && (
+          <div className="grid gap-5 sm:grid-cols-2">
+            {values.backgroundDomains.length > 1 && (
               <Field label="Your primary area (optional)" htmlFor="primaryDomain">
                 <Select
                   id="primaryDomain"
@@ -128,11 +234,7 @@ export function IntakeFields({
                 />
               </Field>
             )}
-
-            <Field
-              label="Optional: your narrower specialization"
-              htmlFor="specializationText"
-            >
+            <Field label="Your narrower specialization (optional)" htmlFor="specializationText">
               <Input
                 id="specializationText"
                 maxLength={200}
@@ -145,9 +247,9 @@ export function IntakeFields({
 
         <fieldset>
           <legend className="text-sm font-medium">
-            Do any of these also describe your work? (optional)
+            Do either of these also describe your work? (optional)
           </legend>
-          <div className="mt-1.5 space-y-1.5">
+          <div className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1.5">
             {FOCUS_TAGS.map((tag) => (
               <label key={tag.value} className="flex items-center gap-2 text-sm">
                 <input
@@ -163,32 +265,6 @@ export function IntakeFields({
             ))}
           </div>
         </fieldset>
-      </Section>
-
-      {/* A03 */}
-      <Section title="Current role">
-        <Field
-          label="Which best describes your current main role? (optional)"
-          htmlFor="role"
-        >
-          <Select
-            id="role"
-            value={values.role}
-            onChange={(v) => onChange({ role: v })}
-            placeholder="Select..."
-            options={[{ value: "", label: "Not answered" }, ...ROLES]}
-          />
-        </Field>
-        {values.role === "other" && (
-          <Field label="Your role (optional)" htmlFor="roleOther">
-            <Input
-              id="roleOther"
-              maxLength={120}
-              value={values.roleOther}
-              onChange={(e) => onChange({ roleOther: e.target.value })}
-            />
-          </Field>
-        )}
       </Section>
 
       {/* A04 */}
@@ -235,96 +311,11 @@ export function IntakeFields({
                   placeholder="Select..."
                   options={[{ value: "", label: "Not answered" }, ...EXPERIENCE_BANDS]}
                 />
-                {area.key === "other" && values.work.other && (
-                  <Input
-                    aria-label="Other relevant applied work: what"
-                    className="sm:col-span-2"
-                    maxLength={120}
-                    placeholder="What kind of work? (optional)"
-                    value={values.workOtherText}
-                    onChange={(e) => onChange({ workOtherText: e.target.value })}
-                  />
-                )}
               </div>
             ))}
           </div>
         )}
         {errors.work && <Complaint>{errors.work}</Complaint>}
-      </Section>
-
-      {/* A05 */}
-      <Section
-        title="What you could review"
-        question="In which of your selected areas could you assess the scientific or technical plausibility of a conversation? Choose up to three areas you know best, and indicate what you could assess."
-        note="This decides which conversations you can be asked to review. It is your own estimate, not a credential, and you can always skip one that turns out to be beyond you."
-      >
-        <Radios
-          name="familiarityResponse"
-          legend="What you could review"
-          value={values.familiarityResponse}
-          options={FAMILIARITY_RESPONSES}
-          error={errors.familiarityResponse}
-          onChange={(v) => onChange({ familiarityResponse: v })}
-        />
-
-        {values.familiarityResponse === "rated_areas" && (
-          <div className="space-y-3 rounded-[var(--radius)] border border-border bg-card p-4">
-            {rateable.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Tick the areas you have studied or worked in under Subject
-                background first; they will appear here to rate.
-              </p>
-            ) : (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  {ratedCount} of up to {MAX_RATED_AREAS} rated. Leave the rest
-                  as they are.
-                </p>
-                {rateable.map((id) => (
-                  <div key={id} className="space-y-1">
-                    <p className="text-sm font-medium">{domainLabel(id)}</p>
-                    <Select
-                      id={`familiarity-${id}`}
-                      aria-label={`${domainLabel(id)}: what you could assess`}
-                      value={values.familiarity[id] ?? ""}
-                      onChange={(v) => {
-                        const familiarity = { ...values.familiarity };
-                        if (v) familiarity[id] = v;
-                        else delete familiarity[id];
-                        onChange({ familiarity });
-                      }}
-                      placeholder="Not rated"
-                      options={[{ value: "", label: "Not rated" }, ...FAMILIARITY_LEVELS]}
-                    />
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-        {errors.familiarity && <Complaint>{errors.familiarity}</Complaint>}
-      </Section>
-
-      {/* A06 */}
-      <Section
-        title="Biosafety and biosecurity"
-        question="What experience do you have in each of the following?"
-      >
-        <div className="grid gap-5 sm:grid-cols-2">
-          {SAFETY_ROWS.map((row) => (
-            <Field key={row.key} label={row.label} htmlFor={row.key} error={errors[row.key]}>
-              <Select
-                id={row.key}
-                value={values[row.key]}
-                onChange={(v) => onChange({ [row.key]: v })}
-                required
-                invalid={Boolean(errors[row.key])}
-                placeholder="Select..."
-                options={SAFETY_LEVELS}
-              />
-            </Field>
-          ))}
-        </div>
       </Section>
 
       {/* A07 */}

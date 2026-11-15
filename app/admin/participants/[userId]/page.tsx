@@ -13,10 +13,8 @@ import {
   AI_USE,
   BACKGROUND_RESPONSES,
   EXPERIENCE_BANDS,
-  FAMILIARITY_RESPONSES,
   FOCUS_TAGS,
   ROLES,
-  SAFETY_LEVELS,
   WORK_AREAS,
   domainLabel,
   intakeDraft,
@@ -290,7 +288,7 @@ function IntakeAnswers({ profile, completed }: { profile: Detail["profile"]; com
   );
   const work = WORK_AREAS.filter((w) => a.work[w.key]).map(
     (w) =>
-      `${w.key === "other" && a.workOtherText ? a.workOtherText : w.label}: ${labelOf(EXPERIENCE_BANDS, a.work[w.key])}`,
+      `${w.label}: ${labelOf(EXPERIENCE_BANDS, a.work[w.key])}`,
   );
   const rated = Object.entries(a.familiarity).map(([id, level]) => `${domainLabel(id)}: ${level}`);
   return (
@@ -307,9 +305,9 @@ function IntakeAnswers({ profile, completed }: { profile: Detail["profile"]; com
           {a.role === "other" && a.roleOther ? a.roleOther : labelOf(ROLES, a.role)}
         </Row>
         <Row term="Subject background">
-          {a.backgroundResponse === "selected_areas"
+          {a.backgroundDomains.length > 0
             ? domains.join("; ")
-            : labelOf(BACKGROUND_RESPONSES, a.backgroundResponse)}
+            : labelOf(BACKGROUND_RESPONSES, a.backgroundFlags[0] ?? "")}
         </Row>
         <Row term="Primary area">
           {a.primaryDomain === "no_single"
@@ -324,13 +322,7 @@ function IntakeAnswers({ profile, completed }: { profile: Detail["profile"]; com
           {a.workResponse === "prefer_not_to_say" ? "Prefer not to say" : work.join("\n")}
         </Row>
         <Row term="Familiarity for reviewing (self-rated; used for routing)">
-          {a.familiarityResponse === "rated_areas"
-            ? rated.join("\n")
-            : labelOf(FAMILIARITY_RESPONSES, a.familiarityResponse)}
-        </Row>
-        <Row term="Biosafety">{labelOf(SAFETY_LEVELS, a.biosafety)}</Row>
-        <Row term="Biosecurity and dual-use assessment">
-          {labelOf(SAFETY_LEVELS, a.biosecurity)}
+          {rated.length > 0 ? rated.join("\n") : "Nothing rated: general items only"}
         </Row>
         <Row term="Uses AI assistants">{labelOf(AI_USE, a.aiUse)}</Row>
         <Row term="Agreed to take part">{when(profile.participationAgreedAt)}</Row>

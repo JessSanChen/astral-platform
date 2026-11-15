@@ -45,20 +45,17 @@ export async function signIn(page: Page, email: string) {
   await page.waitForURL(/\/(chat|onboarding)/);
 }
 
-/** The words of the intake form's answers, as shown. */
+/** The words of the intake form, as shown. */
 export const INTAKE = {
-  hasAreas: "I have studied or worked in one or more of these areas",
+  role: "Which best describes your current main role?",
   noBackground: "No specialized background in these areas",
-  willRate: "I will rate up to three areas",
-  nothingToRate: "None of my areas: nothing to rate",
-  biosafety: "Biosafety training or practical assessment",
-  biosecurity: "Biosecurity or dual-use research assessment",
-  noTraining: "No relevant training or experience",
   routine:
     "I can assess routine work, recognize important assumptions, and identify material errors or missing evidence in this area.",
   specialist:
     "I can assess specialized or ambiguous work and explain its important limitations in this area.",
   virology: "Microbiology and virology",
+  wetLab: "Wet-lab research",
+  aiUse: "How often do you currently use AI assistants? (optional)",
 } as const;
 
 /** Someone who says they can assess one subject, and how well. */
@@ -69,25 +66,21 @@ export async function agreeToStudy(page: Page) {
   await page.getByRole("checkbox", { name: /may be used for the\s+stated research/ }).check();
 }
 
-/** The seven rows about kinds of work, answered in one go. */
+/** The five rows about kinds of work, answered in one go. */
 export async function skipWorkRows(page: Page) {
   await page.getByRole("checkbox", { name: "Prefer not to say, for this whole question" }).check();
 }
 
 /** The intake questions that have to be answered, answered. */
 export async function fillIntake(page: Page, expertise?: Expertise) {
-  await skipWorkRows(page);
+  await choose(page, INTAKE.role, "Postdoctoral researcher");
   if (expertise) {
-    await page.getByRole("radio", { name: INTAKE.hasAreas }).check();
     await page.getByRole("checkbox", { name: expertise.area, exact: true }).check();
-    await page.getByRole("radio", { name: INTAKE.willRate }).check();
     await choose(page, `${expertise.area}: what you could assess`, expertise.level);
   } else {
-    await page.getByRole("radio", { name: INTAKE.noBackground }).check();
-    await page.getByRole("radio", { name: INTAKE.nothingToRate }).check();
+    await page.getByRole("checkbox", { name: INTAKE.noBackground }).check();
   }
-  await choose(page, INTAKE.biosafety, INTAKE.noTraining);
-  await choose(page, INTAKE.biosecurity, INTAKE.noTraining);
+  await skipWorkRows(page);
 }
 
 export async function finishOnboarding(page: Page, expertise?: Expertise) {

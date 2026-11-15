@@ -98,7 +98,7 @@ sessions. Existing conversations each became a one-session episode.
 
 | Form | Status | Where |
 | --- | --- | --- |
-| A. Intake (A01 to A07) | Built | `lib/intake.ts`, `components/intake-fields.tsx`, `app/onboarding` |
+| A. Intake (A01 to A07) | Changed at the organizer's request; see "Intake form, as revised" below | `lib/intake.ts`, `components/intake-fields.tsx`, `app/onboarding` |
 | A01 two required agreements, optional public release | Built | `components/onboarding-form.tsx` |
 | B1 provenance: real or invented | Built | `components/new-conversation.tsx` |
 | B2 optional activity template, optional goal note | Built | same; goal edits kept in `episode_goal_revision` with whether work had begun |
@@ -114,6 +114,25 @@ sessions. Existing conversations each became a one-session episode.
 
 Stored values are the specification's own identifiers (`g0` to `g3`, `a0`
 to `a3`, `F0` to `F3`, `yes` / `no` / `indeterminate`, and so on).
+
+#### Intake form, as revised (form version A-1.2)
+
+After trying the form, the organizer asked for it to be simpler. What
+differs from the specification's form A:
+
+| Specification | Now | Effect on the data |
+| --- | --- | --- |
+| A02 asks one of three answers first, then shows the areas | The areas are always shown, with "No specialized background" and "Prefer not to say" in the same list; either of those ticked with an area is refused | None: the stored `backgroundResponse` is worked out from what was ticked |
+| A05 is a separate section with its own three-way answer | What a person could assess is asked directly under the areas they ticked, for up to three | `familiarity` is stored as before; `familiarityResponse` is worked out (rated, nothing rated, or prefer not to say). Someone who ticks areas and rates none gets general items only |
+| A03 role is optional | Required, and asked first; "Prefer not to say" is one of the choices | No missing roles |
+| A04 has eight kinds of work | Five: the rows for writing, teaching and "other" are gone | Those three are not collected |
+| A06 biosafety and biosecurity experience | Removed | Not collected. Routing never used it |
+| Focus tags: AI safety; biosecurity and dual-use assessment; biosafety | AI safety; Biosecurity | One tag where there were two |
+| Group heading "Related technical fields" | "Other technical fields" | Label only |
+
+Years of experience in each subject are not asked, in the specification
+or here. A04 asks for experience by kind of work, and the F0 to F3 rating
+is what routing uses.
 
 ### 3. Generation and folders
 
