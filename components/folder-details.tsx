@@ -121,15 +121,26 @@ export function FolderDetails({
   return (
     <div className="relative h-full overflow-y-auto">
       <div className="mx-auto max-w-2xl space-y-8 px-6 py-10">
-        <div className="space-y-1">
-          <h1 className="flex items-center gap-2 font-serif text-3xl font-medium tracking-tight">
-            <Folder className="h-6 w-6 text-muted-foreground" />
-            {title}
-          </h1>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="flex items-center gap-2 font-serif text-3xl font-medium tracking-tight">
+              <Folder className="h-6 w-6 text-muted-foreground" />
+              {title}
+            </h1>
+            {/* The first thing on the page: a folder is for adding sessions to. */}
+            {!submitted && (
+              <Link href={`/chat?to=${episodeId}`}>
+                <Button size="lg">
+                  <Plus className="h-4 w-4" />
+                  New session
+                </Button>
+              </Link>
+            )}
+          </div>
           <p className="text-sm leading-relaxed text-muted-foreground">
             {submitted
               ? "Submitted. Nothing in it can be changed."
-              : "Each session starts from these answers and has its own, in the panel beside its chat."}
+              : "A new session is a fresh chat in this folder, on any model. Each session starts from the answers below and has its own, in the panel beside its chat."}
           </p>
         </div>
 
@@ -197,17 +208,7 @@ export function FolderDetails({
         </section>
 
         <section className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-serif text-lg font-medium">Sessions ({sessions.length})</h2>
-            {!submitted && (
-              <Link href={`/chat?to=${episodeId}`}>
-                <Button variant="outline" size="sm">
-                  <Plus className="h-3.5 w-3.5" />
-                  New session
-                </Button>
-              </Link>
-            )}
-          </div>
+          <h2 className="font-serif text-lg font-medium">Sessions ({sessions.length})</h2>
           <ul className="divide-y divide-border rounded-[var(--radius)] border border-border bg-card">
             {sessions.map((s) => (
               <li key={s.id}>

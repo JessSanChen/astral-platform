@@ -89,28 +89,48 @@ export function ChatSidebar() {
               {/* The folder's own row: plainly something to click, with
                   whether the folder itself has been submitted. Its page
                   has the folder's questions and the way to submit it. */}
-              <Link
-                href={`/chat/folder/${e.id}`}
-                aria-current={pathname === `/chat/folder/${e.id}` ? "page" : undefined}
+              <div
                 className={cn(
-                  "flex items-center gap-2 rounded-[var(--radius)] border border-border bg-card px-3 py-2 text-sm font-medium shadow-sm hover:border-accent/60 hover:bg-muted",
+                  "flex items-stretch rounded-[var(--radius)] border border-border bg-card shadow-sm hover:border-accent/60",
                   pathname === `/chat/folder/${e.id}` && "border-accent/60 bg-muted",
                 )}
               >
-                <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate">{first.episodeTitle}</span>
-                <span
-                  className={cn(
-                    "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                    first.episodeStatus === "submitted"
-                      ? "bg-accent/15 text-accent"
-                      : "border border-border text-muted-foreground",
-                  )}
+                <Link
+                  href={`/chat/folder/${e.id}`}
+                  aria-current={pathname === `/chat/folder/${e.id}` ? "page" : undefined}
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-l-[var(--radius)] px-3 py-2 text-sm font-medium hover:bg-muted"
                 >
-                  {first.episodeStatus === "submitted" ? "Submitted" : "Not submitted"}
-                </span>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              </Link>
+                  <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">{first.episodeTitle}</span>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                      first.episodeStatus === "submitted"
+                        ? "bg-accent/15 text-accent"
+                        : "border border-border text-muted-foreground",
+                    )}
+                  >
+                    {first.episodeStatus === "submitted" ? "Submitted" : "Not submitted"}
+                  </span>
+                  {first.episodeStatus === "submitted" && (
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                </Link>
+                {/* Start another session in this folder, without going
+                    through the folder's page. A link of its own beside
+                    the row's link: one inside the other would be invalid
+                    and would swallow the click. */}
+                {first.episodeStatus !== "submitted" && (
+                  <Link
+                    href={`/chat?to=${e.id}`}
+                    aria-label={`New session in ${first.episodeTitle}`}
+                    title={`New session in ${first.episodeTitle}`}
+                    className="flex w-9 shrink-0 items-center justify-center rounded-r-[var(--radius)] border-l border-border text-muted-foreground hover:bg-accent/10 hover:text-foreground"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Link>
+                )}
+              </div>
               <div className="ml-3 mt-0.5 border-l border-border pl-1">
                 {e.sessions.map((s) => (
                   <SessionLink
