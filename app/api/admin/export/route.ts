@@ -18,6 +18,7 @@ import {
   reviewPolicy,
   reviewResponse,
   reviewRevision,
+  testerAccount,
   reviewView,
   submission,
   transcriptLabels,
@@ -113,6 +114,12 @@ export async function GET(req: Request) {
       }
 
       // --- People -------------------------------------------------------
+      // Accounts whose work is test data, not the event's. Carried on the
+      // person, on each piece of work and on each assignment, so a file
+      // can be filtered without joining.
+      const testers = new Set(
+        (await db.select({ id: testerAccount.userId }).from(testerAccount)).map((t) => t.id),
+      );
       const people = await db
         .select({ account: user, profile })
         .from(user)
@@ -124,6 +131,7 @@ export async function GET(req: Request) {
           name: account.name,
           email: account.email,
           is_organizer: account.role === "admin",
+          is_tester: testers.has(account.id),
           created_at: account.createdAt,
           terms_version: account.termsVersion,
           terms_accepted_at: account.termsAcceptedAt,
@@ -176,6 +184,7 @@ export async function GET(req: Request) {
         emit("episode", {
           episode_id: e.id,
           user_id: e.userId,
+          author_is_tester: testers.has(e.userId),
           title: e.title,
           is_folder: e.isFolder,
           model_id: e.modelId,
@@ -389,6 +398,7 @@ export async function GET(req: Request) {
         emit("review_assignment", {
           assignment_id: a.id,
           reviewer_id: a.reviewerId,
+          reviewer_is_tester: testers.has(a.reviewerId),
           // "primary" (a review) or "pair_audit" (a comparison).
           purpose: a.purpose,
           view_id: a.viewId,

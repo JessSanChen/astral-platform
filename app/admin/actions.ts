@@ -13,6 +13,7 @@ import {
   reviewView,
   session,
   termsVersion,
+  testerAccount,
   user,
 } from "@/db/schema";
 import { auth } from "@/lib/auth";
@@ -94,6 +95,62 @@ export async function setPaused(userId: string, paused: boolean) {
  * anyone else still leaves at least the caller. No separate "last organizer"
  * check is needed, and one would never fire.
  */
+/**
+ * Marks an account's work as test data, or takes the mark off.
+ *
+ * A tester's work is kept and labelled. It is left out of the console's
+ * counts, and is never given to a participant to review: testers and
+ * participants each review their own kind. It gives no access to
+ * anything.
+ */
+export async function setTester(userId: string, tester: boolean) {
+  const current = await requireAdmin();
+  if (tester) {
+    await db
+      .insert(testerAccount)
+      .values({ userId, markedBy: current.user.id })
+      .onConflictDoNothing();
+  } else {
+    await db.delete(testerAccount).where(eq(testerAccount.userId, userId));
+  }
+  await recordAudit({
+    action: tester ? "tester_marked" : "tester_unmarked",
+    actor: current.user,
+    target: userId,
+  });
+  revalidatePath("/admin");
+  return {
+    message: tester
+      ? "Marked as a tester. Their work is left out of the counts and is not given to participants to review."
+      : "Tester mark removed. Their work counts, and can be given to participants to review.",
+  };
+}
+
+/**
+ * Marks every account that exists now as a tester: for the moment before
+ * the event starts, when everything so far is test data. Accounts made
+ * afterwards are participants.
+ */
+export async function markEveryoneTester() {
+  const current = await requireAdmin();
+  const marked = await db.execute<{ user_id: string }>(sql`
+    insert into tester_account (user_id, marked_by)
+    select u.id, ${current.user.id} from "user" u
+    on conflict (user_id) do nothing
+    returning user_id
+  `);
+  const n = (marked as unknown as unknown[]).length;
+  await recordAudit({
+    action: "tester_marked_everyone",
+    actor: current.user,
+    detail: `${n} newly marked`,
+  });
+  revalidatePath("/admin");
+  return {
+    message: `${n} account${n === 1 ? "" : "s"} newly marked as testers. Everyone who signs up from now on is a participant.`,
+  };
+}
+
 export async function setOrganizer(userId: string, organizer: boolean) {
   const current = await requireAdmin();
 

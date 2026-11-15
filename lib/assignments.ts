@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   conversation,
@@ -10,12 +10,14 @@ import {
   reviewAssignment,
   reviewResponse,
   reviewView,
+  testerAccount,
   user,
 } from "@/db/schema";
 import type { ViewContent } from "@/lib/episodes";
 import type { IntakeDraft } from "@/lib/intake";
 import { getEventSettings } from "@/lib/openrouter";
 import { getPolicy } from "@/lib/policy";
+import { isTester } from "@/lib/sql";
 import {
   AUDIT_FORM_VERSION,
   BASIS_NOT_ASKED,
@@ -94,6 +96,19 @@ async function reviewerStanding(reviewerId: string) {
 }
 
 /**
+ * Which pool a reviewer draws from. Returns a condition, for a query, that
+ * an author is in the same one: both testers, or neither.
+ */
+async function poolOf(reviewerId: string) {
+  const [row] = await db
+    .select({ id: testerAccount.userId })
+    .from(testerAccount)
+    .where(eq(testerAccount.userId, reviewerId));
+  const tester = Boolean(row);
+  return (authorColumn: SQL) => (tester ? isTester(authorColumn) : sql`not ${isTester(authorColumn)}`);
+}
+
+/**
  * Gives a reviewer their next item of one kind, or the one of that kind
  * they already have.
  *
@@ -119,6 +134,10 @@ export async function requestAssignment(reviewerId: string, purpose: Purpose) {
   // shown part of, for any purpose (reviewed, compared, skipped or in
   // progress), and any that contains work of their own. One that only
   // ran out of time, with nothing recorded, can come back to them.
+  // Test data and the event's data are two pools that never mix: a
+  // tester is given testers' work, a participant is given participants'.
+  const samePool = await poolOf(reviewerId);
+
   const offLimits = sql`(
     select a.family_id from ${reviewAssignment} a
     where a.reviewer_id = ${reviewerId} and a.state <> 'expired'
@@ -159,6 +178,7 @@ export async function requestAssignment(reviewerId: string, purpose: Purpose) {
             -- conversation or folder, or one session of a folder that is
             -- itself still open. Either may be reviewed.
             where e.assignment_state = 'ready'
+              and ${samePool(sql`e.user_id`)}
               and v.family_id not in ${offLimits}
               and (
                 select count(*) from ${reviewAssignment} held
@@ -187,6 +207,7 @@ export async function requestAssignment(reviewerId: string, purpose: Purpose) {
           -- sits in, and auditable once both may be shown.
           where sc.status = 'submitted' and tc.status = 'submitted'
             and source.assignment_state = 'ready' and target.assignment_state = 'ready'
+            and ${samePool(sql`source.user_id`)}
             and rv.family_id not in ${offLimits}
             and not exists (
               select 1 from ${reviewAssignment} audited
@@ -618,6 +639,7 @@ export async function reviewerWork(reviewerId: string) {
  */
 export async function whyNothing(reviewerId: string, purpose: Purpose) {
   const settings = await getEventSettings();
+  const samePool = await poolOf(reviewerId);
   const mine = sql`(select m.source_family_id from ${episode} m where m.user_id = ${reviewerId})`;
   const shown = sql`(
     select a.family_id from ${reviewAssignment} a
@@ -640,6 +662,7 @@ export async function whyNothing(reviewerId: string, purpose: Purpose) {
               where h.view_id = v.id and h.purpose = 'primary'
                 and h.state in ('active', 'completed')) >= ${settings.reviewsPerView}::int as taken
           from ${reviewView} v join ${episode} e on e.id = v.episode_id
+          where ${samePool(sql`e.user_id`)}
         ) t
       `)
     : db.execute<Counts>(sql`
@@ -663,6 +686,7 @@ export async function whyNothing(reviewerId: string, purpose: Purpose) {
           join ${conversation} sc on sc.id = rv.source_conversation_id
           join ${conversation} tc on tc.id = rv.target_conversation_id
           where sc.status = 'submitted' and tc.status = 'submitted'
+            and ${samePool(sql`source.user_id`)}
         ) t
       `))) as unknown as Counts[];
   return counts ?? { total: 0, own: 0, shown: 0, held: 0, taken: 0 };

@@ -55,6 +55,13 @@ export default async function AdminOverview() {
         />
       </div>
 
+      {data.testers > 0 && (
+        <p className="text-xs text-muted-foreground">
+          These numbers leave out {plural(data.testers, "tester account")} and their work. Testers
+          are marked on the Participants page.
+        </p>
+      )}
+
       {settings.chatPaused && (
         <p className="rounded-[var(--radius)] border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
           Chat is paused for everyone. Nobody can send a message until you

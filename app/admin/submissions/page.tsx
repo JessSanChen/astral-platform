@@ -123,7 +123,12 @@ function SubmissionCard({ episode: ep, target }: { episode: Submission; target: 
               className="text-accent underline"
             >
               {ep.authorName}
-            </Link>{" "}
+            </Link>
+            {ep.authorIsTester && (
+              <span className="ml-1.5 rounded-full border border-border px-1.5 py-0.5 text-[11px]">
+                Tester: given to testers only
+              </span>
+            )}{" "}
             ·{" "}
             {ep.isFolder
               ? `Folder, ${ep.sessions} session${ep.sessions === 1 ? "" : "s"}`
@@ -157,12 +162,24 @@ function SubmissionCard({ episode: ep, target }: { episode: Submission; target: 
             STATE_TONE[ep.assignmentState] ?? STATE_TONE.pending,
           )}
         >
-          {ep.assignmentState === "ready"
-            ? "Available"
-            : (ASSIGNMENT_STATES.find((s) => s.value === ep.assignmentState)?.label ??
-              ep.assignmentState)}
+          {ep.views.length === 0
+            ? "Cannot be reviewed"
+            : ep.assignmentState === "ready"
+              ? "Available"
+              : (ASSIGNMENT_STATES.find((s) => s.value === ep.assignmentState)?.label ??
+                ep.assignmentState)}
         </span>
       </div>
+
+      {/* Submitted before specification v1.1: there is no fixed copy for a
+          reviewer to be shown, so it counts as submitted and is never
+          handed out. Said plainly, so it is not taken for a fault. */}
+      {ep.views.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          Submitted before the current version of the platform, which is when the copy shown to
+          reviewers started being made. It has none, so it is never given to a reviewer.
+        </p>
+      )}
 
       <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs" aria-label="Review coverage">
         {ep.views.map((v) => (

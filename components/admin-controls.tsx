@@ -10,8 +10,10 @@ import {
   resetPassword,
   setBudget,
   setChatPaused,
+  markEveryoneTester,
   setOrganizer,
   setPaused,
+  setTester,
 } from "@/app/admin/actions";
 
 export function PauseChatButton({ paused }: { paused: boolean }) {
@@ -55,6 +57,7 @@ export function ParticipantRow({
   name,
   paused,
   isOrganizer,
+  isTester,
   isSelf,
   budget,
   defaultBudget,
@@ -67,6 +70,8 @@ export function ParticipantRow({
   name: string;
   paused: boolean;
   isOrganizer: boolean;
+  /** Their work is test data: not counted, not given to participants. */
+  isTester: boolean;
   isSelf: boolean;
   budget: number | null;
   defaultBudget: number;
@@ -217,6 +222,21 @@ export function ParticipantRow({
         >
           {isOrganizer ? "Remove organizer" : "Make organizer"}
         </Button>
+
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              const result = await setTester(userId, !isTester);
+              setNote(result.message);
+              router.refresh();
+            })
+          }
+        >
+          {isTester ? "Remove tester mark" : "Mark as tester"}
+        </Button>
       </div>
       </div>
 
@@ -229,4 +249,57 @@ export function ParticipantRow({
     </div>
     );
   }
+}
+
+
+/**
+ * Marks every account that exists now as a tester, in one go: for the
+ * moment before the event starts, when everything so far is test data.
+ * Asks first, because it changes what every one of those accounts is
+ * given to review.
+ */
+export function MarkEveryoneTester({ unmarked }: { unmarked: number }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [confirming, setConfirming] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  if (confirming) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span>
+          Mark all {unmarked} unmarked account{unmarked === 1 ? "" : "s"} as testers?
+        </span>
+        <Button
+          size="sm"
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              const result = await markEveryoneTester();
+              setNote(result.message);
+              setConfirming(false);
+              router.refresh();
+            })
+          }
+        >
+          {pending ? "Marking..." : "Yes, mark them"}
+        </Button>
+        <Button size="sm" variant="ghost" disabled={pending} onClick={() => setConfirming(false)}>
+          Cancel
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <Button size="sm" variant="outline" disabled={unmarked === 0} onClick={() => setConfirming(true)}>
+        Mark everyone so far as a tester
+      </Button>
+      {note && (
+        <span role="status" className="text-xs text-muted-foreground">
+          {note}
+        </span>
+      )}
+    </div>
+  );
 }

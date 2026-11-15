@@ -1,4 +1,4 @@
-import { getTableName, sql } from "drizzle-orm";
+import { getTableName, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 /**
@@ -14,3 +14,11 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 export function outer(column: AnyPgColumn) {
   return sql`${sql.identifier(getTableName(column.table))}.${sql.identifier(column.name)}`;
 }
+
+/**
+ * Whether the account in a column is marked as a tester (test data, not
+ * the event's). Pass the column through `outer()` when the query selects
+ * from one table only, for the reason given above.
+ */
+export const isTester = (userColumn: SQL) =>
+  sql`exists (select 1 from tester_account tester where tester.user_id = ${userColumn})`;

@@ -1,4 +1,4 @@
-import { outer } from "@/lib/sql";
+import { isTester, outer } from "@/lib/sql";
 import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -10,6 +10,7 @@ import {
   nomination,
   pairAudit,
   profile,
+  testerAccount,
   relatedVersion,
   reviewAssignment,
   reviewPolicy,
@@ -36,7 +37,7 @@ export async function overview() {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const [policy, settings] = await Promise.all([getPolicy(), getEventSettings()]);
 
-  const [people, episodes, sessions, views, assignments, audits, spend, nominations] =
+  const [people, episodes, sessions, views, assignments, audits, spend, nominations, testers] =
     await Promise.all([
       db
         .select({
@@ -44,7 +45,9 @@ export async function overview() {
           intakeCompleted: sql<number>`count(*) filter (where ${user.profileCompletedAt} is not null)::int`,
           instructionPassed: sql<number>`count(*) filter (where ${user.policyReadyVersion} = ${policy.version} and ${policy.version} > 0)::int`,
         })
-        .from(user),
+        .from(user)
+        // Every number on the overview leaves testers and their work out.
+        .where(sql`not ${isTester(outer(user.id))}`),
       db
         .select({
           draft: sql<number>`count(*) filter (where ${episode.status} = 'draft')::int`,
@@ -58,7 +61,8 @@ export async function overview() {
           held: sql<number>`count(*) filter (where ${episode.status} = 'submitted' and ${episode.assignmentState} = 'held')::int`,
           withdrawn: sql<number>`count(*) filter (where ${episode.status} = 'submitted' and ${episode.assignmentState} = 'withdrawn')::int`,
         })
-        .from(episode),
+        .from(episode)
+        .where(sql`not ${isTester(outer(episode.userId))}`),
       // A session is a conversation someone actually typed into.
       db
         .select({
@@ -67,7 +71,8 @@ export async function overview() {
         })
         .from(conversation)
         .where(
-          sql`exists (select 1 from ${message} m where m.conversation_id = ${outer(conversation.id)})`,
+          sql`exists (select 1 from ${message} m where m.conversation_id = ${outer(conversation.id)})
+              and not ${isTester(outer(conversation.userId))}`,
         ),
       db.execute<{ total: number; started: number; full: number }>(sql`
         select
@@ -81,6 +86,7 @@ export async function overview() {
           from review_view v
           join episode e on e.id = v.episode_id
           where e.assignment_state <> 'withdrawn'
+            and not ${isTester(sql`e.user_id`)}
         ) per_view
       `),
       db
@@ -92,8 +98,12 @@ export async function overview() {
           auditSkips: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'skipped' and ${reviewAssignment.purpose} = 'pair_audit')::int`,
           expired: sql<number>`count(*) filter (where ${reviewAssignment.state} = 'expired')::int`,
         })
-        .from(reviewAssignment),
-      db.select({ n: count() }).from(pairAudit),
+        .from(reviewAssignment)
+        .where(sql`not ${isTester(outer(reviewAssignment.reviewerId))}`),
+      db
+        .select({ n: count() })
+        .from(pairAudit)
+        .where(sql`not ${isTester(outer(pairAudit.reviewerId))}`),
       db
         .select({
           tokens: sql<number>`coalesce(sum(${usageEvent.promptTokens} + ${usageEvent.completionTokens}), 0)::int`,
@@ -105,8 +115,14 @@ export async function overview() {
       db
         .select({ track: nomination.track, n: count() })
         .from(nomination)
-        .where(inArray(nomination.track, TRACK_VALUES))
+        .where(
+          and(
+            inArray(nomination.track, TRACK_VALUES),
+            sql`not ${isTester(outer(nomination.userId))}`,
+          ),
+        )
         .groupBy(nomination.track),
+      db.select({ n: count() }).from(testerAccount),
     ]);
 
   const [viewRow] = views as unknown as { total: number; started: number; full: number }[];
@@ -114,6 +130,8 @@ export async function overview() {
     policyVersion: policy.version,
     reviewsPerView: settings.reviewsPerView,
     participants: people[0]?.total ?? 0,
+    // Accounts marked as testers, which none of the other numbers include.
+    testers: testers[0]?.n ?? 0,
     intakeCompleted: people[0]?.intakeCompleted ?? 0,
     instructionPassed: people[0]?.instructionPassed ?? 0,
     episodes: episodes[0] ?? {
@@ -150,6 +168,7 @@ export type ParticipantTableRow = {
   intake_done: boolean;
   policy_ready: boolean;
   is_admin: boolean;
+  is_tester: boolean;
   banned: boolean;
   daily_token_budget: number | null;
   submitted: number;
@@ -178,6 +197,7 @@ export async function participantTable() {
       (u.profile_completed_at is not null) as intake_done,
       (${policy.version}::int > 0 and u.policy_ready_version = ${policy.version}::int) as policy_ready,
       coalesce(u.role = 'admin', false) as is_admin,
+      ${isTester(sql`u.id`)} as is_tester,
       coalesce(u.banned, false) as banned,
       u.daily_token_budget,
       coalesce(e.submitted, 0)::int      as submitted,
@@ -519,6 +539,7 @@ export async function submissionsList(state?: SubmissionState) {
       assignmentState: episode.assignmentState,
       authorId: user.id,
       authorName: user.name,
+      authorIsTester: sql<boolean>`${isTester(sql`${user.id}`)}`,
       sessions: sql<number>`(
         select count(*) from conversation c
         where c.episode_id = ${outer(episode.id)} and c.status = 'submitted'

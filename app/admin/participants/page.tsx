@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/gate";
 import { participantTable } from "@/lib/admin";
 import { getEventSettings } from "@/lib/openrouter";
-import { ParticipantRow } from "@/components/admin-controls";
+import { MarkEveryoneTester, ParticipantRow } from "@/components/admin-controls";
 import { ROLES, domainLabel, type IntakeDraft } from "@/lib/intake";
 import { cn } from "@/lib/utils";
 
@@ -32,18 +32,35 @@ function intakeLine(stored: unknown) {
 export default async function Participants({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string }>;
+  searchParams: Promise<{ sort?: string; show?: string }>;
 }) {
   const me = await requireAdmin();
-  const { sort } = await searchParams;
+  const { sort, show } = await searchParams;
   const by = (SORTS.find((s) => s.key === sort)?.key ?? "submitted") as Sort;
+  // Who is listed: everyone, or one side of the line between the event's
+  // data and test data.
+  const showing = show === "participants" || show === "testers" ? show : "all";
 
   const [rows, settings] = await Promise.all([
     participantTable(),
     getEventSettings(),
   ]);
 
-  const sorted = [...rows].sort((a, b) => {
+  const testers = rows.filter((r) => r.is_tester).length;
+  const listed = rows.filter((r) =>
+    showing === "all" ? true : showing === "testers" ? r.is_tester : !r.is_tester,
+  );
+  const link = (next: { sort?: string; show?: string }) => {
+    const q = new URLSearchParams();
+    const s = next.sort ?? by;
+    const w = next.show ?? showing;
+    if (s !== "submitted") q.set("sort", s);
+    if (w !== "all") q.set("show", w);
+    const text = q.toString();
+    return text ? `/admin/participants?${text}` : "/admin/participants";
+  };
+
+  const sorted = [...listed].sort((a, b) => {
     if (by === "name") return a.name.localeCompare(b.name);
     return Number(b[by]) - Number(a[by]) || a.name.localeCompare(b.name);
   });
@@ -55,7 +72,7 @@ export default async function Participants({
         {SORTS.map((option) => (
           <Link
             key={option.key}
-            href={`/admin/participants?sort=${option.key}`}
+            href={link({ sort: option.key })}
             prefetch
             className={cn(
               "rounded-full px-3 py-1 text-sm transition-colors",
@@ -67,6 +84,42 @@ export default async function Participants({
             {option.label}
           </Link>
         ))}
+      </div>
+
+      {/* Test data and the event's data. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--radius)] border border-border bg-card px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Show</span>
+          {(
+            [
+              { key: "all", label: `Everyone (${rows.length})` },
+              { key: "participants", label: `Participants (${rows.length - testers})` },
+              { key: "testers", label: `Testers (${testers})` },
+            ] as const
+          ).map((option) => (
+            <Link
+              key={option.key}
+              href={link({ show: option.key })}
+              prefetch
+              className={cn(
+                "rounded-full px-3 py-1 text-sm transition-colors",
+                showing === option.key
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {option.label}
+            </Link>
+          ))}
+        </div>
+        <MarkEveryoneTester unmarked={rows.length - testers} />
+        <p className="w-full text-xs leading-relaxed text-muted-foreground">
+          A tester&apos;s work is test data. It is kept and labelled in the export, left out of
+          the overview&apos;s numbers, and never given to a participant to review: testers
+          review testers&apos; work, participants review participants&apos;. The mark gives
+          no access to anything. Mark everyone just before the event starts; accounts made
+          after that are participants.
+        </p>
       </div>
 
       <p className="max-w-4xl text-xs leading-relaxed text-muted-foreground">
@@ -104,6 +157,7 @@ export default async function Participants({
                   name={row.name}
                   paused={row.banned}
                   isOrganizer={row.is_admin}
+                  isTester={row.is_tester}
                   isSelf={row.id === me.user.id}
                   budget={row.daily_token_budget}
                   defaultBudget={settings.defaultDailyTokenBudget}
@@ -135,6 +189,11 @@ export default async function Participants({
                     >
                       {row.banned ? "Paused" : row.is_admin ? "Organizer" : "Active"}
                     </span>
+                    {row.is_tester && (
+                      <span className="ml-1.5 rounded-full border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                        Tester
+                      </span>
+                    )}
                     {!row.intake_done ? (
                       <p className="text-xs text-muted-foreground">Intake not finished</p>
                     ) : (
