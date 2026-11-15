@@ -2317,6 +2317,26 @@ kept because it was asked for earlier; participants still choose a model;
 review drafts are kept in the browser rather than on the server; a review
 level applies to a whole submission rather than to one session of it.
 
+### What the tests turned up
+
+The first full run of the rewritten browser tests failed nine times. Seven
+were the tests expecting the wrong thing. Two were real:
+
+- **A folder could not be submitted.** Every session but the one on
+  screen was counted as empty. The count was a subquery that referred to
+  the outer conversation by a bare column name, which inside the subquery
+  meant the message's own id, so it matched nothing. The same mistake was
+  in nine other queries (the prize list, the names of related versions,
+  several console counts). `lib/sql.ts` now has a helper, `outer`, that
+  names the table, and all ten use it.
+- **Yes or No to public release was stored as unanswered.** The radio
+  group had no values, so the form posted "on".
+
+Found by reading rather than by a test: the migration reset everyone's
+background answers but not their agreement to the study information, so
+existing accounts would never have been shown the two new agreements. It
+resets both now.
+
 ### Tests
 
 The browser tests were rewritten for the new flows: `authoring.spec.ts`,
