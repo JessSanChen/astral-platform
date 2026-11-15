@@ -65,7 +65,8 @@ test.describe("running the day", () => {
 
     try {
       await organizer.page.goto("/admin/prizes");
-      await expect(organizer.page.getByRole("heading", { name: "Prize entries (1)" })).toBeVisible();
+      await expect(organizer.page.getByRole("heading", { name: /^Prize entries \(\d+\)$/ })).toBeVisible();
+      await expect(organizer.page.getByRole("main")).toContainText("Nell Nominee");
       await organizer.page.getByRole("button", { name: "Close prize entries now" }).click();
       await expect(
         organizer.page.getByRole("button", { name: "Reopen prize entries" }),
