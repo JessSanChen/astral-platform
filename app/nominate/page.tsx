@@ -112,7 +112,7 @@ export default async function NominateHome() {
           return (
             <Link
               key={track.value}
-              href={`/nominate/${track.value}`}
+              href={`/nominate/${track.slug}`}
               prefetch
               className="block rounded-[var(--radius)] border border-border bg-card p-4 transition-colors hover:bg-muted"
             >

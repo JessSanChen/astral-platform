@@ -25,39 +25,38 @@ export const AWARDS: { award: string; type: "Quantitative" | "Qualitative"; rewa
     rewarding: "Completing many careful comparisons of pairs of related conversations",
   },
   {
-    award: "Most Interesting AI Risk Finding",
-    type: "Qualitative",
-    rewarding:
-      "Revealing an important limitation, ambiguity, or potential risk of AI assistance in dual-use or fictional adversarial scenarios",
-  },
-  {
-    award: "Best Matched Set Investigation",
+    award: "Best Investigation: Matched Set",
     type: "Qualitative",
     rewarding:
       "Using related versions or matched conversations to investigate how changes in context, wording, or task affect observable behavior or review judgments",
   },
   {
-    award: "Best Multi-Session Investigation",
+    award: "Best Investigation: Multi-Session",
     type: "Qualitative",
     rewarding:
       "Exploring how a larger goal develops across multiple sessions, including decomposition, accumulation of context, or changes in observable evidence",
   },
+  {
+    award: "Best Investigation: General",
+    type: "Qualitative",
+    rewarding:
+      "Any other well-evidenced investigation of how AI assistants behave in scientific work, whatever the scenario: ordinary and benign use is as welcome as anything else",
+  },
 ];
 
-/** The three qualitative awards, each entered by describing what was found. */
+/**
+ * The three qualitative awards, each entered by describing what was found.
+ *
+ * `value` is what is stored and does not change when an award is renamed.
+ * `slug` is what appears in the address, and follows the award's name.
+ * The General award keeps the stored value of the award it took the place
+ * of ("ai_risk_finding"), so entries already made are still under it.
+ */
 export const NOMINATION_TRACKS = [
   {
-    value: "ai_risk_finding",
-    label: "Most Interesting AI Risk Finding",
-    question: "What did you discover?",
-    blurb:
-      "Revealing an important limitation, ambiguity, or potential risk of AI assistance in dual-use or fictional adversarial scenarios.",
-    focus:
-      "The focus is a substantive insight about the potential risks or limitations of AI assistance. It might concern the interpretation of dual-use activity, uncertainty about purpose, or what information the conversation reveals. It does not require a successful harmful output or a confirmed monitor failure.",
-  },
-  {
     value: "comparative",
-    label: "Best Matched Set Investigation",
+    slug: "matched_set",
+    label: "Best Investigation: Matched Set",
     question: "What changes the result?",
     blurb:
       "Using related versions or matched conversations to investigate how changes in context, wording, or task affect observable behavior or review judgments.",
@@ -66,14 +65,34 @@ export const NOMINATION_TRACKS = [
   },
   {
     value: "multi_session",
-    label: "Best Multi-Session Investigation",
+    slug: "multi_session",
+    label: "Best Investigation: Multi-Session",
     question: "What emerges across sessions?",
     blurb:
       "Exploring how a larger goal develops across multiple sessions, including decomposition, accumulation of context, or changes in observable evidence.",
     focus:
       "The focus is how related sessions contribute to one overarching goal or reveal information that is not apparent from individual sessions. Strong entries show why the linkage matters, rather than merely splitting an ordinary conversation into several chats.",
   },
+  {
+    value: "ai_risk_finding",
+    slug: "general",
+    label: "Best Investigation: General",
+    question: "What did you find?",
+    blurb:
+      "Any other well-evidenced investigation of how AI assistants behave in scientific work. A catch-all for work that is neither a matched set nor a multi-session study.",
+    focus:
+      "The focus is a clear question, what you did to look into it, and what you found. The scenario can be anything: ordinary, benign use of an assistant is as welcome as dual-use or adversarial work, and an entry does not have to be about a risk or a failure. Strong entries say what the evidence does and does not show.",
+  },
 ] as const;
+
+/** The award an address names: by its slug, or by the value stored for it. */
+export function trackFromAddress(part: string) {
+  return (
+    NOMINATION_TRACKS.find((t) => t.slug === part) ??
+    NOMINATION_TRACKS.find((t) => t.value === part) ??
+    null
+  );
+}
 
 // Earlier tracks ("adversarial", "dual_use", and before them
 // "collaborative") were replaced by these. The database still accepts the

@@ -1,10 +1,9 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireOnboarded } from "@/lib/gate";
 import {
-  NOMINATION_TRACKS,
   getNomination,
   nominationStatus,
-  type TrackValue,
+  trackFromAddress,
 } from "@/lib/nominations";
 import { NominationForm } from "@/components/nomination-form";
 
@@ -14,12 +13,14 @@ export default async function NominateTrackPage({
   params: Promise<{ track: string }>;
 }) {
   const { track } = await params;
-  const definition = NOMINATION_TRACKS.find((t) => t.value === track);
+  const definition = trackFromAddress(track);
   if (!definition) notFound();
+  // An address from before an award was renamed goes to the one it has now.
+  if (track !== definition.slug) redirect(`/nominate/${definition.slug}`);
 
   const { user } = await requireOnboarded();
   const [existing, status] = await Promise.all([
-    getNomination(user.id, track as TrackValue),
+    getNomination(user.id, definition.value),
     nominationStatus(),
   ]);
 
