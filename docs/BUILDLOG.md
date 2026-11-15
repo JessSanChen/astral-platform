@@ -3174,6 +3174,33 @@ and address; the old address leading to the new one.
 
 ---
 
+## Round 38: three tests that failed in CI, and why they passed here
+
+Rounds 36 and 37 were pushed with every test passing on the machine
+they were written on, and failed in CI, which stopped the deployment:
+the live site waits for that check.
+
+**Nothing was wrong with the application.** Three tests failed, all for
+one reason. Round 36 made the organizer's terms the text a new database
+starts with. CI makes a new database for every run; the database the
+tests had been run against here was older and still held the earlier
+placeholder. The real terms have headings of their own, and three tests
+looked for things in a way that could not tell those apart:
+
+- one counted the headings of the background questions across the whole
+  page, and found three more, from the terms;
+- one looked for the heading "Participant Terms and Conditions" and
+  found two, the form's and the document's own title;
+- one pressed "Load the default terms", which is switched off when the
+  box already holds them.
+
+Each now looks only where it means to. The suite was then run on a
+database made from nothing, which is what CI does, and that is how it
+should be run before anything is pushed: a pass on a database with
+history in it is not the same test. `docs/TESTING.md` says how.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

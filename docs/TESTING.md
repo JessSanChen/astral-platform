@@ -25,6 +25,19 @@ browser and uses the app the way a person would: clicking, typing, reading
 what is on the screen. They run against a production build, because that is
 what participants get.
 
+**Run them on a new database before pushing.** CI makes a database
+from nothing for every run. One that has been used before can hold
+things a new one does not (an older version of the terms, say), and a
+test can pass on it and fail in CI, which blocks the deployment. To run
+the suite the way CI does:
+
+```bash
+createdb astral_fresh
+DATABASE_URL=postgresql://USER@HOST:PORT/astral_fresh npm run test:e2e:prepare
+DATABASE_URL=postgresql://USER@HOST:PORT/astral_fresh npm run test:e2e
+dropdb astral_fresh
+```
+
 Model replies come from the stand-in provider in
 `scripts/mock-openrouter.mjs`, so a run needs no API key, spends nothing, and
 does not fail because a model is having a bad day.

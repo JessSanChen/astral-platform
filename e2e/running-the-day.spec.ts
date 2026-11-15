@@ -145,6 +145,9 @@ test.describe("running the day", () => {
       // The terms the platform comes with can be loaded into the box. They
       // still carry a note to the organizer where a part is missing, and
       // cannot be published until that is dealt with.
+      // (The button is off while the box already holds them, which it does
+      // on a database that started with them. Put something else in first.)
+      await admin.getByLabel(`Text of version ${before + 1}`).fill("Something else entirely, for now.");
       await admin.getByRole("button", { name: "Load the default terms" }).click();
       await expect(
         admin.getByRole("heading", { name: "ASTRAL Hackathon — Participant Terms and Conditions" }),
