@@ -181,7 +181,9 @@ test.describe("running the day", () => {
       await page.goto("/review");
       await expect(page).toHaveURL(/\/review$/);
       await page.goto("/profile");
-      await expect(page.getByText(`Version ${before + 1} on`)).toBeVisible();
+      // That they agreed, and when; not a version number.
+      await expect(page.getByText(/^Agreed /)).toBeVisible();
+      await expect(page.getByRole("main").getByText(/Version \d/)).toHaveCount(0);
     } finally {
       // Put the terms back, so the next sign-up is asked for the version it
       // was before this test. Deleting it here goes behind the app's back,

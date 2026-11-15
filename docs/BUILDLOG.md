@@ -2976,6 +2976,28 @@ way to skip and folded instructions.
 
 ---
 
+## Round 34: "related conversation" throughout, and no version numbers shown to participants
+
+- **The buttons read "Create related conversation"** and "Submit source
+  and create related conversation", matching the form's title. The
+  same word is now used wherever a participant reads it: the panel
+  ("A related conversation", "Related conversations made from this"),
+  the messages on a closed conversation, the briefing, and the two
+  columns of a comparison ("Original conversation" and "Related
+  conversation"). The organizer's setting reads "Related conversations
+  are open". Left as they were: the award descriptions and one of the
+  five instruction-check questions, which are the organizer's own text
+  and say "related versions".
+- **No version numbers on instructions or study information for
+  participants.** "Review instructions (version 2)" is "Review
+  instructions", on the Review page, beside the review form and on the
+  instruction check. The study information at sign-up no longer says
+  "Version N", and the profile page says "Agreed" with the date. The
+  version is still recorded with every review and every agreement, and
+  still shown in the organizer console and the export.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge
