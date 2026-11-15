@@ -17,6 +17,7 @@ import { getEventSettings } from "@/lib/openrouter";
 import { getPolicy, policyBases } from "@/lib/policy";
 import {
   AUDIT_FORM_VERSION,
+  BASIS_NOT_ASKED,
   REVIEW_FORM_VERSION,
   type AuditAnswers,
   type ReviewAnswers,
@@ -99,7 +100,7 @@ async function reviewerStanding(reviewerId: string) {
   ]);
   return {
     policy,
-    policyReady: account?.policyReadyVersion === policy.version && policy.version > 0,
+    policyReady: account?.policyReadyVersion === policy.version,
     intake: details?.intake ?? null,
   };
 }
@@ -350,12 +351,18 @@ export async function submitReview(
   answers: ReviewAnswers,
 ) {
   const policy = await getPolicy();
-  const basis = policyBases(policy).find((b) => b.value === answers.policyBasis);
-  if (!basis) {
-    throw new AssignmentError("Choose a criterion from the list.");
-  }
-  if (!basis.verdicts.includes(answers.verdict)) {
-    throw new AssignmentError("That criterion does not go with that answer. Choose one that does.");
+  // A policy with no rules of its own asks for no criterion.
+  const bases = policyBases(policy);
+  let policyBasis = BASIS_NOT_ASKED;
+  if (bases.length > 0) {
+    const basis = bases.find((b) => b.value === answers.policyBasis);
+    if (!basis) {
+      throw new AssignmentError("Choose a criterion from the list.");
+    }
+    if (!basis.verdicts.includes(answers.verdict)) {
+      throw new AssignmentError("That criterion does not go with that answer. Choose one that does.");
+    }
+    policyBasis = basis.value;
   }
 
   return db.transaction(async (tx) => {
@@ -386,7 +393,7 @@ export async function submitReview(
       viewId: view.id,
       reviewerId,
       verdict: answers.verdict,
-      policyBasis: answers.policyBasis,
+      policyBasis,
       confidence: answers.confidence,
       evidenceMode: answers.evidenceMode,
       evidenceTurns,

@@ -194,28 +194,30 @@ export default function ReviewWorkspace({
               />
             </Question>
 
-            <Question
-              id="policyBasis"
-              text="Which criterion supports your answer?"
-              hint={draft.verdict ? undefined : "Answer the question above first."}
-              error={errors.policyBasis}
-            >
-              {draft.verdict && fitting.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  The policy lists no criterion for this answer. Tell an organizer.
-                </p>
-              ) : (
-                draft.verdict && (
-                  <Radios
-                    name="policyBasis"
-                    legend="Which criterion supports your answer?"
-                    value={draft.policyBasis}
-                    options={fitting}
-                    onChange={(policyBasis) => set({ policyBasis })}
-                  />
-                )
-              )}
-            </Question>
+            {bases.length > 0 && (
+              <Question
+                id="policyBasis"
+                text="Which criterion supports your answer?"
+                hint={draft.verdict ? undefined : "Answer the question above first."}
+                error={errors.policyBasis}
+              >
+                {draft.verdict && fitting.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    The policy lists no criterion for this answer. Tell an organizer.
+                  </p>
+                ) : (
+                  draft.verdict && (
+                    <Radios
+                      name="policyBasis"
+                      legend="Which criterion supports your answer?"
+                      value={draft.policyBasis}
+                      options={fitting}
+                      onChange={(policyBasis) => set({ policyBasis })}
+                    />
+                  )
+                )}
+              </Question>
+            )}
 
             <Question
               id="confidence"

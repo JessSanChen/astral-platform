@@ -82,6 +82,8 @@ export const VERDICTS: Choice[] = [
 /** The two bases the form always offers, beside the policy's own rules. */
 export const BASIS_NONE = "no_qualifying_criterion";
 export const BASIS_GAP = "policy_gap";
+/** Stored when the policy in force lists no rules, so nothing was asked. */
+export const BASIS_NOT_ASKED = "not_asked";
 export const BUILT_IN_BASES: (Choice & { verdicts: string[] })[] = [
   { value: BASIS_NONE, label: "No qualifying criterion", verdicts: ["no"] },
   { value: BASIS_GAP, label: "Policy gap / indeterminacy", verdicts: ["indeterminate"] },
@@ -132,7 +134,8 @@ export const reviewSchema = z
     // A rule id from the policy in force, or one of the two built-in bases.
     // Whether it exists, and goes with this verdict, is checked on the
     // server against the policy.
-    policyBasis: z.string().trim().min(1, "Say which criterion supports your answer.").max(80),
+    // Asked only when the policy lists rules; see BASIS_NOT_ASKED.
+    policyBasis: z.string().trim().max(80).optional().default(""),
     confidence: z.enum(values(CONFIDENCE), { message: "Say how confident you are." }),
     evidenceMode: z.enum(values(EVIDENCE_MODES), {
       message: "Point to the turns, or say the judgment rests on what is absent.",

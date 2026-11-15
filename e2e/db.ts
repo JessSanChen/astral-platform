@@ -71,12 +71,16 @@ export const TEST_POLICY = {
   ],
 };
 
+/**
+ * Makes the test policy the one in force. Added as a new version when
+ * something else is, so a policy already in the database is not lost.
+ */
 export async function ensureTestPolicy() {
-  const [row] = await sql`select count(*)::int as n from review_policy`;
-  if (row.n > 0) return;
+  const [latest] = await sql`select version, body from review_policy order by version desc limit 1`;
+  if (latest?.body === TEST_POLICY.body) return;
   await sql`
     insert into review_policy (version, body, rules)
-    values (1, ${TEST_POLICY.body}, ${sql.json(TEST_POLICY.rules)})
+    values (${(latest?.version ?? 0) + 1}, ${TEST_POLICY.body}, ${sql.json(TEST_POLICY.rules)})
   `;
 }
 

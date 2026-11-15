@@ -13,7 +13,7 @@ import {
   type Purpose,
 } from "@/lib/assignments";
 import { getCurrentUser, whyBlocked } from "@/lib/gate";
-import { getPolicy } from "@/lib/policy";
+import { getPolicy, policyBases } from "@/lib/policy";
 import {
   INSTRUCTION_QUESTIONS,
   auditSchema,
@@ -71,13 +71,6 @@ export async function completeInstructionCheck(
     };
   }
   const policy = await getPolicy();
-  if (policy.version === 0) {
-    return {
-      ok: false,
-      message: "The reference policy has not been published yet, so reviewing has not opened.",
-      wrong: [],
-    };
-  }
   await db
     .update(userTable)
     .set({ policyReadyVersion: policy.version })
@@ -100,6 +93,15 @@ export async function submitReviewAction(assignmentId: string, draft: unknown) {
   if ("fail" in who) return who.fail;
   const parsed = reviewSchema.safeParse(draft);
   if (!parsed.success) return issues(parsed.error);
+  // Which criterion supports the answer is asked only when the policy
+  // lists rules to choose from.
+  if (!parsed.data.policyBasis && policyBases(await getPolicy()).length > 0) {
+    return {
+      ok: false,
+      message: "Please complete the highlighted answers.",
+      errors: { policyBasis: "Say which criterion supports your answer." },
+    } satisfies Fail;
+  }
   return guarded(() => submitReview(assignmentId, who.id, parsed.data));
 }
 

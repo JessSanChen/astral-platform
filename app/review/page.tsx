@@ -15,7 +15,6 @@ import { ReviewStart } from "@/components/review-start";
 export default async function ReviewHome() {
   const { user } = await requireOnboarded();
   const summary = await reviewerSummary(user.id);
-  const unpublished = summary.policy.version === 0;
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-6 py-12">
@@ -55,24 +54,15 @@ export default async function ReviewHome() {
           <section className="space-y-3">
             <h2 className="font-serif text-xl font-medium">
               Reference policy
-              {!unpublished && (
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  version {summary.policy.version}
-                </span>
-              )}
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                version {summary.policy.version}
+              </span>
             </h2>
             <div className="markdown rounded-[var(--radius)] border border-border bg-card p-4 text-sm leading-relaxed">
               <ReactMarkdown>{summary.policy.body}</ReactMarkdown>
             </div>
           </section>
-          {unpublished ? (
-            <p className="rounded-[var(--radius)] border border-border bg-muted px-4 py-3 text-sm">
-              Reviewing has not opened yet. It opens when the organizers
-              publish the reference policy.
-            </p>
-          ) : (
-            <InstructionCheck />
-          )}
+          <InstructionCheck />
         </>
       )}
     </div>

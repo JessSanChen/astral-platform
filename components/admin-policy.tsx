@@ -47,7 +47,7 @@ export function PolicyEditor({
 
   const next = currentVersion + 1;
   const changed = body.trim() !== currentBody.trim() || rules.trim() !== currentRules.trim();
-  const usable = changed && body.trim().length >= 20 && rules.trim().length > 0;
+  const usable = changed && body.trim().length >= 20;
 
   function edited() {
     setConfirming(null);
@@ -118,8 +118,21 @@ export function PolicyEditor({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="policy-rules" className="text-sm font-medium">
+      {/* Tucked away: most policies will not need it. Open when there are
+          rules already, so they are not edited blind. */}
+      <details className="rounded-[var(--radius)] border border-border px-4 py-3" open={currentRules.trim().length > 0}>
+        <summary className="cursor-pointer text-sm font-medium">
+          Rules reviewers can cite (optional)
+        </summary>
+        <div className="mt-3 space-y-1.5">
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Leave this empty and reviewers answer Yes, No or Cannot determine
+          and explain why in their own words. Add rules only if you want each
+          review to also name which numbered criterion of the policy it rests
+          on: the review form then asks &ldquo;Which criterion supports your
+          answer?&rdquo; and offers these.
+        </p>
+        <label htmlFor="policy-rules" className="sr-only">
           Rules reviewers can cite
         </label>
         <Textarea
@@ -143,11 +156,19 @@ export function PolicyEditor({
           rule supports Yes. {builtIn.map((b) => `“${b}”`).join(" and ")}{" "}
           are always offered automatically, so do not add them.
         </p>
-      </div>
+        </div>
+      </details>
 
       {confirming ? (
         <div className="space-y-2 rounded-[var(--radius)] border border-border bg-muted/50 px-4 py-3">
           <div className="text-sm">
+            {confirming.length === 0 ? (
+              <p>
+                No rules: reviewers will not be asked which criterion supports
+                their answer.
+              </p>
+            ) : (
+              <>
             <p className="font-medium">The rules, as reviewers will be offered them:</p>
             <ul className="mt-1 space-y-0.5 text-xs" aria-label="Rules as read">
               {confirming.map((r) => (
@@ -162,6 +183,8 @@ export function PolicyEditor({
                 </li>
               ))}
             </ul>
+              </>
+            )}
           </div>
           <p className="text-sm">
             Publish this as version {next}? It cannot be edited or withdrawn

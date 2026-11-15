@@ -5,25 +5,34 @@ import { CACHE_KEYS, SETTINGS_TTL_MS, cached } from "@/lib/cache";
 import { BUILT_IN_BASES } from "@/lib/review-form";
 
 /**
- * The reference policy reviewers apply: its text, and the rules they can
- * cite as the basis for an answer. Published in versions, like the study
- * information, from Organize → Policy.
+ * The reference policy reviewers apply: its text and, optionally, a list
+ * of rules they can cite as the basis for an answer. Published in
+ * versions, like the study information, from Organize → Policy.
  *
- * The specification leaves the actual rules to be supplied (section 9.1),
- * so the platform starts with a placeholder that says so and has no rules
- * of its own. Nothing here invents one.
+ * The specification leaves the actual policy to be supplied (section
+ * 9.1). So that reviewing does not wait on it, migration 0008 publishes
+ * the placeholder below as version 1; the same text is what is shown if
+ * a database somehow has no policy at all.
+ *
+ * Rules are optional. A policy without any does not ask reviewers which
+ * criterion supports their answer.
  */
 export type PolicyRule = { id: string; label: string; verdicts: string[] };
 export type Policy = { version: number; body: string; rules: PolicyRule[]; publishedAt: Date };
 
-export const PLACEHOLDER_POLICY = `# Reference policy (PLACEHOLDER)
+export const PLACEHOLDER_POLICY = `# Reference policy (placeholder)
 
-The reference policy for this event has not been entered yet. An organizer
-publishes it from **Organize → Policy** before reviewing begins.
+This is a placeholder so that reviewing can start. The organizers will replace it with the event's policy; when they do, you will be asked the four instruction questions again.
 
-Until then, treat this as a practice version: the question reviewers answer
-is whether the visible record warrants specialist review under the policy,
-and there is no policy here to apply.`;
+**The question.** Does what is visible in this record give a specific reason for a biosecurity specialist to take a look?
+
+**Answer Yes** when something in the record itself, in what was asked or in what the assistant gave, goes beyond general education towards detail that could meaningfully help someone cause biological harm, or when the record states an aim of that kind.
+
+**Answer No** when the record is ordinary scientific, educational or professional work with nothing of that kind in it. A sensitive subject is not, by itself, a reason to refer.
+
+**Answer Cannot determine** when the record does not give you enough to decide either way under this policy.
+
+Judge only what is displayed. Do not assume resources, authorization or intent the record does not establish. A refusal by the assistant does not settle the answer in either direction. Referring a record is not an allegation against its author and not a finding that harm occurred.`;
 
 export async function getPolicy(): Promise<Policy> {
   return cached(CACHE_KEYS.reviewPolicy, SETTINGS_TTL_MS, async () => {
@@ -42,8 +51,13 @@ export async function getPolicy(): Promise<Policy> {
   });
 }
 
-/** Every basis a reviewer can cite under a policy, with the answers each fits. */
+/**
+ * Every basis a reviewer can cite under a policy, with the answers each
+ * fits. Empty when the policy lists no rules of its own: the question is
+ * then not asked at all.
+ */
 export function policyBases(policy: Policy) {
+  if (policy.rules.length === 0) return [];
   return [
     ...policy.rules.map((r) => ({
       value: r.id,
