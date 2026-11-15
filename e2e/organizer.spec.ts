@@ -156,6 +156,106 @@ test.describe("the organizer console", () => {
     await organizer.context.close();
   });
 
+  test("test data is marked, left out of the counts, and never given to participants", async ({
+    browser,
+  }) => {
+    const tester = await newParticipant(browser, "Tess Tester", "tester");
+    const work = await submittedConversation(tester.page, "TEST-DATA: what is a prion?");
+    const organizer = await newOrganizer(browser, "Olga Overseer");
+    const page = organizer.page;
+    const submittedCount = async () => {
+      await page.goto("/admin");
+      // The number under the card's label.
+      const label = page.getByText("Conversations and folders submitted", { exact: true });
+      return Number((await label.locator("xpath=following-sibling::p[1]").innerText()).trim());
+    };
+
+    try {
+      const before = await submittedCount();
+
+      // One account, from its row. The mark gives no access to anything.
+      await page.goto("/admin/participants");
+      const row = page.locator("tr").filter({ hasText: tester.email });
+      await expect(row.getByText("Tester", { exact: true })).toHaveCount(0);
+      await row.getByRole("button", { name: "Manage" }).click();
+      await page
+        .getByRole("group", { name: `Manage ${tester.name}` })
+        .getByRole("button", { name: "Mark as tester" })
+        .click();
+      await expect(row.getByText("Tester", { exact: true })).toBeVisible();
+      await tester.page.goto("/admin");
+      await expect(tester.page).not.toHaveURL(/\/admin$/);
+
+      // Their work is no longer in the overview's numbers, which say so.
+      expect(await submittedCount()).toBe(before - 1);
+      await expect(page.getByText(/These numbers leave out 1 tester account and their work/)).toBeVisible();
+
+      // It is the only work on offer, and a participant is not given it.
+      // A tester is.
+      await sql`update episode set assignment_state = 'held' where assignment_state = 'ready'`;
+      await release(work.episodeId);
+      const participant = await newReviewer(browser, "Pat Participant");
+      await participant.page.goto("/review");
+      await participant.page.getByRole("button", { name: "Review a transcript" }).click();
+      await expect(participant.page.getByText(/There is nothing for you to review right now/)).toBeVisible();
+      await expect(participant.page).toHaveURL(/\/review$/);
+      const second = await newReviewer(browser, "Ty Tester");
+      await sql`
+        insert into tester_account (user_id) select id from "user" where email = ${second.email}
+      `;
+      await getReview(second.page);
+      await expect(second.page.getByText("to: TEST-DATA: what is a prion?")).toBeVisible();
+
+      // The submissions list says whose it is.
+      await page.goto("/admin/submissions");
+      await expect(
+        page.getByRole("article").filter({ hasText: tester.name }),
+      ).toContainText("Tester: given to testers only");
+
+      // The export carries the mark on the person, the work and the assignment.
+      const lines = await exportLines(page);
+      const person = lines.find((l) => l.record === "participant_intake" && l.email === tester.email)!;
+      expect(person.is_tester).toBe(true);
+      const real = lines.find((l) => l.record === "participant_intake" && l.email === participant.email)!;
+      expect(real.is_tester).toBe(false);
+      const episode = lines.find((l) => l.record === "episode" && l.episode_id === work.episodeId)!;
+      expect(episode.author_is_tester).toBe(true);
+      expect(
+        lines.some((l) => l.record === "review_assignment" && l.reviewer_is_tester === true),
+      ).toBe(true);
+
+      // Everyone who exists now, in one go, for the moment before the
+      // event starts. Whoever signs up afterwards is a participant.
+      await page.goto("/admin/participants");
+      await page.getByRole("button", { name: "Mark everyone so far as a tester" }).click();
+      await page.getByRole("button", { name: "Yes, mark them" }).click();
+      await expect(page.getByRole("status").filter({ hasText: /newly marked as testers/ })).toBeVisible();
+      const [{ unmarked }] = await sql`
+        select count(*)::int as unmarked from "user" u
+        where not exists (select 1 from tester_account t where t.user_id = u.id)
+      `;
+      expect(unmarked).toBe(0);
+      await expect(page.getByRole("button", { name: "Mark everyone so far as a tester" })).toBeDisabled();
+      const later = await newParticipant(browser, "Lara Later");
+      const [{ marked }] = await sql`
+        select count(*)::int as marked from tester_account t
+        join "user" u on u.id = t.user_id where u.email = ${later.email}
+      `;
+      expect(marked).toBe(0);
+      // The list can be narrowed to either side.
+      await page.goto("/admin/participants?show=participants");
+      await expect(page.locator("tr").filter({ hasText: later.email })).toBeVisible();
+      await expect(page.locator("tr").filter({ hasText: tester.email })).toHaveCount(0);
+
+      for (const p of [participant, second, later]) await p.context.close();
+    } finally {
+      // The other tests' accounts are participants.
+      await sql`delete from tester_account`;
+      await tester.context.close();
+      await organizer.context.close();
+    }
+  });
+
   test("reading everything one participant wrote, submitted or not", async ({ browser }) => {
     const participant = await newParticipant(browser, "Hana History");
     const p = participant.page;

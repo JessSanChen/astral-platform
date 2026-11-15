@@ -42,6 +42,13 @@ These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
   nothing about its size. Announce it with the other amounts.
 - **Six smaller points from the review of rounds 29 and 30** are listed
   at the end of round 31 in the build log, not fixed. None loses data.
+- **Before the event starts: mark everyone as a tester.** Organize →
+  Participants → "Mark everyone so far as a tester". Do it once the
+  last test is done and before the first participant signs up.
+- **Run `npm run prod:migrate` from an up-to-date checkout before
+  `main` moves**, every time there is a new migration (0021 is the
+  latest). The Review pages failed on the live site when 0020 was
+  missing.
 - **Reviews can now be changed after submitting** (round 33). The
   specification says a review is final. Earlier versions are kept, so
   an analysis can use first answers only. Decide which you will report.

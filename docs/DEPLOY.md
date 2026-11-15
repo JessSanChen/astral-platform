@@ -216,7 +216,7 @@ It prints a temporary password, which works once. If nobody is an
 organizer at all, `npm run prod:seed` makes organizers of the addresses in
 `ADMIN_EMAILS`. Both need the database credentials, which only you hold.
 
-## Moving to specification v1.1 (migrations 0007 to 0020)
+## Moving to specification v1.1 (migrations 0007 to 0021)
 
 This is the one release where the order matters more than usual, because
 the new code reads tables the old database does not have.
@@ -260,7 +260,11 @@ labels, old review and nomination pages would show old data only.
 - Decide who else should be an organizer and promote them from the
   participants table once they have signed up. Nothing grants the role at
   sign-up any more, so there is no list to get right in advance.
-- Delete the test accounts. Deleting a user removes everything attached to
+- Mark what exists as test data: **Organize → Participants → Mark everyone
+  so far as a tester**. Test work is then kept and labelled, left out of
+  the counts, and never given to a participant to review. Accounts made
+  afterwards are participants. This is the alternative to deleting.
+- Or delete the test accounts. Deleting a user removes everything attached to
   them and leaves settings, terms and scanner configurations alone. Target
   them by address rather than emptying the table, or you will take the
   organizers' own accounts with them:

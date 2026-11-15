@@ -481,6 +481,17 @@ test.describe("independent review", () => {
     const reviewer = await newReviewer(browser, "Rae Reviewer");
     await getReview(reviewer.page);
     await expect(reviewer.page.getByText("to: ONE-SESSION: what is an operon?")).toBeVisible();
+
+    // A reply holding only a character that draws nothing (here a
+    // zero-width space) is said to be empty, not shown as a blank bubble.
+    await sql`
+      update review_view
+      set content = jsonb_set(content, '{turns,1,content}', to_jsonb(${String.fromCodePoint(0x200b)}::text))
+      where conversation_id = ${sessionId} and kind = 'session'
+    `;
+    await reviewer.page.reload();
+    await expect(reviewer.page.locator('[data-turn="2"]')).toContainText("No reply text was returned.");
+
     await fillReview(reviewer.page, A_NO);
     await submitReview(reviewer.page);
 

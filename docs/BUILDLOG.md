@@ -2998,6 +2998,90 @@ way to skip and folded instructions.
 
 ---
 
+## Round 35: a tester mark for test data, and why a record cannot be reviewed
+
+### Test data
+
+The organizer needs to tell what was made while testing from what the
+event produces, and proposed making every existing account an
+organizer and leaving organizers' data out later. That would have
+given every tester the console (the export, pausing chat, settings),
+asked each of them for a longer password, and left their test
+transcripts in the queue for real participants to review. Offered a
+choice, the organizer took a mark that carries no powers.
+
+- **A tester mark on accounts** (`tester_account`, migration 0021). It
+  is a table of its own, not a column on the account, so that signing
+  in and every page do not depend on it.
+- **Organize → Participants** has "Mark everyone so far as a tester":
+  one click, with a confirmation, for the moment before the event
+  starts. Accounts made after that are participants. Each account's
+  Manage row has "Mark as tester" and "Remove tester mark". The list
+  can be narrowed to everyone, participants or testers, and a tester is
+  tagged in it.
+- **Two pools that never mix.** A tester's work is given only to
+  testers to review; a participant's only to participants. So test
+  transcripts never reach the people at the event, and an organizer
+  trying things during the event does not take a review place on real
+  work.
+- **Counts.** Every number on the overview leaves testers and their
+  work out, and says how many accounts that is.
+- **Labels.** The Submissions page tags tester work. The export has
+  `is_tester` on each person, `author_is_tester` on each piece of work
+  and `reviewer_is_tester` on each assignment.
+- Marking and unmarking are recorded in the console's log.
+
+A tester who wants to take part in the event for real should use a new
+account, or have the mark removed before they start: the mark is on the
+account, so everything the account does carries it.
+
+### Why a record cannot be reviewed
+
+The organizer asked why they were given nothing to review when the
+console showed submitted work. There is no access to the production
+database from where this is written, so two things were added to answer
+it in place:
+
+- **Submissions made before specification v1.1 have no copy for
+  reviewers.** That copy is made at the moment of submitting, starting
+  with v1.1; migration 0007 carried old conversations over as submitted
+  without making one. They counted as submitted and showed as
+  "Available", and could never be handed out. The Submissions page now
+  marks them "Cannot be reviewed" and says why. They are test data, so
+  nothing was done to make copies for them.
+- **`scripts/why-nothing-to-review.sql`** is a query for the Neon SQL
+  editor. With a sign-in email put in, it lists every submitted piece
+  of work and the reason it is or is not offered to that person: no
+  reviewer copy, their own work, already shown to them (and how), held
+  back, already fully reviewed, or available.
+
+### The Review pages failing on the live site
+
+After round 34 was merged, `/review` showed a server error. The new
+code reads columns that migration 0020 adds, so the likeliest cause is
+that 0020 had not reached the production database when the new version
+went live. `docs/DEPLOY.md` says to run `npm run prod:migrate` from an
+up-to-date checkout before `main` moves; a checkout that has not been
+pulled has no new migration to apply.
+
+### A reply shown as a blank bubble
+
+A reviewer saw an assistant turn with nothing in it and no explanation.
+A reply with no text has always been shown with a note ("No reply text
+was returned", or that the request failed). A blank bubble means the
+stored reply was not empty but held nothing visible: a zero-width
+space or a similar character. Such a reply is now treated as empty, on
+the review screen and in the author's own chat (`lib/visible-text.ts`).
+What that particular reply holds cannot be seen from here; the query at
+the foot of `scripts/why-nothing-to-review.sql` shows it.
+
+Tests: an account marked from its row; its work out of the overview
+count; not given to a participant, given to a tester; tagged in
+Submissions; labelled in the export; everyone marked in one go, and an
+account made afterwards not marked.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge
