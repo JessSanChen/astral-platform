@@ -731,9 +731,20 @@ export const relatedVersion = pgTable(
     targetEpisodeId: uuid("target_episode_id")
       .notNull()
       .references(() => episode.id, { onDelete: "cascade" }),
+    // The link itself is between two single conversations: the session
+    // the related version was made from, and the conversation that was
+    // started. Either may sit in a folder; the folder is not what is
+    // related. The episode columns above say which pieces of work those
+    // conversations belong to.
+    sourceConversationId: uuid("source_conversation_id").references(() => conversation.id, {
+      onDelete: "cascade",
+    }),
+    targetConversationId: uuid("target_conversation_id").references(() => conversation.id, {
+      onDelete: "cascade",
+    }),
     familyId: uuid("family_id").notNull(),
-    // "fact_change", "presentation_change" or "exploratory": what the
-    // author meant to do, not a finding about what they did.
+    // What the author set out to explore (lib/episode-options.ts), not a
+    // finding about what they did.
     comparisonIntent: text("comparison_intent").notNull(),
     intendedDifference: text("intended_difference").notNull(),
     // Set when the author changes either answer after creating the version,
