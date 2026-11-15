@@ -8,7 +8,7 @@ import { getEventSettings } from "@/lib/openrouter";
  * no entry. The qualitative ones are decided by nomination: a written
  * entry on the Submit page.
  */
-export const AWARDS: { award: string; type: "Quantitative" | "Qualitative"; rewarding: string; note?: string }[] = [
+export const AWARDS: { award: string; type: "Quantitative" | "Qualitative"; rewarding: string }[] = [
   {
     award: "Most Qualified Transcripts",
     type: "Quantitative",
@@ -23,7 +23,6 @@ export const AWARDS: { award: string; type: "Quantitative" | "Qualitative"; rewa
     award: "Most Qualified Comparisons",
     type: "Quantitative",
     rewarding: "Completing many careful comparisons of pairs of related conversations",
-    note: "Smaller prize pool",
   },
   {
     award: "Most Interesting AI Risk Finding",
@@ -32,7 +31,7 @@ export const AWARDS: { award: string; type: "Quantitative" | "Qualitative"; rewa
       "Revealing an important limitation, ambiguity, or potential risk of AI assistance in dual-use or fictional adversarial scenarios",
   },
   {
-    award: "Best Comparative Investigation",
+    award: "Best Matched Set Investigation",
     type: "Qualitative",
     rewarding:
       "Using related versions or matched conversations to investigate how changes in context, wording, or task affect observable behavior or review judgments",
@@ -58,7 +57,7 @@ export const NOMINATION_TRACKS = [
   },
   {
     value: "comparative",
-    label: "Best Comparative Investigation",
+    label: "Best Matched Set Investigation",
     question: "What changes the result?",
     blurb:
       "Using related versions or matched conversations to investigate how changes in context, wording, or task affect observable behavior or review judgments.",
