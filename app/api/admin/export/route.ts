@@ -160,7 +160,15 @@ export async function GET(req: Request) {
       const episodes = await db
         .select()
         .from(episode)
-        .where(submittedOnly ? eq(episode.status, "submitted") : undefined)
+        .where(
+          // A folder still open counts once one of its sessions has been
+          // submitted by itself; only that session's messages go with it.
+          submittedOnly
+            ? sql`${episode.status} = 'submitted' or exists (
+                select 1 from ${conversation} c
+                where c.episode_id = ${outer(episode.id)} and c.status = 'submitted')`
+            : undefined,
+        )
         .orderBy(asc(episode.createdAt));
       const exported = new Set(episodes.map((e) => e.id));
       for (const e of episodes) {
@@ -342,6 +350,10 @@ export async function GET(req: Request) {
           id: l.id,
           source_episode_id: l.sourceEpisodeId,
           target_episode_id: l.targetEpisodeId,
+          // The two single conversations the link is between. The episode
+          // ids above say which conversation or folder each belongs to.
+          source_conversation_id: l.sourceConversationId,
+          target_conversation_id: l.targetConversationId,
           family_id: l.familyId,
           comparison_intent: l.comparisonIntent,
           intended_difference: l.intendedDifference,

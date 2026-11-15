@@ -4,7 +4,6 @@ import { submissionsList, type SubmissionState as State } from "@/lib/admin";
 import {
   ACTIVITY_TEMPLATES,
   comparisonIntentLabel,
-  provenanceLabel,
 } from "@/lib/episode-options";
 import { getEventSettings } from "@/lib/openrouter";
 import { ASSIGNMENT_STATES, MAIN_DIFFERENCE, OUTCOME_LABELS } from "@/lib/review-form";
@@ -129,9 +128,10 @@ function SubmissionCard({ episode: ep, target }: { episode: Submission; target: 
             {ep.isFolder
               ? `Folder, ${ep.sessions} session${ep.sessions === 1 ? "" : "s"}`
               : "Conversation"}{" "}
-            · {ep.modelId} · {provenanceLabel(ep.taskProvenance)}
-            {template && ` · ${template}`} · submitted{" "}
-            {ep.submittedAt ? formatEventDateTime(ep.submittedAt) : ""}
+            {template && ` · ${template}`} ·{" "}
+            {ep.status === "submitted"
+              ? `submitted ${ep.submittedAt ? formatEventDateTime(ep.submittedAt) : ""}`
+              : `folder still open, ${ep.sessions} session${ep.sessions === 1 ? "" : "s"} submitted by ${ep.sessions === 1 ? "itself" : "themselves"}`}
           </p>
           {ep.relatedTo && (
             <p className="mt-0.5 text-xs text-muted-foreground">

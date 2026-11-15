@@ -475,7 +475,10 @@ function Episode({ episode: e }: { episode: History[number] }) {
               What the author said about it
             </p>
             <dl className="space-y-2">
-              <Row term="Where the task came from">{provenanceLabel(e.taskProvenance)}</Row>
+              {/* Asked until round 32; shown where it was answered. */}
+              {e.taskProvenance && (
+                <Row term="Where the task came from">{provenanceLabel(e.taskProvenance)}</Row>
+              )}
               <Row term="Starting point picked">{template}</Row>
               <Row term="Role taken">{labelOf(AUTHOR_ROLES, labels.role)}</Row>
               <Row term="Kind of task">

@@ -80,7 +80,7 @@ export async function overview() {
               where a.view_id = v.id and a.purpose = 'primary' and a.state = 'completed') as done
           from review_view v
           join episode e on e.id = v.episode_id
-          where e.status = 'submitted' and e.assignment_state <> 'withdrawn'
+          where e.assignment_state <> 'withdrawn'
         ) per_view
       `),
       db
@@ -498,9 +498,14 @@ type ViewCoverageRow = {
  */
 export async function submissionsList(state?: SubmissionState) {
   const settings = await getEventSettings();
+  // A join, so the columns below are written with their tables.
+  const hasSubmission = sql`(${episode.status} = 'submitted' or exists (
+    select 1 from conversation c where c.episode_id = ${episode.id} and c.status = 'submitted'
+  ))`;
   const episodes = await db
     .select({
       id: episode.id,
+      status: episode.status,
       title: episode.title,
       isFolder: episode.isFolder,
       modelId: episode.modelId,
@@ -522,11 +527,11 @@ export async function submissionsList(state?: SubmissionState) {
     .from(episode)
     .innerJoin(user, eq(user.id, episode.userId))
     .where(
-      state
-        ? and(eq(episode.status, "submitted"), eq(episode.assignmentState, state))
-        : eq(episode.status, "submitted"),
+      // Anything a reviewer could be shown: a submitted conversation or
+      // folder, or a folder still open with a session submitted by itself.
+      state ? and(hasSubmission, eq(episode.assignmentState, state)) : hasSubmission,
     )
-    .orderBy(desc(episode.submittedAt));
+    .orderBy(sql`coalesce(${episode.submittedAt}, ${episode.updatedAt}) desc`);
   if (episodes.length === 0) return [];
 
   const ids = episodes.map((e) => e.id);
