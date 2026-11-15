@@ -62,7 +62,9 @@ export function ReviewStart({
     start(async () => {
       const result = await getNextAssignment(kind);
       if (!result.ok) return setNote({ kind, text: result.message });
-      if (!result.assignmentId) return setNote({ kind, text: NOTHING[kind] });
+      if (!result.assignmentId) {
+        return setNote({ kind, text: result.nothing ?? NOTHING[kind] });
+      }
       router.push(`/review/${result.assignmentId}`);
     });
   }
