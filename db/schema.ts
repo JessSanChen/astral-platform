@@ -834,8 +834,13 @@ export const reviewAssignment = pgTable(
     uniqueIndex("review_assignment_one_active_uq")
       .on(t.reviewerId, t.purpose)
       .where(sql`state = 'active'`),
-    // And one look at a family, ever, whatever became of it.
-    uniqueIndex("review_assignment_family_uq").on(t.reviewerId, t.familyId),
+    // And one look at a family, however it ended: reviewed, compared,
+    // skipped or still in progress. One that only ran out of time, with
+    // nothing recorded, does not count, so it can come back to the same
+    // person.
+    uniqueIndex("review_assignment_family_uq")
+      .on(t.reviewerId, t.familyId)
+      .where(sql`state <> 'expired'`),
     // Each place on a view is held once.
     uniqueIndex("review_assignment_slot_uq")
       .on(t.viewId, t.slot)
@@ -873,6 +878,11 @@ export const reviewResponse = pgTable(
     policyVersion: integer("policy_version").notNull(),
     formVersion: text("form_version").notNull(),
     submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+    // A reviewer may come back and change their answers. These columns
+    // hold the answers as they now stand; every earlier version is kept
+    // in review_revision. Null and zero mean never changed.
+    revisedAt: timestamp("revised_at"),
+    revisionCount: integer("revision_count").notNull().default(0),
   },
   (t) => [
     // A reload or a second click cannot make a second vote.
@@ -909,8 +919,38 @@ export const pairAudit = pgTable(
     auditNote: text("audit_note"),
     formVersion: text("form_version").notNull(),
     submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+    // As on review_response: the answers as they now stand, with earlier
+    // versions in review_revision.
+    revisedAt: timestamp("revised_at"),
+    revisionCount: integer("revision_count").notNull().default(0),
   },
   (t) => [uniqueIndex("pair_audit_assignment_uq").on(t.assignmentId)],
+);
+
+/**
+ * An earlier version of a review or a comparison, kept when its author
+ * changes their answers. `previous` is the whole row as it stood, so the
+ * first, independent answer is never lost: analysis can use the first
+ * version, the last, or the change between them.
+ */
+export const reviewRevision = pgTable(
+  "review_revision",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    assignmentId: uuid("assignment_id")
+      .notNull()
+      .references(() => reviewAssignment.id, { onDelete: "cascade" }),
+    reviewerId: text("reviewer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // "primary" (a transcript review) or "pair_audit" (a comparison).
+    purpose: text("purpose").notNull(),
+    // 1 for the first answer given, 2 for the next, and so on.
+    version: integer("version").notNull(),
+    previous: jsonb("previous").notNull(),
+    replacedAt: timestamp("replaced_at").notNull().defaultNow(),
+  },
+  (t) => [index("review_revision_assignment_idx").on(t.assignmentId, t.version)],
 );
 
 /**
