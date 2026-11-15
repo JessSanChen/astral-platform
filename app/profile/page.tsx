@@ -93,9 +93,7 @@ export default async function ProfilePage() {
           label="Study information agreed"
           value={
             account?.termsAcceptedAt
-              ? `Version ${account.termsVersion} on ${formatEventDateTime(
-                  account.termsAcceptedAt,
-                )}`
+              ? `Agreed ${formatEventDateTime(account.termsAcceptedAt)}`
               : "Not yet"
           }
         />

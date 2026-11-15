@@ -35,7 +35,7 @@ export function OnboardingForm({ needsProfile, needsTerms, terms }: Props) {
           <div>
             <h2 className="font-serif text-xl font-medium">Study information</h2>
             <p className="text-sm text-muted-foreground">
-              Version {terms.version}. Please read before continuing.
+              Please read before continuing.
             </p>
           </div>
           <div className="markdown max-h-72 overflow-y-auto rounded-[var(--radius)] border border-border bg-card p-4 text-sm leading-relaxed">

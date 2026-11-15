@@ -188,7 +188,7 @@ function SessionLink({
               swallows clicks meant for either one. */}
           <span className="min-w-0 flex-1 truncate pr-6">{label}</span>
           {session.related && (
-            <span title="A related version of earlier work">
+            <span title="A related conversation, made from an earlier one">
               <GitCompareArrows className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </span>
           )}

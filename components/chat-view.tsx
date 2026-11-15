@@ -31,7 +31,7 @@ type Props = {
 // Friendly text for the error codes our API returns.
 const ERROR_TEXT: Record<string, string> = {
   locked:
-    "This has been submitted, so it can no longer be changed. To explore further, create a related version.",
+    "This has been submitted, so it can no longer be changed. To explore further, create a related conversation.",
   reply_in_flight:
     "The reply to your last message is still being written. Wait for it, then send the next one.",
   rate_limited: "You are sending messages very quickly. Wait a few seconds and try again.",
@@ -394,7 +394,7 @@ export function ChatView({
           <p className="mx-auto flex max-w-3xl items-center gap-2 text-sm text-muted-foreground">
             <Lock className="h-4 w-4 shrink-0" />
             Submitted, so this conversation is closed. To explore further,
-            create a related version.
+            create a related conversation.
           </p>
         </div>
       ) : (

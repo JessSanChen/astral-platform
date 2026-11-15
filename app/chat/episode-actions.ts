@@ -134,7 +134,7 @@ export async function createRelatedAction(
   }
   const settings = await getEventSettings();
   if (!settings.comparisonActivityOpen) {
-    return { ok: false as const, message: "Related versions are not open yet." };
+    return { ok: false as const, message: "Related conversations are not open yet." };
   }
   return run(async (userId) => {
     const { episode, session } = await createRelatedVersion({

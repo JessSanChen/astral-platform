@@ -119,9 +119,9 @@ export function EventSettingsForm({
           onChange={(e) => setComparisonOpen(e.target.checked)}
         />
         <span>
-          <span className="font-medium">Related versions are open</span>
+          <span className="font-medium">Related conversations are open</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-            Whether participants can create a related version of something
+            Whether participants can create a related conversation from something
             they have submitted. Ones already started can still be finished.
           </span>
         </span>

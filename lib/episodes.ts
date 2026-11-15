@@ -838,7 +838,7 @@ export async function createRelatedVersion(opts: {
     .where(and(eq(conversation.id, opts.sourceConversationId), eq(conversation.userId, opts.userId)));
   if (!source) throw new EpisodeError("That conversation could not be found.");
   if (source.status !== "submitted") {
-    throw new EpisodeError("Submit the original first: a related version is made from a submission.");
+    throw new EpisodeError("Submit the original first: a related conversation is made from a submission.");
   }
   const { episode: created, session } = await createEpisode({
     userId: opts.userId,

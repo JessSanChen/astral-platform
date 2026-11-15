@@ -91,7 +91,7 @@ export async function POST(req: Request) {
   if (body.regenerate)
     return fail(
       "append_only",
-      "Replies cannot be regenerated. Send a follow-up message, or create a related version.",
+      "Replies cannot be regenerated. Send a follow-up message, or create a related conversation.",
       400,
     );
 
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
   if (convo.lockedAt || convo.status === "submitted")
     return fail(
       "locked",
-      "This has been submitted, so it can no longer be changed. To explore further, create a related version.",
+      "This has been submitted, so it can no longer be changed. To explore further, create a related conversation.",
       409,
     );
 
