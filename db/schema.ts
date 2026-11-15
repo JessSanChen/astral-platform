@@ -710,6 +710,10 @@ export const relatedVersion = pgTable(
     // author meant to do, not a finding about what they did.
     comparisonIntent: text("comparison_intent").notNull(),
     intendedDifference: text("intended_difference").notNull(),
+    // Set when the author changes either answer after creating the version,
+    // which they may do until it is submitted. Null means they stand as
+    // first given.
+    intentRevisedAt: timestamp("intent_revised_at"),
     createdBy: text("created_by")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

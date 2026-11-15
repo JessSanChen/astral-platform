@@ -568,6 +568,39 @@ export async function listMyWork(userId: string) {
     .orderBy(desc(episode.createdAt), asc(conversation.sessionOrder));
 }
 
+/**
+ * Changes what a related version says it set out to change. Allowed while
+ * the related version is still a draft: once it is submitted, what it
+ * said is part of the record. That it was revised, and when, is kept.
+ */
+export async function reviseRelatedIntent(opts: {
+  targetEpisodeId: string;
+  userId: string;
+  intent: string;
+  intendedDifference: string;
+}) {
+  const target = await getOwnedEpisode(opts.targetEpisodeId, opts.userId);
+  if (target.status !== "draft") {
+    throw new EpisodeError("This has been submitted, so it can no longer be changed.");
+  }
+  const [revised] = await db
+    .update(relatedVersion)
+    .set({
+      comparisonIntent: opts.intent,
+      intendedDifference: opts.intendedDifference,
+      intentRevisedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(relatedVersion.targetEpisodeId, target.id),
+        // Unchanged answers are not a revision.
+        sql`(${relatedVersion.comparisonIntent}, ${relatedVersion.intendedDifference}) is distinct from (${opts.intent}, ${opts.intendedDifference})`,
+      ),
+    )
+    .returning({ id: relatedVersion.id });
+  return { changed: Boolean(revised) };
+}
+
 /** The related-version links an episode takes part in, either way round. */
 export async function relatedLinks(episodeId: string) {
   const rows = await db

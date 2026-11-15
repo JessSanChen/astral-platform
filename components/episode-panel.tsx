@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import {
   addSessionAction,
+  reviseRelatedAction,
   saveDetailsAction,
   saveLabelsAction,
   submitEpisodeAction,
@@ -34,6 +35,7 @@ import { useConversationStore } from "@/components/conversation-store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  COMPARISON_INTENTS,
   LIMITS,
   PROVENANCE,
   comparisonIntentLabel,
@@ -98,6 +100,28 @@ export function EpisodePanel({
   const [goalNote, setGoalNote] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<null | "submit" | "submit-then-related">(null);
   const [error, setError] = useState<string | null>(null);
+  // What a related version set out to change, which its author may put
+  // differently until it is submitted.
+  const [intent, setIntent] = useState(episode.madeFrom?.intent ?? "");
+  const [difference, setDifference] = useState(episode.madeFrom?.difference ?? "");
+  const [savedIntent, setSavedIntent] = useState({ intent, difference });
+  const [intentNote, setIntentNote] = useState<string | null>(null);
+  const intentChanged = intent !== savedIntent.intent || difference !== savedIntent.difference;
+
+  function saveIntent() {
+    setIntentNote(null);
+    start(async () => {
+      const result = await reviseRelatedAction(episode.id, {
+        intent,
+        intendedDifference: difference,
+      });
+      if (!result.ok) return setIntentNote(result.message);
+      setSavedIntent({ intent, difference: difference.trim() });
+      setDifference(difference.trim());
+      setIntentNote("Saved.");
+    });
+  }
+
   const [labels, setLabels] = useState<AuthorLabels>(episode.labels);
   // Shown once someone has tried to submit, not while they are still
   // working their way down the panel.
@@ -193,6 +217,17 @@ export function EpisodePanel({
         if (!saved.ok) return setError(saved.message);
         setSavedGoal(goal);
       }
+      // A reworded change that was not saved goes in with the submission.
+      if (episode.madeFrom && intentChanged && difference.trim()) {
+        const revised = await reviseRelatedAction(episode.id, {
+          intent,
+          intendedDifference: difference,
+        });
+        if (!revised.ok) {
+          setConfirming(null);
+          return setError(revised.message);
+        }
+      }
       // The answers as they stand now, in case the last one is still on
       // its way.
       const labelled = await saveLabelsAction(episode.id, labels);
@@ -239,6 +274,44 @@ export function EpisodePanel({
           </p>
         )}
 
+        <Block
+          title={episode.isFolder ? `Sessions (${episode.sessions.length})` : "Sessions"}
+          note={
+            submitted
+              ? undefined
+              : "Each session is a fresh conversation. It does not see the others, or your notes."
+          }
+        >
+          {episode.isFolder && (
+            <ul className="space-y-0.5">
+              {episode.sessions.map((s) => (
+                <li key={s.id}>
+                  <Link
+                    href={`/chat/${s.id}`}
+                    aria-current={s.id === currentSessionId ? "page" : undefined}
+                    className={cn(
+                      "block truncate rounded-[var(--radius)] px-2 py-1.5 text-sm hover:bg-muted",
+                      s.id === currentSessionId && "bg-muted font-medium",
+                    )}
+                  >
+                    {s.order}.{" "}
+                    {s.title === "New conversation" ? `Session ${s.order}` : s.title}
+                    {!(s.id === currentSessionId ? currentHasMessages : s.userMessages > 0) && (
+                      <span className="font-normal text-muted-foreground"> · empty</span>
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!submitted && (
+            <Button variant="outline" size="sm" disabled={pending} onClick={newSession}>
+              <Plus className="h-3.5 w-3.5" />
+              {episode.isFolder ? "New session" : "Add a session (makes this a folder)"}
+            </Button>
+          )}
+        </Block>
+
         {episode.madeFrom && (
           <Block title="A related version">
             <p className="text-sm">
@@ -255,10 +328,62 @@ export function EpisodePanel({
               )}
               , as a fresh conversation. None of its messages came with it.
             </p>
-            <p className="text-xs text-muted-foreground">
-              {comparisonIntentLabel(episode.madeFrom.intent)}:{" "}
-              <span className="text-foreground">{episode.madeFrom.difference}</span>
-            </p>
+            {submitted ? (
+              <p className="text-xs text-muted-foreground">
+                {comparisonIntentLabel(intent)}:{" "}
+                <span className="text-foreground">{difference}</span>
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <p className="text-sm font-medium">What would you like to change?</p>
+                  <Radios
+                    name="related-intent"
+                    legend="What would you like to change?"
+                    value={intent}
+                    options={[...COMPARISON_INTENTS]}
+                    onChange={(value) => {
+                      setIntent(value);
+                      setIntentNote(null);
+                    }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="related-difference" className="text-sm font-medium">
+                    Briefly describe what you will change.
+                  </label>
+                  <Textarea
+                    id="related-difference"
+                    rows={3}
+                    maxLength={LIMITS.intendedDifference}
+                    value={difference}
+                    onChange={(e) => {
+                      setDifference(e.target.value);
+                      setIntentNote(null);
+                    }}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pending || !intentChanged || !difference.trim()}
+                    onClick={saveIntent}
+                  >
+                    Save change
+                  </Button>
+                  {intentNote && (
+                    <span role="status" className="text-xs text-muted-foreground">
+                      {intentNote}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  You can revise this until you submit. A reviewer comparing
+                  the two versions is shown it; nothing else you write here.
+                </p>
+              </div>
+            )}
           </Block>
         )}
 
@@ -391,44 +516,6 @@ export function EpisodePanel({
                 />
               </LabelQuestion>
             </div>
-          )}
-        </Block>
-
-        <Block
-          title={episode.isFolder ? `Sessions (${episode.sessions.length})` : "Sessions"}
-          note={
-            submitted
-              ? undefined
-              : "Each session is a fresh conversation. It does not see the others, or your notes."
-          }
-        >
-          {episode.isFolder && (
-            <ul className="space-y-0.5">
-              {episode.sessions.map((s) => (
-                <li key={s.id}>
-                  <Link
-                    href={`/chat/${s.id}`}
-                    aria-current={s.id === currentSessionId ? "page" : undefined}
-                    className={cn(
-                      "block truncate rounded-[var(--radius)] px-2 py-1.5 text-sm hover:bg-muted",
-                      s.id === currentSessionId && "bg-muted font-medium",
-                    )}
-                  >
-                    {s.order}.{" "}
-                    {s.title === "New conversation" ? `Session ${s.order}` : s.title}
-                    {!(s.id === currentSessionId ? currentHasMessages : s.userMessages > 0) && (
-                      <span className="font-normal text-muted-foreground"> · empty</span>
-                    )}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          {!submitted && (
-            <Button variant="outline" size="sm" disabled={pending} onClick={newSession}>
-              <Plus className="h-3.5 w-3.5" />
-              {episode.isFolder ? "New session" : "Add a session (makes this a folder)"}
-            </Button>
           )}
         </Block>
 

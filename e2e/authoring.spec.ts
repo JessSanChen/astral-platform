@@ -350,6 +350,37 @@ test.describe("writing conversations", () => {
     });
     expect(link.target_model).toBe(link.source_model);
 
+    // What it set out to change is in the panel, and can be put differently
+    // until the related version is submitted. That it was revised is kept.
+    const difference = page.getByLabel("Briefly describe what you will change.");
+    await expect(difference).toHaveValue("Ask it more formally.");
+    await expect(page.getByRole("button", { name: "Save change" })).toBeDisabled();
+    await difference.fill("Ask it more formally, and in the passive voice.");
+    await page.getByRole("radio", { name: "Explore a related version without a precise contrast" }).check();
+    await page.getByRole("button", { name: "Save change" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
+    const revised = async () => {
+      const [row] = await sql`
+        select comparison_intent, intended_difference, intent_revised_at
+        from related_version where target_episode_id = ${relatedEpisode}
+      `;
+      return row;
+    };
+    expect(await revised()).toMatchObject({
+      comparison_intent: "exploratory",
+      intended_difference: "Ask it more formally, and in the passive voice.",
+    });
+    expect((await revised()).intent_revised_at).not.toBeNull();
+
+    // Submitted, it is shown as it was left and is no longer a form.
+    await submitWork(page);
+    await expect(page.getByLabel("Briefly describe what you will change.")).toHaveCount(0);
+    await expect(page.getByText("Ask it more formally, and in the passive voice.")).toBeVisible();
+
+    // The sessions come first in the panel, above everything asked.
+    const headings = await page.locator("aside h3").allInnerTexts();
+    expect(headings[0].toLowerCase()).toContain("sessions");
+
     // The original is exactly as it was.
     const [{ n }] = await sql`select count(*)::int as n from message where conversation_id = ${source}`;
     expect(n).toBe(2);

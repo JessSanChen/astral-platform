@@ -328,6 +328,9 @@ export async function GET(req: Request) {
           family_id: l.familyId,
           comparison_intent: l.comparisonIntent,
           intended_difference: l.intendedDifference,
+          // When the author last reworded either answer after creating the
+          // version; null if they stand as first given.
+          intent_revised_at: l.intentRevisedAt,
           created_by: l.createdBy,
           created_at: l.createdAt,
         });

@@ -5,6 +5,7 @@ import {
   EpisodeError,
   addSession,
   createRelatedVersion,
+  reviseRelatedIntent,
   saveAuthorLabels,
   saveEpisodeDetails,
   submitEpisode,
@@ -44,6 +45,18 @@ export async function addSessionAction(episodeId: string) {
     const session = await addSession(episodeId, userId);
     return { id: session.id, sessionOrder: session.sessionOrder };
   });
+}
+
+/** Changes what a draft related version says it set out to change. */
+export async function reviseRelatedAction(
+  targetEpisodeId: string,
+  input: { intent: string; intendedDifference: string },
+) {
+  const parsed = relatedSchema.omit({ provenance: true }).safeParse(input);
+  if (!parsed.success) {
+    return { ok: false as const, message: parsed.error.issues[0]?.message ?? "Check the form." };
+  }
+  return run((userId) => reviseRelatedIntent({ targetEpisodeId, userId, ...parsed.data }));
 }
 
 /** The author's answers about their work, saved as they are given. */

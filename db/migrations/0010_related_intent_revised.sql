@@ -1,0 +1,1 @@
+ALTER TABLE "related_version" ADD COLUMN "intent_revised_at" timestamp;
