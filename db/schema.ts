@@ -61,6 +61,24 @@ export const user = pgTable("user", {
   policyReadyVersion: integer("policy_ready_version"),
 });
 
+/**
+ * Accounts whose work is test data: organizers and anyone trying the
+ * platform before the event. Their work is kept, labelled in the export,
+ * left out of the console's counts, and never given to a real participant
+ * to review (testers review each other's).
+ *
+ * A table of its own, not a column on the account: signing in and every
+ * page read the account, and none of that should depend on this.
+ */
+export const testerAccount = pgTable("tester_account", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  markedAt: timestamp("marked_at").notNull().defaultNow(),
+  // The organizer who marked them.
+  markedBy: text("marked_by"),
+});
+
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
   userId: text("user_id")
