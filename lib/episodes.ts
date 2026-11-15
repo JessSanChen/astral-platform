@@ -1,3 +1,4 @@
+import { outer } from "@/lib/sql";
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -207,20 +208,20 @@ export async function listSessions(episodeId: string): Promise<SessionSummary[]>
       title: conversation.title,
       messages: sql<number>`(
         select count(*)::int from ${message} m
-        where m.conversation_id = ${conversation.id} and m.superseded_by is null
+        where m.conversation_id = ${outer(conversation.id)} and m.superseded_by is null
       )`,
       userMessages: sql<number>`(
         select count(*)::int from ${message} m
-        where m.conversation_id = ${conversation.id} and m.superseded_by is null and m.role = 'user'
+        where m.conversation_id = ${outer(conversation.id)} and m.superseded_by is null and m.role = 'user'
       )`,
       lastRole: sql<string | null>`(
         select m.role::text from ${message} m
-        where m.conversation_id = ${conversation.id} and m.superseded_by is null
+        where m.conversation_id = ${outer(conversation.id)} and m.superseded_by is null
         order by m.seq desc limit 1
       )`,
       lastAt: sql<Date | null>`(
         select m.created_at from ${message} m
-        where m.conversation_id = ${conversation.id} and m.superseded_by is null
+        where m.conversation_id = ${outer(conversation.id)} and m.superseded_by is null
         order by m.seq desc limit 1
       )`,
     })

@@ -50,7 +50,7 @@ test.describe("the organizer console", () => {
     // The overview counts in the new terms.
     await page.goto("/admin");
     await expect(page.getByText("Work submitted")).toBeVisible();
-    await expect(page.getByText("Waiting to be released")).toBeVisible();
+    await expect(page.getByText("Waiting to be released", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Submissions" })).toBeVisible();
 
     await page.goto("/admin/participants");
@@ -188,7 +188,7 @@ test.describe("the organizer console", () => {
 
     const organizer = await newOrganizer(browser, "Rory Router");
     const page = organizer.page;
-    await page.goto("/admin/submissions?state=pending");
+    await page.goto("/admin/submissions");
     const card = page.getByRole("article").filter({ hasText: "Avis Author" });
     await expect(card).toContainText("Pending");
     await expect(card.getByRole("list", { name: "Review coverage" })).toContainText("0 of 3 reviewed");
@@ -214,7 +214,7 @@ test.describe("the organizer console", () => {
 
     // Held back while someone has it open: it is taken from them, and the
     // organizer is told that is what saving will do.
-    await page.goto("/admin/submissions?state=ready");
+    await page.reload();
     const ready = page.getByRole("article").filter({ hasText: "Avis Author" });
     await expect(ready.getByRole("list", { name: "Review coverage" })).toContainText("1 in progress");
     await choose(page, "Assignment state", "Held", ready);
@@ -281,7 +281,7 @@ test.describe("the organizer console", () => {
       await page.getByRole("button", { name: `Publish as version ${next}` }).click();
       await expect(page.getByRole("list", { name: "Rules as read" })).toContainText("P1: Asks for a listed method");
       await page.getByRole("button", { name: `Yes, publish version ${next}` }).click();
-      await expect(page.getByRole("status")).toContainText(`Published as version ${next}.`);
+      await expect(page.getByText(`Version ${next} is in force`)).toBeVisible();
 
       // The reviewer, who had passed the check for the old version, is asked again.
       await reviewer.page.reload();

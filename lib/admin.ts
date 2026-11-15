@@ -1,3 +1,4 @@
+import { outer } from "@/lib/sql";
 import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -64,7 +65,7 @@ export async function overview() {
         })
         .from(conversation)
         .where(
-          sql`exists (select 1 from ${message} m where m.conversation_id = ${conversation.id})`,
+          sql`exists (select 1 from ${message} m where m.conversation_id = ${outer(conversation.id)})`,
         ),
       db.execute<{ total: number; started: number; full: number }>(sql`
         select
@@ -377,7 +378,7 @@ export async function participantHistory(userId: string) {
           conversationId: reviewView.conversationId,
           verdicts: sql<string[]>`coalesce(
             (select array_agg(r.verdict order by r.submitted_at)
-               from review_response r where r.view_id = ${reviewView.id}),
+               from review_response r where r.view_id = ${outer(reviewView.id)}),
             '{}'::text[])`,
         })
         .from(reviewView)
@@ -506,7 +507,7 @@ export async function submissionsList(state?: SubmissionState) {
       authorName: user.name,
       sessions: sql<number>`(
         select count(*) from conversation c
-        where c.episode_id = ${episode.id} and c.status = 'submitted'
+        where c.episode_id = ${outer(episode.id)} and c.status = 'submitted'
       )::int`,
     })
     .from(episode)
@@ -552,13 +553,13 @@ export async function submissionsList(state?: SubmissionState) {
         targetEpisodeId: relatedVersion.targetEpisodeId,
         comparisonIntent: relatedVersion.comparisonIntent,
         intendedDifference: relatedVersion.intendedDifference,
-        sourceTitle: sql<string>`(select title from episode s where s.id = ${relatedVersion.sourceEpisodeId})`,
-        targetTitle: sql<string>`(select title from episode t where t.id = ${relatedVersion.targetEpisodeId})`,
-        targetStatus: sql<string>`(select status from episode t where t.id = ${relatedVersion.targetEpisodeId})`,
+        sourceTitle: sql<string>`(select title from episode s where s.id = ${outer(relatedVersion.sourceEpisodeId)})`,
+        targetTitle: sql<string>`(select title from episode t where t.id = ${outer(relatedVersion.targetEpisodeId)})`,
+        targetStatus: sql<string>`(select status from episode t where t.id = ${outer(relatedVersion.targetEpisodeId)})`,
         auditComparisonType: pairAudit.comparisonType,
         auditInProgress: sql<boolean>`exists (
           select 1 from review_assignment a
-          where a.related_version_id = ${relatedVersion.id}
+          where a.related_version_id = ${outer(relatedVersion.id)}
             and a.purpose = 'pair_audit' and a.state = 'active')`,
       })
       .from(relatedVersion)
@@ -666,7 +667,7 @@ export async function prizeEntries() {
         select jsonb_agg(coalesce(
           (select jsonb_agg(r.verdict order by r.submitted_at)
              from review_response r where r.view_id = v.id), '[]'::jsonb))
-        from review_view v where v.episode_id = ${episode.id}
+        from review_view v where v.episode_id = ${outer(episode.id)}
       )`,
     })
     .from(episode)

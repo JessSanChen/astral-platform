@@ -1,3 +1,4 @@
+import { outer } from "@/lib/sql";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { conversation, episode } from "@/db/schema";
@@ -32,7 +33,7 @@ export async function listPrizeCandidates(userId: string) {
       // Sessions that were frozen at submission. One left empty was not.
       sessions: sql<number>`(
         select count(*)::int from ${conversation} c
-        where c.episode_id = ${episode.id} and c.status = 'submitted'
+        where c.episode_id = ${outer(episode.id)} and c.status = 'submitted'
       )`,
     })
     .from(episode)

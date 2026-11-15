@@ -1,3 +1,4 @@
+import { outer } from "@/lib/sql";
 import { prizeEntryStatus } from "@/lib/prizes";
 import { notFound } from "next/navigation";
 import type { UIMessage } from "ai";
@@ -84,11 +85,11 @@ export default async function ConversationPage({
           status: episodeTable.status,
           firstSessionId: sql<string | null>`(
             select c.id from conversation c
-            where c.episode_id = ${episodeTable.id} order by c.session_order limit 1
+            where c.episode_id = ${outer(episodeTable.id)} order by c.session_order limit 1
           )`,
           firstSessionTitle: sql<string | null>`(
             select c.title from conversation c
-            where c.episode_id = ${episodeTable.id} order by c.session_order limit 1
+            where c.episode_id = ${outer(episodeTable.id)} order by c.session_order limit 1
           )`,
           isFolder: episodeTable.isFolder,
         })

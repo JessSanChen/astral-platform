@@ -1,3 +1,4 @@
+import { outer } from "@/lib/sql";
 import { asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -74,7 +75,7 @@ export async function GET(req: Request) {
   });
 
   const hasMessages = sql`exists (
-    select 1 from ${message} m where m.conversation_id = ${conversation.id}
+    select 1 from ${message} m where m.conversation_id = ${outer(conversation.id)}
   )`;
   const sessions = await db
     .select()
