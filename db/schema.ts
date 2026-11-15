@@ -55,6 +55,10 @@ export const user = pgTable("user", {
   // room.
   failedSignIns: integer("failed_sign_ins").notNull().default(0),
   lockedUntil: timestamp("locked_until"),
+
+  // The version of the review policy whose instruction check this person
+  // has passed. Reviewing needs it to match the policy in force.
+  policyReadyVersion: integer("policy_ready_version"),
 });
 
 export const session = pgTable("session", {
@@ -160,25 +164,38 @@ export const reviewerActor = pgEnum("reviewer_actor", [
 ]);
 
 // Participant profile. One row per user.
+//
+// The columns from `affiliation` to `subdomainsOther` are the questions asked
+// before the v1.1 specification. They are no longer asked and are kept, now
+// optional, for the profiles that were made with them. What is asked now is
+// in `intake`, one JSON value described by lib/intake.ts, with the version
+// of the form that produced it.
 export const profile = pgTable("profile", {
   userId: text("user_id")
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
-  affiliation: text("affiliation").notNull(),
-  role: text("role").notNull(),
-  highestDegree: text("highest_degree").notNull(),
-  yearsExperience: text("years_experience").notNull(),
-  primaryBackground: text("primary_background").notNull(),
+  affiliation: text("affiliation"),
+  role: text("role"),
+  highestDegree: text("highest_degree"),
+  yearsExperience: text("years_experience"),
+  primaryBackground: text("primary_background"),
   subdomains: text("subdomains").array().notNull().default([]),
-  aiFamiliarity: text("ai_familiarity").notNull(),
+  aiFamiliarity: text("ai_familiarity"),
   expertiseNote: text("expertise_note"),
-  // What someone meant when they chose "Other". Kept beside the answer
-  // rather than in place of it, so the closed list stays countable and the
-  // free text is there to be read, and to extend the list next time.
   roleOther: text("role_other"),
   highestDegreeOther: text("highest_degree_other"),
   primaryBackgroundOther: text("primary_background_other"),
   subdomainsOther: text("subdomains_other"),
+
+  intake: jsonb("intake"),
+  intakeVersion: text("intake_version"),
+  // A01. Agreement to take part and to restricted research use are both
+  // required, so they are recorded as the moment they were given. Public
+  // release is a separate, optional yes or no; null means not answered,
+  // which is treated as no.
+  participationAgreedAt: timestamp("participation_agreed_at"),
+  researchUseAgreedAt: timestamp("research_use_agreed_at"),
+  publicReleasePermission: text("public_release_permission"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -213,6 +230,16 @@ export const eventSettings = pgTable("event_settings", {
   maxReviewsPerTranscript: integer("max_reviews_per_transcript")
     .notNull()
     .default(2),
+  // v1.1. How many completed primary reviews each view is aiming for.
+  reviewsPerView: integer("reviews_per_view").notNull().default(3),
+  // Whether a new submission can be reviewed straight away, as a General
+  // item, or waits for an organizer to say who is able to review it.
+  autoReleaseSubmissions: boolean("auto_release_submissions").notNull().default(false),
+  // How long a reviewer may sit on an item before someone else can be
+  // given it.
+  reviewReservationMinutes: integer("review_reservation_minutes").notNull().default(45),
+  // Whether participants can create related versions and enter prizes yet.
+  comparisonActivityOpen: boolean("comparison_activity_open").notNull().default(true),
   // Nominations close at this time, or at once when the flag is set. Both
   // exist because an organizer may need to close early, or extend.
   nominationsCloseAt: timestamp("nominations_close_at"),
@@ -252,8 +279,14 @@ export const conversation = pgTable(
     // the author cannot change it, because a review describes a conversation
     // as it stood when it was read.
     lockedAt: timestamp("locked_at"),
+    // v1.1. The episode (a standalone conversation, or a folder of them)
+    // this session belongs to, and its place in it. Null only for
+    // conversations older than episodes that the migration could not place.
+    episodeId: uuid("episode_id"),
+    sessionOrder: integer("session_order").notNull().default(1),
   },
   (t) => [
+    index("conversation_episode_idx").on(t.episodeId, t.sessionOrder),
     index("conversation_user_idx").on(t.userId, t.createdAt),
     index("conversation_status_idx").on(t.status, t.lastSubmittedAt),
   ],
@@ -569,3 +602,271 @@ export const auditEvent = pgTable(
   },
   (t) => [index("audit_event_created_idx").on(t.createdAt)],
 );
+
+/* ------------------------------------------------------------------ *
+ * v1.1: episodes, related versions, review views and assignments.
+ *
+ * Names follow the specification (docs/spec). A "session" there is a row
+ * of `conversation` here; nothing was renamed, so that everything written
+ * before v1.1 still reads the same.
+ * ------------------------------------------------------------------ */
+
+/**
+ * One task: a standalone conversation, or a folder holding several
+ * independent sessions. Submitted once, as a whole.
+ */
+export const episode = pgTable(
+  "episode",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default("Conversation"),
+    // Shown as a folder. A standalone conversation becomes one when a
+    // second session is added.
+    isFolder: boolean("is_folder").notNull().default(false),
+    modelId: text("model_id").notNull(),
+
+    // "real" or "invented". Null only for work older than the question.
+    taskProvenance: text("task_provenance"),
+    provenanceChangedAt: timestamp("provenance_changed_at"),
+    // Which starting-point suggestion was picked, if any.
+    activityTemplate: text("activity_template"),
+
+    // An optional private note. Never sent to the model, never shown to a
+    // reviewer. Every saved change is also kept in episode_goal_revision.
+    goalText: text("goal_text"),
+    goalUpdatedAt: timestamp("goal_updated_at"),
+
+    // "original_live", or "related_live" for one made with Create related
+    // version. Every episode in a family shares sourceFamilyId; an original
+    // is the first member of its own.
+    creationMethod: text("creation_method").notNull().default("original_live"),
+    sourceFamilyId: uuid("source_family_id").notNull(),
+
+    status: conversationStatus("status").notNull().default("draft"),
+    submittedAt: timestamp("submitted_at"),
+
+    // Set by organizers: who is able to review it, and whether it may be
+    // handed out. Nothing about the author or a scanner sets these.
+    reviewLevel: text("review_level"),
+    eligibleDomains: text("eligible_domains").array().notNull().default([]),
+    assignmentState: text("assignment_state").notNull().default("pending"),
+
+    // Put forward for a prize by its author.
+    prizeEntryAt: timestamp("prize_entry_at"),
+
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("episode_user_idx").on(t.userId, t.createdAt),
+    index("episode_family_idx").on(t.sourceFamilyId),
+    index("episode_state_idx").on(t.status, t.assignmentState),
+  ],
+);
+
+/** Every saved version of an episode's goal note, with when it was saved. */
+export const episodeGoalRevision = pgTable(
+  "episode_goal_revision",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    episodeId: uuid("episode_id")
+      .notNull()
+      .references(() => episode.id, { onDelete: "cascade" }),
+    goalText: text("goal_text"),
+    // Whether any message had been sent in the episode when this was saved.
+    // A goal written afterwards is context, not a plan made in advance.
+    afterWorkBegan: boolean("after_work_began").notNull(),
+    savedAt: timestamp("saved_at").notNull().defaultNow(),
+  },
+  (t) => [index("episode_goal_revision_idx").on(t.episodeId, t.savedAt)],
+);
+
+/**
+ * A link from a submitted episode to a new one made as an alternative to
+ * it. Complete once the new one is submitted too.
+ */
+export const relatedVersion = pgTable(
+  "related_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sourceEpisodeId: uuid("source_episode_id")
+      .notNull()
+      .references(() => episode.id, { onDelete: "cascade" }),
+    targetEpisodeId: uuid("target_episode_id")
+      .notNull()
+      .references(() => episode.id, { onDelete: "cascade" }),
+    familyId: uuid("family_id").notNull(),
+    // "fact_change", "presentation_change" or "exploratory": what the
+    // author meant to do, not a finding about what they did.
+    comparisonIntent: text("comparison_intent").notNull(),
+    intendedDifference: text("intended_difference").notNull(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("related_version_target_uq").on(t.targetEpisodeId),
+    index("related_version_source_idx").on(t.sourceEpisodeId),
+  ],
+);
+
+/**
+ * Exactly what a reviewer is shown: one session, or all of a folder's
+ * sessions together. Written when the episode is submitted and never
+ * changed, so a judgement always refers to known text.
+ */
+export const reviewView = pgTable(
+  "review_view",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    episodeId: uuid("episode_id")
+      .notNull()
+      .references(() => episode.id, { onDelete: "cascade" }),
+    familyId: uuid("family_id").notNull(),
+    // "session" or "linked".
+    kind: text("kind").notNull(),
+    conversationId: uuid("conversation_id"),
+    // { turns: [{ n, session, role, content, messageId, at, status }] }
+    content: jsonb("content").notNull(),
+    contentHash: text("content_hash").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("review_view_episode_idx").on(t.episodeId),
+    index("review_view_family_idx").on(t.familyId),
+  ],
+);
+
+/**
+ * One person given one thing to judge: a view to review, or a pair of
+ * related versions to compare.
+ *
+ * The row is also the record that they were shown it. It is never deleted
+ * when they skip or run out of time, because having seen one member of a
+ * family is what rules them out of judging the others.
+ */
+export const reviewAssignment = pgTable(
+  "review_assignment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reviewerId: text("reviewer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // "primary" or "pair_audit".
+    purpose: text("purpose").notNull(),
+    viewId: uuid("view_id").references(() => reviewView.id, { onDelete: "cascade" }),
+    relatedVersionId: uuid("related_version_id").references(() => relatedVersion.id, {
+      onDelete: "cascade",
+    }),
+    familyId: uuid("family_id").notNull(),
+    // "active", "completed", "skipped" or "expired".
+    state: text("state").notNull().default("active"),
+    // Which of the view's places this holds while active or completed.
+    slot: integer("slot").notNull().default(1),
+    // The reviewer's self-reported familiarity at the moment of assignment,
+    // and the level the item asked for.
+    routing: jsonb("routing"),
+    skipReason: text("skip_reason"),
+    skipNote: text("skip_note"),
+    reservedAt: timestamp("reserved_at").notNull().defaultNow(),
+    // Kept moving while the reviewer is working, so that leaving a tab
+    // open is not the same as still being there.
+    lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+    finishedAt: timestamp("finished_at"),
+  },
+  (t) => [
+    index("review_assignment_view_idx").on(t.viewId, t.state),
+    // One thing at a time per person, enforced here so that two tabs
+    // asking together cannot both be given something.
+    uniqueIndex("review_assignment_one_active_uq")
+      .on(t.reviewerId)
+      .where(sql`state = 'active'`),
+    // And one look at a family, ever, whatever became of it.
+    uniqueIndex("review_assignment_family_uq").on(t.reviewerId, t.familyId),
+    // Each place on a view is held once.
+    uniqueIndex("review_assignment_slot_uq")
+      .on(t.viewId, t.slot)
+      .where(sql`state in ('active', 'completed') and purpose = 'primary'`),
+    uniqueIndex("review_assignment_pair_uq")
+      .on(t.relatedVersionId)
+      .where(sql`state in ('active', 'completed') and purpose = 'pair_audit'`),
+  ],
+);
+
+/** Form C: one reviewer's final answer about one view. */
+export const reviewResponse = pgTable(
+  "review_response",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    assignmentId: uuid("assignment_id")
+      .notNull()
+      .references(() => reviewAssignment.id, { onDelete: "cascade" }),
+    viewId: uuid("view_id")
+      .notNull()
+      .references(() => reviewView.id, { onDelete: "cascade" }),
+    reviewerId: text("reviewer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    verdict: text("verdict").notNull(),
+    policyBasis: text("policy_basis").notNull(),
+    confidence: text("confidence").notNull(),
+    evidenceMode: text("evidence_mode").notNull(),
+    evidenceTurns: integer("evidence_turns").array().notNull().default([]),
+    rationale: text("rationale").notNull(),
+    uncertaintyReasons: text("uncertainty_reasons").array().notNull().default([]),
+    uncertaintyOther: text("uncertainty_other"),
+    subjectSensitivity: text("subject_sensitivity").notNull(),
+    aimEvidence: text("aim_evidence").notNull(),
+    policyVersion: integer("policy_version").notNull(),
+    formVersion: text("form_version").notNull(),
+    submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // A reload or a second click cannot make a second vote.
+    uniqueIndex("review_response_assignment_uq").on(t.assignmentId),
+    index("review_response_view_idx").on(t.viewId),
+  ],
+);
+
+/** Form D: one person's judgement of how well a pair of versions match. */
+export const pairAudit = pgTable(
+  "pair_audit",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    assignmentId: uuid("assignment_id")
+      .notNull()
+      .references(() => reviewAssignment.id, { onDelete: "cascade" }),
+    relatedVersionId: uuid("related_version_id")
+      .notNull()
+      .references(() => relatedVersion.id, { onDelete: "cascade" }),
+    reviewerId: text("reviewer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    topicTaskMatch: text("topic_task_match").notNull(),
+    sensitivityMatch: text("sensitivity_match").notNull(),
+    intendedChangeRealized: text("intended_change_realized").notNull(),
+    unintendedDifferences: text("unintended_differences").array().notNull().default([]),
+    unintendedOther: text("unintended_other"),
+    comparisonType: text("comparison_type").notNull(),
+    auditNote: text("audit_note"),
+    formVersion: text("form_version").notNull(),
+    submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("pair_audit_assignment_uq").on(t.assignmentId)],
+);
+
+/**
+ * The reference policy reviewers apply, in versions like the terms. The
+ * rules are the choices offered for "which criterion supports your answer".
+ */
+export const reviewPolicy = pgTable("review_policy", {
+  version: integer("version").primaryKey(),
+  body: text("body").notNull(),
+  // [{ id, label, verdicts: ["yes" | "no" | "indeterminate", ...] }]
+  rules: jsonb("rules").notNull().default([]),
+  publishedAt: timestamp("published_at").notNull().defaultNow(),
+});

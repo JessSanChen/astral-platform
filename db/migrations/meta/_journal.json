@@ -50,6 +50,13 @@
       "when": 1794694929539,
       "tag": "0006_sign_in_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794709250262,
+      "tag": "0007_v1_1_episodes_and_reviews",
+      "breakpoints": true
     }
   ]
 }
