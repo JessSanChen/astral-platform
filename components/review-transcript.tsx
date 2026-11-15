@@ -1,5 +1,6 @@
 "use client";
 
+import { hasVisibleText } from "@/lib/visible-text";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ViewContent, ViewTurn } from "@/lib/episodes";
@@ -65,7 +66,9 @@ function Turn({
   onToggle?: (n: number) => void;
 }) {
   const isUser = turn.role === "user";
-  const empty = turn.content.trim().length === 0;
+  // Nothing a person could see counts as empty, so that it is said to be
+  // empty and not drawn as a reply with nothing in it.
+  const empty = !hasVisibleText(turn.content);
   const cut = !isUser && !empty && turn.finishReason === "aborted";
 
   const number = onToggle && isUser ? (

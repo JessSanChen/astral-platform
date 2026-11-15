@@ -1,5 +1,6 @@
 "use client";
 
+import { hasVisibleText } from "@/lib/visible-text";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
@@ -140,7 +141,7 @@ export function ChatView({
 
   const lastMessage = messages[messages.length - 1];
   const lastHasText = lastMessage?.parts?.some(
-    (p) => p.type === "text" && p.text.trim().length > 0,
+    (p) => p.type === "text" && hasVisibleText(p.text),
   );
 
   // A reply started here, then the participant moved to another conversation,
@@ -168,7 +169,7 @@ export function ChatView({
   const visibleMessages = messages.filter((m, i) => {
     if (m.role !== "assistant") return true;
     const hasText = m.parts?.some(
-      (p) => p.type === "text" && p.text.trim().length > 0,
+      (p) => p.type === "text" && hasVisibleText(p.text),
     );
     if (hasText) return true;
     const isLast = i === messages.length - 1;
@@ -240,7 +241,7 @@ export function ChatView({
         const serverHasAnswer =
           serverLast?.role === "assistant" &&
           serverLast.parts?.some(
-            (p) => p.type === "text" && p.text.trim().length > 0,
+            (p) => p.type === "text" && hasVisibleText(p.text),
           );
 
         let arrived = false;
