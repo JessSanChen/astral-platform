@@ -77,9 +77,11 @@ export function RelatedVersionForm({
             or wording affects the interaction.
           </p>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Based on <span className="font-medium text-foreground">{sourceTitle}</span>.
-            The new conversation starts empty: nothing from the original is
-            carried into it, and the original stays exactly as submitted.
+            Based on{" "}
+            <span className="font-medium text-foreground">&ldquo;{sourceTitle}&rdquo;</span>
+            {" "}
+            (it stays exactly as submitted). The new conversation starts empty: nothing from the original is
+            carried into it.
           </p>
         </div>
 
