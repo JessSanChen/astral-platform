@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { eventSettings, termsVersion, judgeConfig, user } from "@/db/schema";
+import { eventSettings, termsVersion, judgeConfig, user, session } from "@/db/schema";
 import { DEFAULT_MODELS } from "@/lib/models";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
@@ -122,9 +122,21 @@ async function main() {
       .update(user)
       .set({ role: "admin" })
       .where(and(inArray(sql`lower(${user.email})`, adminEmails), ne(user.role, "admin")))
-      .returning({ email: user.email });
+      .returning({ id: user.id, email: user.email });
     if (promoted.length > 0) {
-      console.log(`promoted to organizer: ${promoted.map((p) => p.email).join(", ")}`);
+      // Signed out, as promotion from the console does, so that they sign
+      // in again as organizers. That is when the password is held to what
+      // an organizer's has to be; an existing session would carry on for
+      // days without ever being asked.
+      await db.delete(session).where(
+        inArray(
+          session.userId,
+          promoted.map((p) => p.id),
+        ),
+      );
+      console.log(
+        `promoted to organizer, and signed out so the role takes effect: ${promoted.map((p) => p.email).join(", ")}`,
+      );
     }
     // Say who was listed but has no account, since listing them does nothing
     // on its own any more and silence would read as success.

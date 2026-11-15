@@ -187,10 +187,12 @@ export function ParticipantRow({
         <Button
           size="sm"
           variant={paused ? "outline" : "danger"}
-          disabled={pending}
+          disabled={pending || isSelf}
+          title={isSelf ? "Ask another organizer to pause your own account." : undefined}
           onClick={() =>
             start(async () => {
-              await setPaused(userId, !paused);
+              const result = await setPaused(userId, !paused);
+              setNote(result.message);
               router.refresh();
             })
           }

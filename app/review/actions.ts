@@ -77,7 +77,10 @@ export async function submitReview(
     // that was read" and "lock it" cannot be separated by a resubmission
     // slipping in between.
     const [convo] = await tx
-      .select({ currentVersion: conversation.currentVersion })
+      .select({
+        currentVersion: conversation.currentVersion,
+        lockedAt: conversation.lockedAt,
+      })
       .from(conversation)
       .where(eq(conversation.id, conversationId))
       .for("update");
@@ -130,7 +133,10 @@ export async function submitReview(
     // submit checks the lock at the moment they act.
     await tx
       .update(conversation)
-      .set({ lockedAt: now })
+      // When it was first locked. A second reviewer, or a reviewer
+      // changing their answers, does not move it. Read under the row lock
+      // taken above, so two first reviews cannot both think they are it.
+      .set({ lockedAt: convo.lockedAt ?? now })
       .where(eq(conversation.id, conversationId));
 
     return { kind: "saved" as const, submissionCount: row?.submissionCount ?? 1 };

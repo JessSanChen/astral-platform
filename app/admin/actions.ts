@@ -47,6 +47,11 @@ export async function setBudget(userId: string, tokens: number | null) {
 
 export async function setPaused(userId: string, paused: boolean) {
   const { user: me } = await requireAdmin();
+  // The same rule as for the role, for the same reason: a slip on your own
+  // row would shut you out of the console you would need to undo it.
+  if (userId === me.id) {
+    return { message: "You cannot pause your own account. Ask another organizer to do it." };
+  }
   await db
     .update(user)
     .set({ banned: paused, updatedAt: new Date() })
@@ -57,6 +62,7 @@ export async function setPaused(userId: string, paused: boolean) {
     target: userId,
   });
   revalidatePath("/admin");
+  return { message: null };
 }
 
 /**
@@ -391,11 +397,11 @@ export async function publishTerms(body: string) {
  */
 export async function adoptBuiltInModelList() {
   const { user: me } = await requireAdmin();
-  await recordAudit({ action: "model_list_changed", actor: me });
   await db
     .update(eventSettings)
     .set({ enabledModels: DEFAULT_MODELS, updatedAt: new Date() })
     .where(eq(eventSettings.id, 1));
+  await recordAudit({ action: "model_list_changed", actor: me });
   settingsChanged();
   return { message: null };
 }
