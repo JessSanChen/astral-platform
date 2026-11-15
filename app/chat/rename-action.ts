@@ -25,10 +25,15 @@ export async function renameConversation(
     .update(conversation)
     .set({ title: trimmed, updatedAt: new Date() })
     .where(
-      and(eq(conversation.id, conversationId), eq(conversation.userId, user.id)),
+      and(
+        eq(conversation.id, conversationId),
+        eq(conversation.userId, user.id),
+        // Submitting freezes the name along with everything else.
+        eq(conversation.status, "draft"),
+      ),
     )
     .returning({ title: conversation.title });
 
-  if (!updated) return { message: "Conversation not found." };
+  if (!updated) return { message: "Submitted work cannot be renamed." };
   return { title: updated.title };
 }

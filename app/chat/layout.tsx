@@ -1,5 +1,5 @@
 import { requireOnboarded } from "@/lib/gate";
-import { listConversations } from "@/lib/conversations";
+import { listMyWork } from "@/lib/episodes";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { MasterNav } from "@/components/master-nav";
 import { ConversationStoreProvider } from "@/components/conversation-store";
@@ -10,19 +10,21 @@ export default async function ChatLayout({
   children: React.ReactNode;
 }) {
   const { user, isAdmin } = await requireOnboarded();
-
-  // The submitted count is derived from this same list on the client, so
-  // there is no second query for it.
-  const conversations = await listConversations(user.id);
+  const work = await listMyWork(user.id);
 
   return (
     <ConversationStoreProvider
-      initialConversations={conversations.map((c) => ({
+      initialConversations={work.map((c) => ({
         id: c.id,
         title: c.title,
         status: c.status,
-        currentVersion: c.currentVersion,
         createdAt: (c.lastMessageAt ?? c.updatedAt ?? new Date()).toISOString(),
+        episodeId: c.episodeId,
+        episodeTitle: c.episodeTitle,
+        isFolder: c.isFolder,
+        sessionOrder: c.sessionOrder,
+        episodeStatus: c.episodeStatus,
+        related: c.creationMethod === "related_live",
       }))}
     >
       <div className="flex h-screen">

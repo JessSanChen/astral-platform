@@ -2,23 +2,16 @@
 
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
-import { PanelRightClose, ShieldCheck, Tag } from "lucide-react";
 import { ChatView } from "@/components/chat-view";
-import { JudgeTab } from "@/components/judge-tab";
-import { useEffect } from "react";
-import { LabelsPanel, type LabelValues } from "@/components/labels-panel";
+import { EpisodePanel, type EpisodeInfo } from "@/components/episode-panel";
 import { useConversationStore } from "@/components/conversation-store";
 import { useClipboardLog } from "@/components/clipboard-log";
-import { Button } from "@/components/ui/button";
 import type { ModelOption } from "@/lib/models";
-import { cn } from "@/lib/utils";
 
 /**
- * The conversation with its side panel. The panel has two tabs: the labels
- * for this conversation, and the safety scanners. Keeping them together
- * means one panel on one side rather than things appearing from opposite
- * edges. Which tab is open, and the scanner results, live in the shared
- * store, so they survive moving between conversations.
+ * One session with the panel beside it. The chat is the session; the panel
+ * is about the episode it belongs to: its goal note, its other sessions,
+ * submitting it, and making a related version of it.
  */
 export function ConversationWorkspace(props: {
   conversationId: string;
@@ -27,47 +20,26 @@ export function ConversationWorkspace(props: {
   scenario: string | null;
   models: ModelOption[];
   initialMessages: UIMessage[];
-  locked: boolean;
-  status: "draft" | "submitted";
-  currentVersion: number;
-  changedSinceSubmit: boolean;
   hasMessages: boolean;
-  labels: LabelValues;
+  episode: EpisodeInfo;
 }) {
   const store = useConversationStore();
-  const { rightTab, setRightTab, rightPanelOpen, setRightPanelOpen } = store;
+  const { rightPanelOpen, setRightPanelOpen } = store;
+  const { conversationId } = props;
 
   // Share the conversation's chat, so the panel knows what is on screen now
   // rather than what the server rendered. A conversation first opened empty
   // and then written in would otherwise still claim it had no messages.
-  const chat = store.getChat(props.conversationId, props.initialMessages);
-  const { messages } = useChat({ chat });
+  const chat = store.getChat(conversationId, props.initialMessages);
+  const { messages, status: chatStatus } = useChat({ chat });
   const hasMessages = messages.length > 0;
+  const busy = chatStatus === "streaming" || chatStatus === "submitted";
 
-  // Prefer the client's view of status: it reflects a submit made a moment
-  // ago, where the server-rendered copy may predate it.
-  const entry = store.conversations.find((c) => c.id === props.conversationId);
-  const status = entry?.status ?? props.status;
-  const currentVersion = entry?.currentVersion ?? props.currentVersion;
-
-  // The turns marked as evidence. What the server had, until something is
-  // marked or unmarked here.
-  const { conversationId } = props;
-  const evidenceTurns = store.evidence[conversationId] ?? props.labels.evidenceTurns;
-  const selecting = store.selectingEvidenceFor === conversationId;
-  const { setEvidence, setSelectingEvidenceFor, setRightPanelOpen: openPanel } = store;
-  const setSelecting = (on: boolean) => {
-    setSelectingEvidenceFor(on ? conversationId : null);
-    // Finishing brings the labels back into view, since that is where the
-    // selection is listed and where it gets sent from.
-    if (!on) openPanel(true);
-  };
-  // Leaving the conversation ends the mode, so coming back to it later does
-  // not find the composer still replaced.
-  useEffect(
-    () => () => setSelectingEvidenceFor(null),
-    [conversationId, setSelectingEvidenceFor],
-  );
+  // Prefer the client's view of whether it is submitted: it reflects a
+  // submit made a moment ago, where the server-rendered copy may predate it.
+  const entry = store.conversations.find((c) => c.id === conversationId);
+  const submitted =
+    (entry?.episodeStatus ?? props.episode.status) === "submitted";
 
   const clipboard = useClipboardLog(conversationId);
 
@@ -75,100 +47,36 @@ export function ConversationWorkspace(props: {
     <div className="flex h-full" {...clipboard}>
       <div className="min-w-0 flex-1">
         <ChatView
-          conversationId={props.conversationId}
+          conversationId={conversationId}
           modelId={props.modelId}
           scenario={props.scenario}
           models={props.models}
           initialMessages={props.initialMessages}
           title={entry?.title ?? props.title}
-          locked={props.locked}
-          conversationStatus={status}
-          currentVersion={currentVersion}
-          labelsOpen={rightPanelOpen}
-          onToggleLabels={() => setRightPanelOpen(true)}
-          evidenceTurns={evidenceTurns}
-          selecting={selecting}
-          onEvidenceChange={(turns) => setEvidence(conversationId, turns)}
-          onDoneSelecting={() => setSelecting(false)}
+          locked={hasMessages}
+          submitted={submitted}
+          panelOpen={rightPanelOpen}
+          onOpenPanel={() => setRightPanelOpen(true)}
         />
       </div>
 
       {rightPanelOpen && (
         <aside
-          data-clip={rightTab === "labels" ? "labels" : "other"}
+          data-clip="other"
           className="flex w-96 shrink-0 flex-col border-l border-border bg-muted/20"
         >
-          <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
-            <TabButton
-              active={rightTab === "labels"}
-              onClick={() => setRightTab("labels")}
-              icon={<Tag className="h-3.5 w-3.5" />}
-              label="Labels"
-            />
-            <TabButton
-              active={rightTab === "scanners"}
-              onClick={() => setRightTab("scanners")}
-              icon={<ShieldCheck className="h-3.5 w-3.5" />}
-              label="Scanners"
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setRightPanelOpen(false)}
-              className="ml-auto"
-              aria-label="Close panel"
-            >
-              <PanelRightClose className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="min-h-0 flex-1">
-            {rightTab === "labels" ? (
-              <LabelsPanel
-                conversationId={props.conversationId}
-                labels={props.labels}
-                evidenceTurns={evidenceTurns}
-                selecting={selecting}
-                onSelecting={setSelecting}
-                onEvidenceChange={(turns) => setEvidence(conversationId, turns)}
-                status={status}
-                currentVersion={currentVersion}
-                hasMessages={hasMessages}
-                changedSinceSubmit={props.changedSinceSubmit}
-              />
-            ) : (
-              <JudgeTab conversationId={props.conversationId} />
-            )}
-          </div>
+          <EpisodePanel
+            // A panel per episode: moving between two folders must not
+            // carry one's half-typed goal note into the other.
+            key={props.episode.id}
+            episode={{ ...props.episode, status: submitted ? "submitted" : "draft" }}
+            currentSessionId={conversationId}
+            currentHasMessages={hasMessages}
+            busy={busy}
+            onClose={() => setRightPanelOpen(false)}
+          />
         </aside>
       )}
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "flex items-center gap-1.5 rounded-[var(--radius)] px-2.5 py-1.5 text-sm transition-colors",
-        active ? "bg-card font-medium shadow-sm" : "text-muted-foreground hover:bg-muted",
-      )}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }

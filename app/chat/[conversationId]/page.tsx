@@ -1,8 +1,9 @@
+import { prizeEntryStatus } from "@/lib/prizes";
 import { notFound } from "next/navigation";
 import type { UIMessage } from "ai";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { transcriptLabels } from "@/db/schema";
+import { episode as episodeTable } from "@/db/schema";
 import { requireOnboarded } from "@/lib/gate";
 import { getEventSettings, ChatError } from "@/lib/openrouter";
 import {
@@ -10,6 +11,7 @@ import {
   getVisibleMessages,
   messageMeta,
 } from "@/lib/conversations";
+import { listSessions, relatedLinks } from "@/lib/episodes";
 import { ConversationWorkspace } from "@/components/conversation-workspace";
 
 export default async function ConversationPage({
@@ -27,17 +29,27 @@ export default async function ConversationPage({
     if (e instanceof ChatError) notFound();
     throw e;
   }
+  if (!convo.episodeId) notFound();
 
   // Fetched together. These do not depend on each other, and running them in
   // sequence costs one network round trip each on every navigation.
-  const [rows, settings, [labels]] = await Promise.all([
+  const [rows, settings, [ep], sessions, links, [entries]] = await Promise.all([
     getVisibleMessages(conversationId),
     getEventSettings(),
+    db.select().from(episodeTable).where(eq(episodeTable.id, convo.episodeId)),
+    listSessions(convo.episodeId),
+    relatedLinks(convo.episodeId),
+    // How many separate pieces of work this person has entered for a prize.
     db
-      .select()
-      .from(transcriptLabels)
-      .where(eq(transcriptLabels.conversationId, conversationId)),
+      .select({
+        n: sql<number>`count(distinct ${episodeTable.sourceFamilyId})::int`,
+      })
+      .from(episodeTable)
+      .where(
+        and(eq(episodeTable.userId, user.id), sql`${episodeTable.prizeEntryAt} is not null`),
+      ),
   ]);
+  if (!ep) notFound();
 
   const initialMessages: UIMessage[] = rows.map((m) => ({
     id: m.id,
@@ -60,13 +72,48 @@ export default async function ConversationPage({
         },
       ];
 
-  const lastSubmitted = convo.lastSubmittedAt?.getTime() ?? 0;
-  const changedSinceSubmit =
-    convo.status === "submitted" &&
-    Math.max(
-      convo.updatedAt?.getTime() ?? 0,
-      labels?.updatedAt?.getTime() ?? 0,
-    ) > lastSubmitted;
+  // The titles of the episodes this one is linked to, for the panel.
+  const linkedIds = links.map((l) =>
+    l.sourceEpisodeId === ep.id ? l.targetEpisodeId : l.sourceEpisodeId,
+  );
+  const linked = linkedIds.length
+    ? await db
+        .select({
+          id: episodeTable.id,
+          title: episodeTable.title,
+          status: episodeTable.status,
+          firstSessionId: sql<string | null>`(
+            select c.id from conversation c
+            where c.episode_id = ${episodeTable.id} order by c.session_order limit 1
+          )`,
+          firstSessionTitle: sql<string | null>`(
+            select c.title from conversation c
+            where c.episode_id = ${episodeTable.id} order by c.session_order limit 1
+          )`,
+          isFolder: episodeTable.isFolder,
+        })
+        .from(episodeTable)
+        .where(
+          and(
+            eq(episodeTable.userId, user.id),
+            sql`${episodeTable.id} in (${sql.join(
+              linkedIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          ),
+        )
+    : [];
+  const nameOf = (id: string) => {
+    const e = linked.find((x) => x.id === id);
+    if (!e) return null;
+    return {
+      title: e.isFolder ? e.title : (e.firstSessionTitle ?? e.title),
+      sessionId: e.firstSessionId,
+      submitted: e.status === "submitted",
+    };
+  };
+
+  const { closed: prizeClosed } = await prizeEntryStatus();
 
   return (
     <ConversationWorkspace
@@ -76,22 +123,40 @@ export default async function ConversationPage({
       scenario={convo.scenario}
       models={models}
       initialMessages={initialMessages}
-      locked={rows.length > 0}
-      status={convo.status}
-      currentVersion={convo.currentVersion}
-      changedSinceSubmit={changedSinceSubmit}
       hasMessages={rows.length > 0}
-      labels={{
-        type: labels?.type ?? null,
-        rolePreset: labels?.rolePreset ?? null,
-        roleText: labels?.roleText ?? null,
-        goalText: labels?.goalText ?? null,
-        modelBehaviour: labels?.modelBehaviour ?? null,
-        domainTags: labels?.domainTags ?? [],
-        domainOther: labels?.domainOther ?? null,
-        evidenceTurns: labels?.evidenceTurns ?? [],
-        challengeFlag: labels?.challengeFlag ?? null,
-        notes: labels?.notes ?? null,
+      episode={{
+        id: ep.id,
+        title: ep.title,
+        isFolder: ep.isFolder,
+        status: ep.status,
+        submittedAt: ep.submittedAt?.toISOString() ?? null,
+        provenance: ep.taskProvenance,
+        goal: ep.goalText ?? "",
+        related: ep.creationMethod === "related_live",
+        prizeEntered: ep.prizeEntryAt != null,
+        prizeEntriesUsed: entries?.n ?? 0,
+        prizeClosed,
+        comparisonOpen: settings.comparisonActivityOpen,
+        sessions: sessions.map((s) => ({
+          id: s.id,
+          order: s.order,
+          title: s.title,
+          userMessages: s.userMessages,
+        })),
+        madeFrom: links
+          .filter((l) => l.targetEpisodeId === ep.id)
+          .map((l) => ({
+            intent: l.comparisonIntent,
+            difference: l.intendedDifference,
+            other: nameOf(l.sourceEpisodeId),
+          }))[0] ?? null,
+        versions: links
+          .filter((l) => l.sourceEpisodeId === ep.id)
+          .map((l) => ({
+            intent: l.comparisonIntent,
+            difference: l.intendedDifference,
+            other: nameOf(l.targetEpisodeId),
+          })),
       }}
     />
   );

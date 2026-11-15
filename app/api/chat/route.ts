@@ -1,15 +1,12 @@
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { after } from "next/server";
-import { eq, sql } from "drizzle-orm";
-import { db } from "@/db";
-import { message as messageTable, transcriptLabels } from "@/db/schema";
 import {
   ChatError,
   assertModelAllowed,
   getEventSettings,
   openrouter,
 } from "@/lib/openrouter";
-import { finishUsageEvent, reserveSlot, tokensUsedToday } from "@/lib/budget";
+import { finishUsageEvent, releaseSlot, reserveSlot, tokensUsedToday } from "@/lib/budget";
 import {
   appendMessage,
   setDerivedTitle,
@@ -22,6 +19,14 @@ import { buildPrompt } from "@/lib/prompt";
 
 // Long generations need more than the default; Vercel Pro allows up to 800s.
 export const maxDuration = 300;
+
+/**
+ * How long after a message its reply is assumed to be still on the way.
+ * Shorter than the longest a reply may take: if the server died mid-reply
+ * and left nothing behind, this is how long the participant is kept waiting
+ * before they can carry on.
+ */
+const IN_FLIGHT_MS = 180_000;
 
 function fail(code: string, message: string, status: number) {
   return Response.json({ code, message }, { status });
@@ -78,21 +83,28 @@ export async function POST(req: Request) {
     messages?: UIMessage[];
     regenerate?: boolean;
   };
-  const { conversationId, messages: uiMessages = [], regenerate = false } = body;
+  const { conversationId, messages: uiMessages = [] } = body;
   if (!conversationId) return fail("bad_request", "Missing conversation.", 400);
+  // A sent message stays sent and an answer stays the answer. Asking for a
+  // different one is refused here, not merely missing from the page: to
+  // correct or clarify something, the next message is the place.
+  if (body.regenerate)
+    return fail(
+      "append_only",
+      "Replies cannot be regenerated. Send a follow-up message, or create a related version.",
+      400,
+    );
 
   // Read the new message before anything is claimed on the participant's
   // behalf, so a request that is going to be refused for being empty does
   // not first use up one of their sends for the minute.
   const incoming = uiMessages[uiMessages.length - 1];
-  const text = regenerate
-    ? ""
-    : (incoming?.parts
-        ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
-        .map((p) => p.text)
-        .join("") ?? "");
-  if (!regenerate && !text.trim())
-    return fail("bad_request", "Message is empty.", 400);
+  const text =
+    incoming?.parts
+      ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text)
+      .join("") ?? "";
+  if (!text.trim()) return fail("bad_request", "Message is empty.", 400);
 
   // Fetched together: none of these depend on each other, and every round
   // trip here delays the first token the participant sees.
@@ -116,12 +128,12 @@ export async function POST(req: Request) {
   }
   const convo = convoResult.value;
 
-  // A transcript another participant has already reviewed is fixed: their
-  // judgement describes it as it stood when they read it.
-  if (convo.lockedAt)
+  // Submitted work is frozen: what reviewers are shown was fixed at that
+  // moment.
+  if (convo.lockedAt || convo.status === "submitted")
     return fail(
       "locked",
-      "This transcript has been independently reviewed, so it can no longer be changed. Start a new conversation to keep exploring.",
+      "This has been submitted, so it can no longer be changed. To explore further, create a related version.",
       409,
     );
 
@@ -150,46 +162,37 @@ export async function POST(req: Request) {
   if (!usageEventId)
     return fail("rate_limited", "You are sending messages very quickly. Wait a few seconds.", 429);
 
-  // --- Persist the incoming user message (or supersede on regenerate) ---
+  // --- Persist the incoming user message ---
   const history = await getVisibleMessages(conversationId);
   const last = history[history.length - 1];
-  // Built from what the database returned plus the row we write below, so the
-  // prompt still never comes from client input, without reading the same
-  // messages a second time.
-  let promptHistory = history;
-
-  if (regenerate) {
-    // Hide the previous assistant reply; it stays in the database.
-    if (last?.role === "assistant") {
-      await db
-        .update(messageTable)
-        .set({ supersededBy: last.id })
-        .where(eq(messageTable.id, last.id));
-      // If the author had marked that reply as evidence for their labels,
-      // the mark goes with it. Marks are kept as turn numbers, and the
-      // number is about to belong to a different reply. The page does the
-      // same for what is on screen; this is for what was already saved.
-      await db
-        .update(transcriptLabels)
-        .set({
-          evidenceTurns: sql`array_remove(${transcriptLabels.evidenceTurns}, ${history.length})`,
-        })
-        .where(eq(transcriptLabels.conversationId, conversationId));
-      promptHistory = history.slice(0, -1);
-    }
+  // One reply at a time. If the last word is the participant's and recent,
+  // its reply is still on the way (a failure would have left a record of
+  // itself after it), and a second message now would be answered without
+  // it. A double click lands here too.
+  if (
+    last?.role === "user" &&
+    Date.now() - last.createdAt.getTime() < IN_FLIGHT_MS
+  ) {
+    await releaseSlot(usageEventId);
+    return fail(
+      "reply_in_flight",
+      "The reply to your last message is still being written. Wait for it, then send the next one.",
+      409,
+    );
+  }
+  // The prompt is built from what the database returned plus the row
+  // written here, so it never comes from what the browser sent.
+  const savedUserMessage = await appendMessage({
+    conversationId,
+    role: "user",
+    content: text,
+    parts: incoming?.parts ?? null,
+  });
+  const promptHistory = [...history, savedUserMessage];
+  if (history.length === 0) {
+    await setDerivedTitle(conversationId, text);
   } else {
-    const savedUserMessage = await appendMessage({
-      conversationId,
-      role: "user",
-      content: text,
-      parts: incoming?.parts ?? null,
-    });
-    promptHistory = [...history, savedUserMessage];
-    if (history.length === 0) {
-      await setDerivedTitle(conversationId, text);
-    } else {
-      await touchConversation(conversationId);
-    }
+    await touchConversation(conversationId);
   }
 
   // Empty replies are left out and same-speaker neighbours joined, so the

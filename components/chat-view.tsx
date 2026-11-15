@@ -7,16 +7,7 @@ import type { UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useConversationStore } from "@/components/conversation-store";
-import {
-  ArrowUp,
-  Bookmark,
-  CheckCircle2,
-  Circle,
-  MousePointerClick,
-  PanelRightOpen,
-  RefreshCw,
-  Square,
-} from "lucide-react";
+import { ArrowUp, Lock, PanelRightOpen, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ModelPicker } from "@/components/model-picker";
 import { EditableTitle } from "@/components/rename-conversation";
@@ -31,22 +22,18 @@ type Props = {
   initialMessages: UIMessage[];
   title: string;
   locked: boolean; // true once the conversation has any messages
-  conversationStatus: "draft" | "submitted";
-  currentVersion: number;
-  labelsOpen: boolean;
-  onToggleLabels: () => void;
-  /** Turns marked as evidence for the labels, by the number beside them. */
-  evidenceTurns: number[];
-  /** True while the participant is picking those turns. */
-  selecting: boolean;
-  onEvidenceChange: (turns: number[]) => void;
-  onDoneSelecting: () => void;
+  /** Submitted work is frozen: it can be read, and nothing more. */
+  submitted: boolean;
+  panelOpen: boolean;
+  onOpenPanel: () => void;
 };
 
 // Friendly text for the error codes our API returns.
 const ERROR_TEXT: Record<string, string> = {
   locked:
-    "This transcript has been independently reviewed, so it can no longer be changed. Start a new conversation to keep exploring.",
+    "This has been submitted, so it can no longer be changed. To explore further, create a related version.",
+  reply_in_flight:
+    "The reply to your last message is still being written. Wait for it, then send the next one.",
   rate_limited: "You are sending messages very quickly. Wait a few seconds and try again.",
   budget_exhausted: "You have reached today's usage limit. Find an organizer to raise it.",
   chat_paused: "An organizer has paused chat for everyone. Hold tight.",
@@ -77,6 +64,7 @@ const NOT_SENT = new Set([
   "rate_limited",
   "budget_exhausted",
   "locked",
+  "reply_in_flight",
 ]);
 
 function errorMessage(error: Error | undefined) {
@@ -104,14 +92,9 @@ export function ChatView({
   initialMessages,
   title,
   locked,
-  conversationStatus,
-  currentVersion,
-  labelsOpen,
-  onToggleLabels,
-  evidenceTurns,
-  selecting,
-  onEvidenceChange,
-  onDoneSelecting,
+  submitted,
+  panelOpen,
+  onOpenPanel,
 }: Props) {
   const store = useConversationStore();
   const [input, setInput] = useState("");
@@ -145,8 +128,7 @@ export function ChatView({
   // is created, since creating it is what marks it as seen.
   const [needsFirstSync] = useState(() => store.isFirstOpen(conversationId));
   const chat = store.getChat(conversationId, initialMessages);
-  const { messages, setMessages, sendMessage, regenerate, stop, status, error } =
-    useChat({ chat });
+  const { messages, setMessages, sendMessage, stop, status, error } = useChat({ chat });
 
   const busy = status === "streaming" || status === "submitted";
 
@@ -194,9 +176,6 @@ export function ChatView({
     return !stillWriting;
   });
 
-  const lastIsAssistant =
-    visibleMessages[visibleMessages.length - 1]?.role === "assistant";
-
   // A turn that ended without the model saying anything leaves nothing on the
   // client at all: with no text there is no assistant message to show. The
   // server did record the turn, along with why it was empty, so once the turn
@@ -234,24 +213,6 @@ export function ChatView({
     }
     sendMessage({ text });
   }
-
-  const marked = new Set(evidenceTurns);
-  const toggleTurn = (turn: number) =>
-    onEvidenceChange(
-      marked.has(turn)
-        ? evidenceTurns.filter((t) => t !== turn)
-        : [...evidenceTurns, turn],
-    );
-
-  // Escape leaves the mode, as it leaves most temporary states.
-  useEffect(() => {
-    if (!selecting) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onDoneSelecting();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selecting, onDoneSelecting]);
 
   // Jump to the newest message when the conversation first opens.
   useLayoutEffect(() => {
@@ -347,9 +308,9 @@ export function ChatView({
         <EditableTitle conversationId={conversationId} title={title} />
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {conversationStatus === "submitted" && (
+          {submitted && (
             <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
-              Submitted v{currentVersion}
+              Submitted
             </span>
           )}
           {/* Once a conversation has started the model cannot change, so the
@@ -363,10 +324,10 @@ export function ChatView({
               disabled
             />
           </span>
-          {!labelsOpen && (
-            <Button variant="outline" size="sm" onClick={onToggleLabels}>
+          {!panelOpen && (
+            <Button variant="outline" size="sm" onClick={onOpenPanel}>
               <PanelRightOpen className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Labels &amp; scanners</span>
+              <span className="hidden sm:inline">Details &amp; submit</span>
             </Button>
           )}
         </div>
@@ -392,14 +353,7 @@ export function ChatView({
             </p>
           )}
           {visibleMessages.map((m, i) => (
-            <MessageBubble
-              key={m.id}
-              message={m}
-              index={i + 1}
-              marked={marked.has(i + 1)}
-              selecting={selecting}
-              onToggle={() => toggleTurn(i + 1)}
-            />
+            <MessageBubble key={m.id} message={m} index={i + 1} />
           ))}
 
           {waiting && <ThinkingIndicator />}
@@ -429,66 +383,19 @@ export function ChatView({
             </div>
           )}
 
-          {lastIsAssistant && !busy && !selecting && (
-            <div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  // The reply about to be replaced may be marked as evidence
-                  // for the labels. The mark was put on that reply, not on
-                  // whatever comes back in its place, so it goes with it.
-                  const replaced = visibleMessages.length;
-                  if (marked.has(replaced)) {
-                    onEvidenceChange(evidenceTurns.filter((t) => t !== replaced));
-                  }
-                  regenerate({ body: { conversationId, regenerate: true } });
-                }}
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Regenerate
-              </Button>
-            </div>
-          )}
           <div ref={bottomRef} />
         </div>
       </div>
 
-      {selecting ? (
-        // While turns are being picked the composer is replaced, not
-        // disabled: there is one thing to do here, and this says what.
-        <div
-          role="region"
-          aria-label="Selecting evidence turns"
-          className="border-t border-accent/30 bg-accent/5 px-4 py-3"
-        >
-          <div className="mx-auto flex max-w-3xl items-center gap-3">
-            <MousePointerClick className="h-5 w-5 shrink-0 text-accent" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">
-                Click each turn that supports your labels
-              </p>
-              <p className="text-xs text-muted-foreground" aria-live="polite">
-                {evidenceTurns.length === 0
-                  ? "None marked yet."
-                  : `${evidenceTurns.length} marked: ${listTurns(evidenceTurns)}.`}{" "}
-                Click a turn again to unmark it.
-              </p>
-            </div>
-            {evidenceTurns.length > 0 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => onEvidenceChange([])}
-              >
-                Clear
-              </Button>
-            )}
-            <Button type="button" size="sm" onClick={onDoneSelecting}>
-              Done
-            </Button>
-          </div>
+      {submitted ? (
+        // Nothing more can be said here. The way on is a related version,
+        // which the panel beside this offers.
+        <div className="border-t border-border bg-muted/40 px-4 py-3">
+          <p className="mx-auto flex max-w-3xl items-center gap-2 text-sm text-muted-foreground">
+            <Lock className="h-4 w-4 shrink-0" />
+            Submitted, so this conversation is closed. To explore further,
+            create a related version.
+          </p>
         </div>
       ) : (
         <form onSubmit={submit} className="border-t border-border px-4 py-3">
@@ -553,27 +460,7 @@ function Dot({ delay }: { delay: string }) {
   );
 }
 
-/** "turn 2", "turns 2 and 5", "turns 2, 5 and 6". */
-function listTurns(turns: number[]) {
-  if (turns.length === 1) return `turn ${turns[0]}`;
-  return `turns ${turns.slice(0, -1).join(", ")} and ${turns[turns.length - 1]}`;
-}
-
-function MessageBubble({
-  message,
-  index,
-  marked,
-  selecting,
-  onToggle,
-}: {
-  message: UIMessage;
-  index: number;
-  /** Marked by the participant as evidence for their labels. */
-  marked: boolean;
-  /** The conversation is in its "click the turns" mode. */
-  selecting: boolean;
-  onToggle: () => void;
-}) {
+function MessageBubble({ message, index }: { message: UIMessage; index: number }) {
   const text = message.parts
     .filter((p): p is { type: "text"; text: string } => p.type === "text")
     .map((p) => p.text)
@@ -588,29 +475,15 @@ function MessageBubble({
   const emptyReply = !isUser && text.trim().length === 0;
 
   // Turn numbers, as transcripts conventionally carry, so a particular
-  // exchange can be referred to precisely. The same column says whether the
-  // turn is marked: a tick box while turns are being picked, a small
-  // bookmark afterwards.
+  // exchange can be referred to precisely.
   const number = (
     <span
       className={cn(
-        "mt-2.5 flex w-7 shrink-0 flex-col gap-1 font-mono text-xs",
-        isUser ? "items-start" : "items-end",
-        marked ? "font-semibold text-accent" : "text-muted-foreground",
+        "mt-2.5 w-7 shrink-0 font-mono text-xs text-muted-foreground",
+        !isUser && "text-right",
       )}
     >
       [{index}]
-      {selecting ? (
-        marked ? (
-          <CheckCircle2 className="h-4 w-4" aria-hidden />
-        ) : (
-          <Circle className="h-4 w-4" aria-hidden />
-        )
-      ) : marked ? (
-        <span title="You marked this turn as evidence for your labels">
-          <Bookmark className="h-3.5 w-3.5 fill-current" aria-label="Marked as evidence" />
-        </span>
-      ) : null}
     </span>
   );
 
@@ -619,46 +492,17 @@ function MessageBubble({
       data-turn={index}
       data-role={isUser ? "user" : "assistant"}
       data-clip="message"
-      // While picking, the whole row is one big tick box: easier to hit
-      // than a small control, and reachable from the keyboard.
-      {...(selecting
-        ? {
-            role: "checkbox",
-            "aria-checked": marked,
-            "aria-label": `Turn ${index}, ${isUser ? "your message" : "the model's reply"}`,
-            tabIndex: 0,
-            onClick: onToggle,
-            onKeyDown: (e: React.KeyboardEvent) => {
-              if (e.key === " " || e.key === "Enter") {
-                e.preventDefault();
-                onToggle();
-              }
-            },
-          }
-        : {})}
-      className={cn(
-        "group flex items-start gap-2 rounded-2xl",
-        isUser ? "justify-end" : "justify-start",
-        selecting &&
-          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
-      )}
+      className={cn("flex items-start gap-2", isUser ? "justify-end" : "justify-start")}
     >
       {!isUser && number}
       <div
         className={cn(
-          "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm transition-shadow",
+          "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm",
           isUser
             ? "bg-primary text-primary-foreground"
             : emptyReply
               ? "border border-dashed border-border bg-muted/40"
               : "border border-border bg-card",
-          // Links and text selection inside the message are switched off
-          // while picking, so a click always means "this turn".
-          selecting && "pointer-events-none select-none",
-          selecting &&
-            (marked
-              ? "ring-2 ring-accent ring-offset-2 ring-offset-background"
-              : "group-hover:ring-2 group-hover:ring-accent/40 group-hover:ring-offset-2 group-hover:ring-offset-background"),
         )}
       >
         {isUser ? (

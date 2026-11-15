@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { conversation, message, transcriptLabels } from "@/db/schema";
+import { conversation, message } from "@/db/schema";
 import { ChatError } from "@/lib/openrouter";
 
 export type DbMessage = typeof message.$inferSelect;
@@ -76,26 +76,6 @@ export async function appendMessage(
       .returning();
     return row;
   });
-}
-
-export async function createConversation(opts: {
-  userId: string;
-  modelId: string;
-}) {
-  const [row] = await db
-    .insert(conversation)
-    .values({
-      userId: opts.userId,
-      modelId: opts.modelId,
-    })
-    .returning();
-  // Every conversation gets an (empty) labels row so the form has somewhere
-  // to write without a special case for the first save.
-  await db
-    .insert(transcriptLabels)
-    .values({ conversationId: row.id })
-    .onConflictDoNothing();
-  return row;
 }
 
 /** Derives a short title from the first user message. */

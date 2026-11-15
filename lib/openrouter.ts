@@ -28,6 +28,10 @@ export type EventSettings = {
   chatRequestsPerMinute: number;
   reviewBatchSize: number;
   maxReviewsPerTranscript: number;
+  reviewsPerView: number;
+  autoReleaseSubmissions: boolean;
+  reviewReservationMinutes: number;
+  comparisonActivityOpen: boolean;
   nominationsCloseAt: Date | null;
   nominationsLocked: boolean;
   chatPaused: boolean;
@@ -60,6 +64,10 @@ async function loadEventSettings(): Promise<EventSettings> {
     chatRequestsPerMinute: row?.chatRequestsPerMinute ?? 20,
     reviewBatchSize: row?.reviewBatchSize ?? 5,
     maxReviewsPerTranscript: row?.maxReviewsPerTranscript ?? 2,
+    reviewsPerView: row?.reviewsPerView ?? 3,
+    autoReleaseSubmissions: row?.autoReleaseSubmissions ?? false,
+    reviewReservationMinutes: row?.reviewReservationMinutes ?? 45,
+    comparisonActivityOpen: row?.comparisonActivityOpen ?? true,
     nominationsCloseAt: row?.nominationsCloseAt ?? null,
     nominationsLocked: row?.nominationsLocked ?? false,
     chatPaused: row?.chatPaused ?? false,

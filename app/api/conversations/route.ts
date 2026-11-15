@@ -1,12 +1,25 @@
 import { z } from "zod";
-import { createConversation } from "@/lib/conversations";
+import { createEpisode } from "@/lib/episodes";
+import {
+  ACTIVITY_TEMPLATE_IDS,
+  LIMITS,
+  PROVENANCE_VALUES,
+} from "@/lib/episode-options";
 import { getCurrentUser, whyBlocked } from "@/lib/gate";
 import { assertModelAllowed, getEventSettings, ChatError } from "@/lib/openrouter";
 
 const createSchema = z.object({
   modelId: z.string().min(1),
+  // Real or invented: the one thing asked before starting.
+  provenance: z.enum(PROVENANCE_VALUES, {
+    message: "Say whether this is based on a real task or invented for this exercise.",
+  }),
+  template: z.enum(ACTIVITY_TEMPLATE_IDS).nullish(),
+  goal: z.string().trim().max(LIMITS.goal).nullish(),
+  folder: z.boolean().optional(),
 });
 
+/** Starts a conversation, or a folder with its first session. */
 export async function POST(req: Request) {
   const cu = await getCurrentUser();
   if (!cu) return Response.json({ message: "Unauthorized" }, { status: 401 });
@@ -14,8 +27,12 @@ export async function POST(req: Request) {
   if (blocked) return Response.json({ message: blocked.message }, { status: 403 });
 
   const parsed = createSchema.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success)
-    return Response.json({ message: "Invalid request" }, { status: 400 });
+  if (!parsed.success) {
+    return Response.json(
+      { message: parsed.error.issues[0]?.message ?? "Invalid request" },
+      { status: 400 },
+    );
+  }
 
   const settings = await getEventSettings();
   try {
@@ -26,9 +43,18 @@ export async function POST(req: Request) {
     throw e;
   }
 
-  const convo = await createConversation({
+  const { episode, session } = await createEpisode({
     userId: cu.user.id,
     modelId: parsed.data.modelId,
+    provenance: parsed.data.provenance,
+    template: parsed.data.template,
+    goal: parsed.data.goal,
+    folder: parsed.data.folder,
   });
-  return Response.json({ id: convo.id });
+  return Response.json({
+    id: session.id,
+    episodeId: episode.id,
+    episodeTitle: episode.title,
+    isFolder: episode.isFolder,
+  });
 }

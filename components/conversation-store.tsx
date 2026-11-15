@@ -11,43 +11,34 @@ import {
 import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
 import { Chat } from "@ai-sdk/react";
-import type { LabelValues } from "@/components/labels-panel";
 
+/**
+ * One session, with what is needed about the episode it belongs to. An
+ * episode is a standalone conversation (one session) or a folder (several).
+ */
 export type StoredConversation = {
   id: string;
   title: string;
   status: "draft" | "submitted";
-  currentVersion: number;
   createdAt: string;
+  episodeId: string;
+  episodeTitle: string;
+  isFolder: boolean;
+  sessionOrder: number;
+  episodeStatus: "draft" | "submitted";
+  /** Made with Create related version. */
+  related: boolean;
 };
-
-export type JudgeRun = {
-  id: string;
-  conversationId: string;
-  conversationTitle: string;
-  conversationStartedAt?: string;
-  judgeName: string;
-  turnCount?: number | null;
-  verdict: string | null;
-  parsed: { verdict?: JudgeVerdictShape } | null;
-  status: string;
-  createdAt: string;
-};
-
-export type JudgeVerdictShape = {
-  headline: string;
-  detail?: string;
-  severity?: number;
-  categories?: string[];
-  flagged: boolean;
-};
-
-export type RightTab = "labels" | "scanners";
 
 type Store = {
   conversations: StoredConversation[];
   addConversation: (c: StoredConversation) => void;
   patchConversation: (id: string, patch: Partial<StoredConversation>) => void;
+  /** Changes every session of one episode: its title, or that it is submitted. */
+  patchEpisode: (
+    episodeId: string,
+    patch: Partial<Pick<StoredConversation, "episodeTitle" | "isFolder" | "episodeStatus">>,
+  ) => void;
   /**
    * The chat for a conversation, created once and kept.
    *
@@ -62,41 +53,9 @@ type Store = {
   isFirstOpen: (id: string) => boolean;
   isGenerating: (id: string) => boolean;
   setGenerating: (id: string, value: boolean) => void;
-  /**
-   * The labels form as the participant last left it, per conversation.
-   *
-   * The page a conversation is rendered from is cached in the browser so that
-   * switching is instant, which means the labels it carries are the ones from
-   * when it was first loaded. Anything that rebuilt the form from them (a
-   * submit, switching to the scanners tab and back, leaving the conversation
-   * and returning) showed those old values, usually blank, over answers that
-   * had been given and saved since.
-   */
-  getLabelDraft: (id: string) => LabelValues | undefined;
-  setLabelDraft: (id: string, values: LabelValues) => void;
-  /**
-   * The turns a participant has marked as evidence for their labels, per
-   * conversation, as the numbers shown beside the messages.
-   *
-   * Held here, not in the labels form, because two parts of the screen
-   * share it: the conversation, where the turns are clicked, and the labels
-   * panel, which lists them and sends them. Undefined until something has
-   * been marked or unmarked in this session, so the caller can fall back to
-   * what the server had.
-   */
-  evidence: Record<string, number[]>;
-  setEvidence: (id: string, turns: number[]) => void;
-  /** The conversation whose turns are being picked right now, if any. */
-  selectingEvidenceFor: string | null;
-  setSelectingEvidenceFor: (id: string | null) => void;
-  // The right-hand panel's state lives here so the chosen tab and the
-  // scanner results survive moving between conversations.
-  rightTab: RightTab;
-  setRightTab: (tab: RightTab) => void;
+  // Whether the panel beside the chat is open; kept across conversations.
   rightPanelOpen: boolean;
   setRightPanelOpen: (open: boolean) => void;
-  judgeRuns: JudgeRun[];
-  setJudgeRuns: (runs: JudgeRun[]) => void;
 };
 
 const Ctx = createContext<Store | null>(null);
@@ -127,18 +86,8 @@ export function ConversationStoreProvider({
   // Refs, not state: changing these must not re-render the whole chat.
   const chats = useRef(new Map<string, Chat<UIMessage>>());
   const generating = useRef(new Set<string>());
-  const labelDrafts = useRef(new Map<string, LabelValues>());
   const [generatingTick, setGeneratingTick] = useState(0);
-  const [rightTab, setRightTab] = useState<RightTab>("labels");
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [judgeRuns, setJudgeRuns] = useState<JudgeRun[]>([]);
-  const [evidence, setEvidenceState] = useState<Record<string, number[]>>({});
-  const [selectingEvidenceFor, setSelectingEvidenceFor] = useState<string | null>(null);
-
-  const setEvidence = useCallback((id: string, turns: number[]) => {
-    const sorted = [...new Set(turns)].sort((a, b) => a - b);
-    setEvidenceState((all) => ({ ...all, [id]: sorted }));
-  }, []);
 
   const addConversation = useCallback((c: StoredConversation) => {
     setConversations((list) =>
@@ -163,6 +112,21 @@ export function ConversationStoreProvider({
     [],
   );
 
+  const patchEpisode = useCallback<Store["patchEpisode"]>((episodeId, patch) => {
+    setConversations((list) =>
+      list.map((c) =>
+        c.episodeId === episodeId
+          ? {
+              ...c,
+              ...patch,
+              // A submitted episode's sessions are submitted with it.
+              ...(patch.episodeStatus === "submitted" ? { status: "submitted" as const } : {}),
+            }
+          : c,
+      ),
+    );
+  }, []);
+
   const isFirstOpen = useCallback((id: string) => !chats.current.has(id), []);
 
   const getChat = useCallback((id: string, initialMessages: UIMessage[]) => {
@@ -178,14 +142,6 @@ export function ConversationStoreProvider({
     });
     chats.current.set(id, chat);
     return chat;
-  }, []);
-
-  const getLabelDraft = useCallback(
-    (id: string) => labelDrafts.current.get(id),
-    [],
-  );
-  const setLabelDraft = useCallback((id: string, values: LabelValues) => {
-    labelDrafts.current.set(id, values);
   }, []);
 
   const isGenerating = useCallback(
@@ -211,39 +167,24 @@ export function ConversationStoreProvider({
       conversations,
       addConversation,
       patchConversation,
+      patchEpisode,
       getChat,
       isFirstOpen,
       isGenerating,
       setGenerating,
-      getLabelDraft,
-      setLabelDraft,
-      evidence,
-      setEvidence,
-      selectingEvidenceFor,
-      setSelectingEvidenceFor,
-      rightTab,
-      setRightTab,
       rightPanelOpen,
       setRightPanelOpen,
-      judgeRuns,
-      setJudgeRuns,
     }),
     [
-      evidence,
-      setEvidence,
-      selectingEvidenceFor,
-      rightTab,
       rightPanelOpen,
-      judgeRuns,
       conversations,
       addConversation,
       patchConversation,
+      patchEpisode,
       getChat,
       isFirstOpen,
       isGenerating,
       setGenerating,
-      getLabelDraft,
-      setLabelDraft,
     ],
   );
 

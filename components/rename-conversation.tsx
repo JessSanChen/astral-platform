@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  * Renaming, from either of the two places a name appears.
  *
  * The new name is applied to the client store as soon as it is typed, so the
- * heading, the list and the scanner panel agree immediately rather than one of
+ * heading, the list and the side panel agree immediately rather than one of
  * them catching up after a round trip. All three read that same store, so
  * there is only one name to keep in step.
  */

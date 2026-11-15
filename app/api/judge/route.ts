@@ -26,6 +26,10 @@ export async function GET() {
   const cu = await getCurrentUser();
   if (!cu) return Response.json({ message: "Unauthorized" }, { status: 401 });
   // The list names every conversation the account has run a scanner on.
+  // Organizers only. Showing participants what a scanner made of their
+  // conversation was dropped with specification v1.1, and leaving the
+  // endpoint open would be offering it by another door.
+  if (!cu.isAdmin) return Response.json({ message: "Not found." }, { status: 404 });
   const blocked = whyBlocked(cu);
   if (blocked) return Response.json(blocked, { status: 403 });
   return Response.json({ runs: await listJudgeRuns(cu.user.id) });
@@ -34,6 +38,10 @@ export async function GET() {
 export async function POST(req: Request) {
   const cu = await getCurrentUser();
   if (!cu) return Response.json({ message: "Please sign in again." }, { status: 401 });
+  // Organizers only. Showing participants what a scanner made of their
+  // conversation was dropped with specification v1.1, and leaving the
+  // endpoint open would be offering it by another door.
+  if (!cu.isAdmin) return Response.json({ message: "Not found." }, { status: 404 });
   const blocked = whyBlocked(cu);
   if (blocked) return Response.json({ message: blocked.message }, { status: 403 });
 
