@@ -402,8 +402,9 @@ test.describe("independent review", () => {
     const relatedEpisode = await episodeOf(related);
 
     const auditor = await newReviewer(browser, "Abe Auditor");
-    // A pair is offered only once both ends may be shown.
-    await release(sourceEpisode);
+    // A pair is offered only while both ends may be shown: with one of
+    // them held back by an organizer, there is nothing to compare.
+    await sql`update episode set assignment_state = 'held' where id = ${relatedEpisode}`;
     await auditor.page.goto("/review");
     await auditor.page.getByRole("button", { name: "Compare two versions" }).click();
     await expect(auditor.page.getByText(/There is no pair for you to compare right now/)).toBeVisible();
