@@ -86,7 +86,7 @@ export default async function Participants({
               <Th right>Reviews</Th>
               <Th right>Comparisons</Th>
               <Th right>Skips</Th>
-              <Th right>Prize entries</Th>
+              <Th right>Nominations</Th>
               <Th right>Tokens</Th>
               <Th>Status</Th>
               <Th />
@@ -123,7 +123,7 @@ export default async function Participants({
                   <Td right strong={by === "reviews"}>{row.reviews}</Td>
                   <Td right>{row.audits}</Td>
                   <Td right>{row.skips}</Td>
-                  <Td right>{row.prize_entries}</Td>
+                  <Td right>{row.nominations}</Td>
                   <Td right>{Number(row.tokens).toLocaleString()}</Td>
                   <td className="px-3 py-2">
                     <span

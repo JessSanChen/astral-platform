@@ -45,9 +45,6 @@ export const RELATED_VERSION_INSTRUCTION =
 
 export const LIMITS = { title: 80, goal: 500, intendedDifference: 400 } as const;
 
-/** How many of their own submissions someone may put forward for a prize. */
-export const MAX_PRIZE_ENTRIES = 3;
-
 /** Neutral names for a folder's sessions in a reviewer's view: A, B, C... */
 export function sessionLetter(order: number) {
   const n = Math.max(1, order);

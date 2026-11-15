@@ -36,13 +36,16 @@ test.describe("the front page", () => {
     await expect(page.getByRole("table").getByRole("row")).not.toHaveCount(1);
     const main = page.getByRole("main");
     await expect(main.getByText(/collaborat/i)).toHaveCount(0);
-    await expect(main.getByText(/nominat/i)).toHaveCount(0);
+    // Prizes are by nomination, in the two tracks that exist.
+    await expect(main.getByText(/decided by nomination/i).first()).toBeVisible();
+    const tracks = page.getByRole("table");
+    await expect(tracks.getByRole("row").filter({ hasText: "Adversarial use cases" })).toBeVisible();
+    await expect(tracks.getByRole("row").filter({ hasText: "Dual-use use cases" })).toBeVisible();
     await expect(main.getByText(/scanner/i)).toHaveCount(0);
 
-    // The way to the prizes page is in the menu, and the old address still works.
-    await page.goto("/nominate");
-    await expect(page).toHaveURL(/\/prizes$/);
-    await expect(page.getByRole("heading", { name: "Prizes", level: 1 })).toBeVisible();
+    // The way to nominate is in the menu.
+    await page.getByRole("link", { name: "Submit", exact: true }).click();
+    await expect(page).toHaveURL(/\/nominate$/);
     await context.close();
   });
 

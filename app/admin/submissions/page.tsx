@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Trophy } from "lucide-react";
 import { requireAdmin } from "@/lib/gate";
 import { reviewerPool, submissionsList, type SubmissionState } from "@/lib/admin";
 import {
@@ -159,12 +158,6 @@ function SubmissionCard({ episode: ep, target }: { episode: Submission; target: 
             </p>
           ))}
         </div>
-        {ep.prizeEntryAt && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
-            <Trophy className="h-3 w-3" />
-            Prize entry
-          </span>
-        )}
         <span
           className={cn(
             "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ChevronDown, Trophy } from "lucide-react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
 import { requireAdmin } from "@/lib/gate";
 import { participantDetail, participantHistory } from "@/lib/admin";
+import { trackLabel } from "@/lib/nominations";
 import {
   ACTIVITY_TEMPLATES,
   comparisonIntentLabel,
@@ -81,7 +82,7 @@ export default async function ParticipantDetail({
     participantHistory(userId),
   ]);
   if (!detail.account) notFound();
-  const { account, profile, reviews, audits, skips } = detail;
+  const { account, profile, reviews, audits, skips, nominations } = detail;
 
   // Something opened and never typed into is not work.
   const work = history.filter((e) => e.messageCount > 0);
@@ -201,6 +202,29 @@ export default async function ParticipantDetail({
         </Panel>
       )}
 
+      {nominations.length > 0 && (
+        <Panel
+          title={`Nominations (${nominations.length})`}
+          description="What they wrote up for a prize, as it stands now."
+        >
+          <ul className="divide-y divide-border">
+            {nominations.map((n) => (
+              <li key={n.id} className="space-y-1 py-2.5 text-sm">
+                <p>
+                  <span className="font-medium">{n.headline}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {" "}
+                    · {trackLabel(n.track)} · updated {when(n.updatedAt)}
+                  </span>
+                </p>
+                <p className="whitespace-pre-wrap text-muted-foreground">{n.details}</p>
+                {n.slidesUrl && <p className="break-all text-xs">Slides: {n.slidesUrl}</p>}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
       {skips.length > 0 && (
         <Panel
           title={`Items they did not finish (${skips.length})`}
@@ -309,17 +333,9 @@ function IntakeAnswers({ profile, completed }: { profile: Detail["profile"]; com
             ? domains.join("; ")
             : labelOf(BACKGROUND_RESPONSES, a.backgroundFlags[0] ?? "")}
         </Row>
-        <Row term="Primary area">
-          {a.primaryDomain === "no_single"
-            ? "No single primary area"
-            : a.primaryDomain
-              ? domainLabel(a.primaryDomain)
-              : ""}
-        </Row>
-        <Row term="Specialization">{a.specializationText}</Row>
         <Row term="Also works on">{a.focusTags.map((t) => labelOf(FOCUS_TAGS, t)).join("; ")}</Row>
         <Row term="Work personally performed">
-          {a.workResponse === "prefer_not_to_say" ? "Prefer not to say" : work.join("\n")}
+          {work.join("\n")}
         </Row>
         <Row term="Familiarity for reviewing (self-rated; used for routing)">
           {rated.length > 0 ? rated.join("\n") : "Nothing rated: general items only"}
@@ -363,12 +379,6 @@ function Episode({ episode: e }: { episode: History[number] }) {
             {when(e.createdAt)}
           </p>
         </div>
-        {e.prizeEntryAt && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
-            <Trophy className="h-3 w-3" />
-            Prize entry
-          </span>
-        )}
         <span
           className={cn(
             "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
@@ -482,7 +492,6 @@ function Episode({ episode: e }: { episode: History[number] }) {
                   {e.relatedVersions.map((l) => `“${l.targetTitle}”`).join(", ")}
                 </Row>
               )}
-              <Row term="Entered for a prize">{when(e.prizeEntryAt)}</Row>
             </dl>
           </div>
 

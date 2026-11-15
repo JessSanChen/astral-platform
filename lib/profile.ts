@@ -1,6 +1,7 @@
-import { count, eq, sql } from "drizzle-orm";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { episode, profile, reviewResponse, user as userTable } from "@/db/schema";
+import { episode, nomination, profile, reviewResponse, user as userTable } from "@/db/schema";
+import { TRACK_VALUES } from "@/lib/nominations";
 
 /**
  * Everything a participant's own profile page shows.
@@ -9,7 +10,7 @@ import { episode, profile, reviewResponse, user as userTable } from "@/db/schema
  * mid-event between chats and should not feel like a detour.
  */
 export async function getMyProfile(userId: string) {
-  const [[account], [details], [work], [reviews]] = await Promise.all([
+  const [[account], [details], [work], [reviews], nominations] = await Promise.all([
     db
       .select({
         name: userTable.name,
@@ -27,7 +28,6 @@ export async function getMyProfile(userId: string) {
       .select({
         started: count(),
         submitted: sql<number>`count(*) filter (where ${episode.status} = 'submitted')`,
-        prizeEntries: sql<number>`count(*) filter (where ${episode.prizeEntryAt} is not null)`,
       })
       .from(episode)
       .where(eq(episode.userId, userId)),
@@ -36,6 +36,11 @@ export async function getMyProfile(userId: string) {
       .select({ done: count() })
       .from(reviewResponse)
       .where(eq(reviewResponse.reviewerId, userId)),
+    // Only the tracks that still exist.
+    db
+      .select({ track: nomination.track })
+      .from(nomination)
+      .where(and(eq(nomination.userId, userId), inArray(nomination.track, TRACK_VALUES))),
   ]);
 
   return {
@@ -44,7 +49,7 @@ export async function getMyProfile(userId: string) {
     counts: {
       started: Number(work?.started ?? 0),
       submitted: Number(work?.submitted ?? 0),
-      prizeEntries: Number(work?.prizeEntries ?? 0),
+      nominations: nominations.map((n) => n.track),
       reviews: Number(reviews?.done ?? 0),
     },
   };

@@ -1,16 +1,19 @@
 import { expect, test } from "@playwright/test";
 import { SETTINGS_TTL_MS } from "@/lib/cache";
 import { formatEventDateTime, fromEventInputValue } from "@/lib/time";
-import { episodeOf, passInstructionCheck, resetSettings, sql } from "./db";
+import { episodeOf, passInstructionCheck, release, resetSettings, sql } from "./db";
 import {
   choose,
+  fillReview,
   getReview,
   newOrganizer,
   newParticipant,
   newReviewer,
+  reviewForm,
   say,
   signIn,
   startConversation,
+  submitReview,
   submitWork,
   submittedConversation,
 } from "./helpers";
@@ -255,6 +258,8 @@ test.describe("the organizer console", () => {
   test("publishing a policy version makes reviewers read the instruction again", async ({
     browser,
   }) => {
+    const author = await newParticipant(browser, "Nora Norules", "author");
+    const { episodeId } = await submittedConversation(author.page, "Reviewed without a rule?");
     const reviewer = await newParticipant(browser, "Vera Versioned", "reviewer");
     await passInstructionCheck(reviewer.email);
     await reviewer.page.goto("/review");
@@ -272,14 +277,15 @@ test.describe("the organizer console", () => {
       const rules = page.getByLabel("Rules reviewers can cite");
       await body.fill(`# A newer policy\n\n${marker}`);
 
-      // A rule set under which nobody could answer Yes is refused.
+      // Rules under which nobody could answer Yes are refused.
       await rules.fill("N1 | Ordinary education | no");
       await page.getByRole("button", { name: `Publish as version ${next}` }).click();
       await expect(page.getByRole("status")).toContainText(/yes/i);
 
-      await rules.fill("P1 | Asks for a listed method | yes\nP2 | Ordinary education | no");
+      // No rules at all is fine: the text is the policy.
+      await rules.fill("");
       await page.getByRole("button", { name: `Publish as version ${next}` }).click();
-      await expect(page.getByRole("list", { name: "Rules as read" })).toContainText("P1: Asks for a listed method");
+      await expect(page.getByText(/No rules: reviewers will not be asked/)).toBeVisible();
       await page.getByRole("button", { name: `Yes, publish version ${next}` }).click();
       await expect(page.getByText(`Version ${next} is in force`)).toBeVisible();
 
@@ -289,12 +295,31 @@ test.describe("the organizer console", () => {
       await expect(reviewer.page.getByText(marker)).toBeVisible();
       await expect(reviewer.page.getByRole("button", { name: "Get a review" })).toHaveCount(0);
       await expect(reviewer.page.getByRole("button", { name: "Check my answers" })).toBeVisible();
+
+      // Under a policy with no rules, the form does not ask for a criterion.
+      await passInstructionCheck(reviewer.email);
+      await sql`update episode set assignment_state = 'held' where assignment_state = 'ready'`;
+      await release(episodeId);
+      const assignmentId = await getReview(reviewer.page);
+      await expect(reviewForm(reviewer.page).getByText("Which criterion supports your answer?")).toHaveCount(0);
+      await fillReview(reviewer.page, {
+        verdict: "No",
+        basis: null,
+        confidence: "High",
+        turns: [],
+        rationale: "Nothing in it of the kind the policy describes.",
+      });
+      await submitReview(reviewer.page);
+      const [stored] = await sql`
+        select policy_basis, policy_version, verdict from review_response
+        where assignment_id = ${assignmentId}
+      `;
+      expect(stored).toMatchObject({ policy_basis: "not_asked", policy_version: next, verdict: "no" });
     } finally {
       // Put the policy back behind the app's back, and wait for its copy to expire.
       await sql`delete from review_policy where version > ${before}`;
       await page.waitForTimeout(SETTINGS_TTL_MS + 500);
-      await reviewer.context.close();
-      await organizer.context.close();
+      for (const person of [author, reviewer, organizer]) await person.context.close();
     }
   });
 
@@ -335,7 +360,7 @@ test.describe("the organizer console", () => {
     const instant = fromEventInputValue(typed)!;
 
     try {
-      await page.goto("/admin/prizes");
+      await page.goto("/admin/nominations");
       const field = page.getByLabel(/Closing time/);
       await field.fill(typed);
       await page.getByRole("button", { name: "Set closing time" }).click();
@@ -357,10 +382,10 @@ test.describe("the organizer console", () => {
       await expect(page.getByLabel(/Closing time/)).toHaveValue(typed);
 
       // Participants are told the same time, with its zone.
-      await page.goto("/prizes");
-      await expect(page.getByText(`Entries close at ${formatEventDateTime(instant)}.`)).toBeVisible();
+      await page.goto("/nominate");
+      await expect(page.getByText(`Nominations close at ${formatEventDateTime(instant)}`)).toBeVisible();
     } finally {
-      await page.goto("/admin/prizes");
+      await page.goto("/admin/nominations");
       await page.getByLabel(/Closing time/).fill("");
       await page.getByRole("button", { name: "Clear closing time" }).click();
       await expect(page.getByText("No closing time is set.")).toBeVisible();
@@ -371,7 +396,7 @@ test.describe("the organizer console", () => {
 
   test("a closing time that has already passed is refused", async ({ browser }) => {
     const { page, context } = await newOrganizer(browser, "Yesterday Yara");
-    await page.goto("/admin/prizes");
+    await page.goto("/admin/nominations");
     await page.getByLabel(/Closing time/).fill("2020-01-01T15:00");
     await page.getByRole("button", { name: "Set closing time" }).click();
 
@@ -380,8 +405,8 @@ test.describe("the organizer console", () => {
     expect(row.nominations_close_at).toBeNull();
 
     // And participants are not shut out.
-    await page.goto("/prizes");
-    await expect(page.getByText("Prize entries are closed")).toHaveCount(0);
+    await page.goto("/nominate");
+    await expect(page.getByText("Nominations are closed.")).toHaveCount(0);
     await context.close();
   });
 

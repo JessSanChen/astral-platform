@@ -7,6 +7,7 @@ import {
   episode,
   episodeGoalRevision,
   message,
+  nomination,
   pairAudit,
   profile,
   relatedVersion,
@@ -19,6 +20,7 @@ import {
 } from "@/db/schema";
 import { sessionLetter } from "@/lib/episode-options";
 import { DOMAINS, type IntakeDraft } from "@/lib/intake";
+import { TRACK_VALUES } from "@/lib/nominations";
 import { getEventSettings } from "@/lib/openrouter";
 import { getPolicy } from "@/lib/policy";
 import { panelOutcome } from "@/lib/review-form";
@@ -34,7 +36,7 @@ export async function overview() {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const [policy, settings] = await Promise.all([getPolicy(), getEventSettings()]);
 
-  const [people, episodes, sessions, views, assignments, audits, spend, prizeEntries] =
+  const [people, episodes, sessions, views, assignments, audits, spend, nominations] =
     await Promise.all([
       db
         .select({
@@ -97,10 +99,12 @@ export async function overview() {
         })
         .from(usageEvent)
         .where(gte(usageEvent.createdAt, since)),
+      // Entries received, by track. Only the tracks that still exist.
       db
-        .select({ n: count() })
-        .from(episode)
-        .where(sql`${episode.prizeEntryAt} is not null`),
+        .select({ track: nomination.track, n: count() })
+        .from(nomination)
+        .where(inArray(nomination.track, TRACK_VALUES))
+        .groupBy(nomination.track),
     ]);
 
   const [viewRow] = views as unknown as { total: number; started: number; full: number }[];
@@ -129,7 +133,7 @@ export async function overview() {
     activeAssignments: assignments[0]?.active ?? 0,
     expiredAssignments: assignments[0]?.expired ?? 0,
     pairAudits: audits[0]?.n ?? 0,
-    prizeEntries: prizeEntries[0]?.n ?? 0,
+    nominations,
     spend: spend[0] ?? { tokens: 0, cost: 0 },
   };
 }
@@ -149,7 +153,7 @@ export type ParticipantTableRow = {
   reviews: number;
   audits: number;
   skips: number;
-  prize_entries: number;
+  nominations: number;
   tokens: number;
   cost: number;
 };
@@ -174,7 +178,7 @@ export async function participantTable() {
       u.daily_token_budget,
       coalesce(e.submitted, 0)::int      as submitted,
       coalesce(e.drafts, 0)::int         as drafts,
-      coalesce(e.prize_entries, 0)::int  as prize_entries,
+      coalesce(n.n, 0)::int              as nominations,
       coalesce(a.reviews, 0)::int        as reviews,
       coalesce(a.audits, 0)::int         as audits,
       coalesce(a.skips, 0)::int          as skips,
@@ -192,11 +196,15 @@ export async function participantTable() {
                  join message m on m.conversation_id = c.id
                  where c.episode_id = ep.id
                )
-             ) as drafts,
-             count(*) filter (where ep.prize_entry_at is not null) as prize_entries
+             ) as drafts
       from episode ep
       group by ep.user_id
     ) e on e.user_id = u.id
+    left join (
+      select user_id, count(*) as n from nomination
+      where track in (${sql.join(TRACK_VALUES.map((t) => sql`${t}`), sql`, `)})
+      group by user_id
+    ) n on n.user_id = u.id
     left join (
       select reviewer_id,
              count(*) filter (where state = 'completed' and purpose = 'primary') as reviews,
@@ -220,7 +228,7 @@ export async function participantTable() {
  * skipped and why. Their own work comes from participantHistory.
  */
 export async function participantDetail(userId: string) {
-  const [[account], [theirProfile], reviews, audits, skips] = await Promise.all([
+  const [[account], [theirProfile], reviews, audits, skips, nominations] = await Promise.all([
     db.select().from(user).where(eq(user.id, userId)),
     db.select().from(profile).where(eq(profile.userId, userId)),
     db
@@ -284,9 +292,20 @@ export async function participantDetail(userId: string) {
         ),
       )
       .orderBy(desc(reviewAssignment.finishedAt)),
+    db
+      .select({
+        id: nomination.id,
+        track: nomination.track,
+        headline: nomination.headline,
+        details: nomination.details,
+        slidesUrl: nomination.slidesUrl,
+        updatedAt: nomination.updatedAt,
+      })
+      .from(nomination)
+      .where(and(eq(nomination.userId, userId), inArray(nomination.track, TRACK_VALUES))),
   ]);
 
-  return { account, profile: theirProfile, reviews, audits, skips };
+  return { account, profile: theirProfile, reviews, audits, skips, nominations };
 }
 
 /**
@@ -455,18 +474,6 @@ export async function participantHistory(userId: string) {
   });
 }
 
-/** Whether prize entries can still be made or taken back, and until when. */
-export async function prizeEntryStatus() {
-  const settings = await getEventSettings();
-  const pastDeadline =
-    settings.nominationsCloseAt != null && settings.nominationsCloseAt.getTime() <= Date.now();
-  return {
-    locked: settings.nominationsLocked || pastDeadline,
-    closedByOrganizer: settings.nominationsLocked,
-    closeAt: settings.nominationsCloseAt,
-  };
-}
-
 export type SubmissionState = "pending" | "ready" | "held" | "withdrawn";
 
 type ViewCoverageRow = {
@@ -502,7 +509,6 @@ export async function submissionsList(state?: SubmissionState) {
       reviewLevel: episode.reviewLevel,
       eligibleDomains: episode.eligibleDomains,
       assignmentState: episode.assignmentState,
-      prizeEntryAt: episode.prizeEntryAt,
       authorId: user.id,
       authorName: user.name,
       sessions: sql<number>`(
@@ -643,61 +649,25 @@ export async function reviewerPool() {
   };
 }
 
-/** Work put forward for a prize, grouped by who entered it, earliest first. */
-export async function prizeEntries() {
-  const settings = await getEventSettings();
-  const rows = await db
+/** Nominations for the organizers to read, newest first within a track. */
+export async function nominationsByTrack() {
+  return db
     .select({
-      id: episode.id,
-      title: episode.title,
-      isFolder: episode.isFolder,
-      modelId: episode.modelId,
-      taskProvenance: episode.taskProvenance,
-      creationMethod: episode.creationMethod,
-      sourceFamilyId: episode.sourceFamilyId,
-      assignmentState: episode.assignmentState,
-      reviewLevel: episode.reviewLevel,
-      prizeEntryAt: episode.prizeEntryAt,
-      submittedAt: episode.submittedAt,
-      authorId: user.id,
-      authorName: user.name,
-      authorEmail: user.email,
-      // One list per view, each the verdicts that view has had.
-      panels: sql<string[][] | null>`(
-        select jsonb_agg(coalesce(
-          (select jsonb_agg(r.verdict order by r.submitted_at)
-             from review_response r where r.view_id = v.id), '[]'::jsonb))
-        from review_view v where v.episode_id = ${outer(episode.id)}
-      )`,
+      id: nomination.id,
+      track: nomination.track,
+      headline: nomination.headline,
+      details: nomination.details,
+      slidesUrl: nomination.slidesUrl,
+      collaborators: nomination.collaborators,
+      updatedAt: nomination.updatedAt,
+      submissionCount: nomination.submissionCount,
+      name: user.name,
+      email: user.email,
     })
-    .from(episode)
-    .innerJoin(user, eq(user.id, episode.userId))
-    .where(sql`${episode.prizeEntryAt} is not null`)
-    .orderBy(asc(user.name), asc(episode.prizeEntryAt));
-
-  const byAuthor = new Map<
-    string,
-    { authorId: string; authorName: string; authorEmail: string; entries: Entry[] }
-  >();
-  type Entry = Omit<(typeof rows)[number], "panels"> & { outcomes: string[]; reviews: number };
-  for (const { panels, ...row } of rows) {
-    const lists = panels ?? [];
-    const entry: Entry = {
-      ...row,
-      outcomes: lists.map((verdicts) => panelOutcome(verdicts, settings.reviewsPerView)),
-      reviews: lists.reduce((sum, verdicts) => sum + verdicts.length, 0),
-    };
-    const group = byAuthor.get(row.authorId);
-    if (group) group.entries.push(entry);
-    else
-      byAuthor.set(row.authorId, {
-        authorId: row.authorId,
-        authorName: row.authorName,
-        authorEmail: row.authorEmail,
-        entries: [entry],
-      });
-  }
-  return [...byAuthor.values()];
+    .from(nomination)
+    .innerJoin(user, eq(user.id, nomination.userId))
+    .where(inArray(nomination.track, TRACK_VALUES))
+    .orderBy(nomination.track, desc(nomination.updatedAt));
 }
 
 /** Every published version of the review policy, newest first. */

@@ -17,11 +17,14 @@ All of it is on the branch `claude/biosecurity-transcript-platform-tgu67r`.
 These are the places where I chose something the specification did not
 settle, or went against it. Each is a small change to reverse.
 
-1. **The reference policy is a placeholder until you publish one.**
-   The specification says not to invent the rules (2.C, 9.1), so none are
-   invented. Reviewing does not open until an organizer publishes a policy
-   from **Organize → Policy**: the text reviewers read, and the list of
-   rules they can cite. See "Before the event" below.
+1. **Reviewing starts under a placeholder policy.** The specification
+   says the real policy has to be supplied (2.C, 9.1). So that reviewing
+   does not wait on it, migration 0008 publishes a short placeholder as
+   version 1, at the organizer's request. Replace it from **Organize →
+   Policy** when the real text is ready; every review records the version
+   it was made under, so reviews made under the placeholder can be told
+   apart. The list of numbered rules is optional: with none, the review
+   form does not ask "Which criterion supports your answer?" (C05).
 
 2. **New submissions wait for an organizer.** A submission starts as
    *Pending* with no review level, and nobody is offered it until someone
@@ -71,8 +74,8 @@ In this order:
 
 1. Run the migration, then deploy (see `docs/DEPLOY.md`). The migration
    must go first.
-2. **Organize → Policy**: paste the reference policy and its rules, one
-   per line as `ID | label | answers`. At least one rule must support Yes.
+2. **Organize → Policy**: replace the placeholder with the real policy
+   text when you have it. Rules are optional.
 3. **Organize → Terms**: the real study information, if it has changed.
 4. **Organize → Settings**: reviews per view, whether submissions are
    released automatically, and whether related versions are open yet.
@@ -105,17 +108,17 @@ sessions. Existing conversations each became a one-session episode.
 | B3 related version: intent and intended difference | Built | `app/chat/related/[episodeId]`, `components/related-version-form.tsx` |
 | R. Instruction check, four questions | Built | `components/instruction-check.tsx`, `lib/review-form.ts` |
 | C. Independent review (C04 to C13) | Built | `components/review-workspace.tsx`, `lib/review-form.ts` |
-| C05 policy basis from a versioned policy | Built, rules are yours to supply | `lib/policy.ts`, Organize → Policy |
+| C05 policy basis from a versioned policy | Changed: asked only when the policy lists rules, which is optional | `lib/policy.ts`, Organize → Policy; stored as `not_asked` otherwise |
 | C-S. Skip with a reason | Built | `components/review-skip.tsx` |
 | D. Comparison audit (D01 to D06) | Built | `components/pair-audit-workspace.tsx` |
-| N. Prize entry, up to three | Built | `/prizes`, and a tick box beside submitted work |
+| N. Prize entry, up to three | Not built, at the organizer's request: prizes are entered by written nomination, as before v1.1 | `/nominate` (the Submit page), `lib/nominations.ts` |
 | Form versions stored with every answer | Built | `intake_version`, `form_version`, `policy_version` columns |
 | Review drafts saved for recovery | Changed | kept in the reviewer's browser, not on the server; survives reload and pause, not a change of laptop |
 
 Stored values are the specification's own identifiers (`g0` to `g3`, `a0`
 to `a3`, `F0` to `F3`, `yes` / `no` / `indeterminate`, and so on).
 
-#### Intake form, as revised (form version A-1.2)
+#### Intake form, as revised (form version A-1.3)
 
 After trying the form, the organizer asked for it to be simpler. What
 differs from the specification's form A:
@@ -124,10 +127,12 @@ differs from the specification's form A:
 | --- | --- | --- |
 | A02 asks one of three answers first, then shows the areas | The areas are always shown, with "No specialized background" and "Prefer not to say" in the same list; either of those ticked with an area is refused | None: the stored `backgroundResponse` is worked out from what was ticked |
 | A05 is a separate section with its own three-way answer | What a person could assess is asked directly under the areas they ticked, for up to three | `familiarity` is stored as before; `familiarityResponse` is worked out (rated, nothing rated, or prefer not to say). Someone who ticks areas and rates none gets general items only |
-| A03 role is optional | Required, and asked first; "Prefer not to say" is one of the choices | No missing roles |
-| A04 has eight kinds of work | Five: the rows for writing, teaching and "other" are gone | Those three are not collected |
+| A03 role is optional | Required, and asked first, with no "Prefer not to say" | No missing roles |
+| A02 primary area and narrower specialization | Removed | Not collected |
+| A04 has eight kinds of work, a "prefer not to say" for the whole question and one per row | Five rows, each answered: the rows for writing, teaching and "other" are gone, and so is "prefer not to say" | Those three are not collected; no declined rows |
+| A07 use of AI assistants is optional | Required, with no "Prefer not to say" | No missing answers |
 | A06 biosafety and biosecurity experience | Removed | Not collected. Routing never used it |
-| Focus tags: AI safety; biosecurity and dual-use assessment; biosafety | AI safety; Biosecurity | One tag where there were two |
+| Focus tags: AI safety; biosecurity and dual-use assessment; biosafety; optional | AI safety; Biosecurity; Neither. One of them has to be ticked | One tag where there were two; "Neither" is stored as no tags |
 | Group heading "Related technical fields" | "Other technical fields" | Label only |
 
 Years of experience in each subject are not asked, in the specification
@@ -205,13 +210,19 @@ is what routing uses.
 
 ### 8. Prizes
 
+The organizer chose to keep the nomination system the platform had before
+v1.1, in place of the specification's mark on submitted work. A prize
+entry is a written finding, not a conversation.
+
 | Item | Status | Where |
 | --- | --- | --- |
-| Four categories, participant-facing summary | Built | How it works |
-| Up to three authored entries; a piece and its related versions count once | Built | `lib/episodes.ts` (`setPrizeEntry`) |
-| Entries can be closed by hand or at a set time | Built | Organize → Prize entries |
-| Amounts, deadlines, weights, tie rules | Yours to announce | the page says the organizers will announce them |
-| Scoring by a separate panel, random sample of five reviews | Not built | judging happens outside the platform, from the export |
+| Four award categories with scoring weights | Not built | the briefing lists the two nominated tracks and says the organizers will announce amounts, deadlines and any other awards |
+| Up to three authored entries marked on submitted work | Not built; replaced | one written entry per track on the Submit page: a headline, the finding in detail, an optional link to slides |
+| Entries can be closed by hand or at a set time | Built (as before) | Organize → Nominations |
+| Scoring by a separate panel | Not built | judging happens outside the platform, from the export |
+
+The tracks are the two that existed before: "Adversarial use cases" and
+"Dual-use use cases". They are one list in `lib/nominations.ts`.
 
 ### 9. Acceptance tests
 
@@ -252,7 +263,7 @@ Each stage is one commit on the branch, in this order:
 2. intake (form A)
 3. writing: provenance, folders, append-only chat, submission, related versions
 4. reviewing: policy, instruction check, form C, skip, routing; comparison audit
-5. prizes page and the How it works text
+5. prizes page and the How it works text (the prizes page was later replaced by the earlier nominations)
 6. organizer console and export
 7. tests and documents
 

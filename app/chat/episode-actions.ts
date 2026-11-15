@@ -6,7 +6,6 @@ import {
   addSession,
   createRelatedVersion,
   saveEpisodeDetails,
-  setPrizeEntry,
   submitEpisode,
 } from "@/lib/episodes";
 import {
@@ -104,15 +103,4 @@ export async function createRelatedAction(
     });
     return { id: session.id, episodeId: episode.id };
   });
-}
-
-export async function setPrizeEntryAction(episodeId: string, entered: boolean) {
-  const settings = await getEventSettings();
-  if (settings.nominationsLocked) {
-    return { ok: false as const, message: "Prize entries are closed." };
-  }
-  if (settings.nominationsCloseAt && settings.nominationsCloseAt.getTime() <= Date.now()) {
-    return { ok: false as const, message: "Prize entries are closed." };
-  }
-  return run((userId) => setPrizeEntry(episodeId, userId, entered));
 }

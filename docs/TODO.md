@@ -18,15 +18,20 @@ The first section is the only one that actually blocks the event.
 
 These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
 
-- **The reference policy and its rules.** Nothing is invented; reviewing
-  is closed until you publish one from Organize → Policy.
+- **The reference policy.** Reviewing runs under a placeholder until you
+  replace it from Organize → Policy.
 - **Who releases submissions during the event.** Each one waits as
   Pending until someone sets its review level on Organize → Submissions,
   unless you turn on automatic release in Settings.
 - **Clipboard logging.** The specification says not to; you asked for it
   earlier. It is still on. Your call.
-- **Prize amounts, deadline and tie rules.** The briefing says the
-  organizers will announce them.
+- **Prizes.** Nominations are back, with the two tracks from before
+  (adversarial, dual use). Amounts, deadlines and any other awards are
+  not stated anywhere; the briefing says the organizers will announce
+  them. The tracks are one list in `lib/nominations.ts`.
+- **Self-labels and "real or invented".** Authors no longer label their
+  own conversations, and are asked only whether the task is real or
+  invented. Both were raised as questions and left as they are.
 - **Safe examples for the g and a scales.** The form shows the anchors
   from the specification with no examples.
 

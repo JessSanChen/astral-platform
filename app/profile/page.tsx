@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileText, ListChecks, Trophy, UserRound } from "lucide-react";
 import { requireOnboarded } from "@/lib/gate";
+import { trackLabel } from "@/lib/nominations";
 import { getMyProfile } from "@/lib/profile";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { ProfileForm } from "@/components/profile-form";
@@ -72,9 +73,13 @@ export default async function ProfilePage() {
         />
         <Stat
           icon={<Trophy className="h-5 w-5" />}
-          value={counts.prizeEntries}
-          label="entered for a prize"
-          href="/chat"
+          value={counts.nominations.length}
+          label={
+            counts.nominations.length
+              ? counts.nominations.map((t) => trackLabel(t)).join(", ")
+              : "nominations entered"
+          }
+          href="/nominate"
         />
       </section>
 

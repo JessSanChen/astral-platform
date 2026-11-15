@@ -136,7 +136,7 @@ export async function setChatPaused(paused: boolean) {
   settingsChanged();
 }
 
-/** Closes prize entries now, or reopens them. */
+/** Closes nominations now, or reopens them. */
 export async function setNominationsLocked(locked: boolean) {
   const { user: me } = await requireAdmin();
   await db
@@ -144,17 +144,16 @@ export async function setNominationsLocked(locked: boolean) {
     .set({ nominationsLocked: locked, updatedAt: new Date() })
     .where(eq(eventSettings.id, 1));
   await recordAudit({
-    action: locked ? "prize_entries_closed" : "prize_entries_reopened",
+    action: locked ? "nominations_closed" : "nominations_reopened",
     actor: me,
   });
   settingsChanged();
 }
 
 /**
- * Sets, or with null clears, the time prize entries close. (The setting
- * keeps its older name, from when entries were called nominations.)
+ * Sets, or with null clears, the time nominations close.
  *
- * A time that has already passed is refused. It would close entries the
+ * A time that has already passed is refused. It would close nominations the
  * moment it was saved, which is never what setting a deadline is for: the
  * usual cause is yesterday's date left in the picker, or 03:00 typed for
  * three in the afternoon. Closing now has its own button.
@@ -169,7 +168,7 @@ export async function setNominationsCloseAt(iso: string | null) {
     if (when.getTime() <= Date.now()) {
       return {
         message:
-          "That time has already passed, so prize entries would close at once. Nothing was changed. To close them now, use the button.",
+          "That time has already passed, so nominations would close at once. Nothing was changed. To close them now, use the button.",
       };
     }
   }
@@ -178,7 +177,7 @@ export async function setNominationsCloseAt(iso: string | null) {
     .set({ nominationsCloseAt: iso ? new Date(iso) : null, updatedAt: new Date() })
     .where(eq(eventSettings.id, 1));
   await recordAudit({
-    action: "prize_entries_deadline",
+    action: "nominations_deadline",
     actor: me,
     detail: iso ? `Now ${new Date(iso).toISOString()}.` : "No closing time.",
   });
@@ -615,13 +614,14 @@ function readPolicyDraft(body: string, rulesText: string) {
   if (text.length > 60_000) return { message: "That is too long to publish as one policy." };
   const { rules, problem } = parseRules(String(rulesText ?? ""));
   if (problem) return { message: problem };
-  // "No qualifying criterion" only goes with No and "Policy gap" only with
-  // Cannot determine, so without a rule of the policy's own that supports
-  // Yes, a reviewer answering Yes would have nothing to cite.
-  if (!rules.some((r) => r.verdicts.includes("yes"))) {
+  // Rules are optional: with none, reviewers are not asked for a criterion.
+  // With some, one of them has to support Yes. "No qualifying criterion"
+  // only goes with No and "Policy gap" only with Cannot determine, so a
+  // reviewer answering Yes would otherwise have nothing to cite.
+  if (rules.length > 0 && !rules.some((r) => r.verdicts.includes("yes"))) {
     return {
       message:
-        "Add at least one rule whose answers include yes. Without one, a reviewer who answers Yes has no criterion to cite.",
+        "Add a rule whose answers include yes, or remove the rules altogether. As it stands, a reviewer who answers Yes has no criterion to cite.",
     };
   }
   return { text, rules };

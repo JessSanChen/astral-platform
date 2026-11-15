@@ -1,5 +1,4 @@
 import { outer } from "@/lib/sql";
-import { prizeEntryStatus } from "@/lib/prizes";
 import { notFound } from "next/navigation";
 import type { UIMessage } from "ai";
 import { and, eq, sql } from "drizzle-orm";
@@ -34,21 +33,12 @@ export default async function ConversationPage({
 
   // Fetched together. These do not depend on each other, and running them in
   // sequence costs one network round trip each on every navigation.
-  const [rows, settings, [ep], sessions, links, [entries]] = await Promise.all([
+  const [rows, settings, [ep], sessions, links] = await Promise.all([
     getVisibleMessages(conversationId),
     getEventSettings(),
     db.select().from(episodeTable).where(eq(episodeTable.id, convo.episodeId)),
     listSessions(convo.episodeId),
     relatedLinks(convo.episodeId),
-    // How many separate pieces of work this person has entered for a prize.
-    db
-      .select({
-        n: sql<number>`count(distinct ${episodeTable.sourceFamilyId})::int`,
-      })
-      .from(episodeTable)
-      .where(
-        and(eq(episodeTable.userId, user.id), sql`${episodeTable.prizeEntryAt} is not null`),
-      ),
   ]);
   if (!ep) notFound();
 
@@ -114,7 +104,6 @@ export default async function ConversationPage({
     };
   };
 
-  const { closed: prizeClosed } = await prizeEntryStatus();
 
   return (
     <ConversationWorkspace
@@ -134,9 +123,6 @@ export default async function ConversationPage({
         provenance: ep.taskProvenance,
         goal: ep.goalText ?? "",
         related: ep.creationMethod === "related_live",
-        prizeEntered: ep.prizeEntryAt != null,
-        prizeEntriesUsed: entries?.n ?? 0,
-        prizeClosed,
         comparisonOpen: settings.comparisonActivityOpen,
         sessions: sessions.map((s) => ({
           id: s.id,

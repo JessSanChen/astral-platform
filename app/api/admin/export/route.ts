@@ -48,7 +48,8 @@ import { recordAudit } from "@/lib/audit";
  *   clipboard_event        copy/paste not tied to a session
  *   usage_event            tokens and cost per request
  *   audit_event            what organizers did
- *   legacy_*               labels, reviews and nominations from before v1.1
+ *   legacy_*               labels and reviews from before v1.1
+ *   nomination             what people wrote up for a prize, one per track
  *   end                    always last, with a count of each kind
  *
  * Drafts are included, marked `"status": "draft"`: the messages exist
@@ -461,9 +462,23 @@ export async function GET(req: Request) {
         for (const r of await db.select().from(review).orderBy(asc(review.submittedAt))) {
           emit("legacy_review", { session_id: r.conversationId, ...r });
         }
-        for (const n of await db.select().from(nomination).orderBy(asc(nomination.submittedAt))) {
-          emit("legacy_nomination", { ...n });
-        }
+      }
+
+      // --- Nominations: what people wrote up for a prize ------------------
+      // In both exports: an entry stands by itself, whatever became of the
+      // conversations behind it.
+      for (const n of await db.select().from(nomination).orderBy(asc(nomination.submittedAt))) {
+        emit("nomination", {
+          nomination_id: n.id,
+          user_id: n.userId,
+          track: n.track,
+          headline: n.headline,
+          details: n.details,
+          slides_url: n.slidesUrl,
+          submitted_at: n.submittedAt,
+          updated_at: n.updatedAt,
+          submission_count: n.submissionCount,
+        });
       }
 
       // The last line, always. A download that is cut short (a timeout, a

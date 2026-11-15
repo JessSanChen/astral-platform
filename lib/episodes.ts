@@ -14,7 +14,7 @@ import {
   user,
 } from "@/db/schema";
 import { getEventSettings } from "@/lib/openrouter";
-import { MAX_PRIZE_ENTRIES, sessionLetter, type Provenance } from "@/lib/episode-options";
+import { sessionLetter, type Provenance } from "@/lib/episode-options";
 
 /**
  * Episodes: the unit of work in specification v1.1.
@@ -505,53 +505,6 @@ export async function createRelatedVersion(opts: {
     createdBy: opts.userId,
   });
   return { episode: created, session };
-}
-
-/** Puts a submitted episode forward for a prize, or takes it back. */
-export async function setPrizeEntry(episodeId: string, userId: string, entered: boolean) {
-  return db.transaction(async (tx) => {
-    // The person's row is taken first, so two toggles at once are counted
-    // one after the other and the limit holds.
-    await tx.execute(sql`select 1 from ${user} where ${user.id} = ${userId} for update`);
-    const [ep] = await tx
-      .select()
-      .from(episode)
-      .where(and(eq(episode.id, episodeId), eq(episode.userId, userId)));
-    if (!ep) throw new EpisodeError("That work could not be found.");
-    if (ep.status !== "submitted") {
-      throw new EpisodeError("Only submitted work can be entered for a prize.");
-    }
-    // Closed by an organizer, or past the time they set. What was entered
-    // stays entered; nothing can be added or taken back.
-    const settings = await getEventSettings();
-    const closeAt = settings.nominationsCloseAt;
-    if (settings.nominationsLocked || (closeAt && closeAt.getTime() <= Date.now())) {
-      throw new EpisodeError("Prize entries are closed.");
-    }
-    if (entered && !ep.prizeEntryAt) {
-      // A source and its related versions are one entry between them.
-      const [{ n }] = await tx
-        .select({ n: sql<number>`count(distinct ${episode.sourceFamilyId})::int` })
-        .from(episode)
-        .where(
-          and(
-            eq(episode.userId, userId),
-            sql`${episode.prizeEntryAt} is not null`,
-            sql`${episode.sourceFamilyId} <> ${ep.sourceFamilyId}`,
-          ),
-        );
-      if (n >= MAX_PRIZE_ENTRIES) {
-        throw new EpisodeError(
-          `You can enter up to ${MAX_PRIZE_ENTRIES} pieces of work. Take one back to enter this instead.`,
-        );
-      }
-    }
-    await tx
-      .update(episode)
-      .set({ prizeEntryAt: entered ? (ep.prizeEntryAt ?? new Date()) : null })
-      .where(eq(episode.id, episodeId));
-    return { entered };
-  });
 }
 
 /** Everything of one person's, for the list down the side: newest first. */

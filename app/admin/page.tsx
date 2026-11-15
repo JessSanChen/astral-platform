@@ -1,3 +1,4 @@
+import { trackLabel } from "@/lib/nominations";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/gate";
 import { overview } from "@/lib/admin";
@@ -121,9 +122,21 @@ export default async function AdminOverview() {
               { label: "Created for this exercise", value: episodes.invented },
               { label: "Folders (several sessions)", value: episodes.folders },
               { label: "Related versions", value: episodes.related },
-              { label: "Entered for a prize", value: data.prizeEntries },
             ].filter((row) => row.value > 0)}
           />
+        </Panel>
+
+        <Panel title="Nominations" description="Entries received, by track.">
+          {data.nominations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">None yet.</p>
+          ) : (
+            <Bars
+              rows={data.nominations.map((row) => ({
+                label: trackLabel(row.track),
+                value: Number(row.n),
+              }))}
+            />
+          )}
         </Panel>
 
         <Panel title="Running the day">

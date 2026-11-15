@@ -9,12 +9,10 @@ import {
   GitCompareArrows,
   PanelRightClose,
   Plus,
-  Trophy,
 } from "lucide-react";
 import {
   addSessionAction,
   saveDetailsAction,
-  setPrizeEntryAction,
   submitEpisodeAction,
 } from "@/app/chat/episode-actions";
 import { useConversationStore } from "@/components/conversation-store";
@@ -22,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   LIMITS,
-  MAX_PRIZE_ENTRIES,
   PROVENANCE,
   comparisonIntentLabel,
   provenanceLabel,
@@ -42,10 +39,6 @@ export type EpisodeInfo = {
   goal: string;
   /** Made with Create related version. */
   related: boolean;
-  prizeEntered: boolean;
-  /** Separate pieces of work this person has entered so far. */
-  prizeEntriesUsed: number;
-  prizeClosed: boolean;
   comparisonOpen: boolean;
   sessions: { id: string; order: number; title: string; userMessages: number }[];
   madeFrom: { intent: string; difference: string; other: Linked } | null;
@@ -57,9 +50,8 @@ export type EpisodeInfo = {
  *
  * While it is a draft: whether the task is real or invented, an optional
  * private goal note, its sessions, and submitting it. Once submitted: that
- * it is, a way to make a related version, and whether it is entered for a
- * prize. None of what is written here is sent to the assistant or shown to
- * a reviewer.
+ * it is, and a way to make a related version. None of what is written here
+ * is sent to the assistant or shown to a reviewer.
  */
 export function EpisodePanel({
   episode,
@@ -88,8 +80,6 @@ export function EpisodePanel({
   const [goalNote, setGoalNote] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<null | "submit" | "submit-then-related">(null);
   const [error, setError] = useState<string | null>(null);
-  const [prizeEntered, setPrizeEntered] = useState(episode.prizeEntered);
-  const [prizeNote, setPrizeNote] = useState<string | null>(null);
 
   // What would be submitted: sessions with at least one message from the
   // participant. The one on screen is judged by what is on screen.
@@ -161,16 +151,6 @@ export function EpisodePanel({
       setConfirming(null);
       if (thenRelated) router.push(`/chat/related/${episode.id}`);
       else router.refresh();
-    });
-  }
-
-  function togglePrize(next: boolean) {
-    setPrizeNote(null);
-    start(async () => {
-      const result = await setPrizeEntryAction(episode.id, next);
-      if (!result.ok) return setPrizeNote(result.message);
-      setPrizeEntered(next);
-      router.refresh();
     });
   }
 
@@ -342,31 +322,6 @@ export function EpisodePanel({
                 </li>
               ))}
             </ul>
-          </Block>
-        )}
-
-        {submitted && (
-          <Block
-            title="Prize"
-            note={`Up to ${MAX_PRIZE_ENTRIES} pieces of work each. A piece and its related versions count once. Entering changes nothing about how it is reviewed.`}
-          >
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-4 w-4 shrink-0"
-                checked={prizeEntered}
-                disabled={pending || episode.prizeClosed}
-                onChange={(e) => togglePrize(e.target.checked)}
-              />
-              <span className="flex items-center gap-1.5">
-                <Trophy className="h-3.5 w-3.5" />
-                Consider this for a prize
-              </span>
-            </label>
-            {episode.prizeClosed && (
-              <p className="text-xs text-muted-foreground">Prize entries are closed.</p>
-            )}
-            {prizeNote && <p className="text-xs text-danger">{prizeNote}</p>}
           </Block>
         )}
       </div>

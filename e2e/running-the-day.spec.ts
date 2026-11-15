@@ -8,7 +8,6 @@ import {
   newParticipant,
   say,
   startConversation,
-  submittedConversation,
 } from "./helpers";
 
 /**
@@ -52,40 +51,71 @@ test.describe("running the day", () => {
     }
   });
 
-  test("closing prize entries by hand freezes them, and reopening frees them", async ({
+  test("closing nominations by hand freezes entries, and reopening frees them", async ({
     browser,
   }) => {
     const participant = await newParticipant(browser, "Nell Nominee");
     const organizer = await newOrganizer(browser, "Olga Organizer");
     const page = participant.page;
-    await submittedConversation(page, "Entered before the close?");
-    await page.goto("/prizes");
-    await page.getByRole("button", { name: "Enter for a prize" }).click();
-    await expect(page.getByTestId("prize-count")).toHaveText(/1 of 3 entries used/);
+
+    await page.goto("/nominate/adversarial");
+    await page.getByLabel("Headline finding").fill("Entered before the close");
+    await page.getByLabel("The finding in detail").fill("Enough detail to be an entry.");
+    await page.getByRole("button", { name: "Submit nomination" }).click();
+    await expect(page.getByRole("button", { name: "Update entry" })).toBeVisible();
 
     try {
-      await organizer.page.goto("/admin/prizes");
-      await expect(organizer.page.getByRole("heading", { name: /^Prize entries \(\d+\)$/ })).toBeVisible();
-      await expect(organizer.page.getByRole("main")).toContainText("Nell Nominee");
-      await organizer.page.getByRole("button", { name: "Close prize entries now" }).click();
+      await organizer.page.goto("/admin/nominations");
+      await organizer.page.getByRole("button", { name: "Close nominations now" }).click();
       await expect(
-        organizer.page.getByRole("button", { name: "Reopen prize entries" }),
+        organizer.page.getByRole("button", { name: "Reopen nominations" }),
       ).toBeVisible();
 
-      // They still have the page open. Coming back to the tab is enough:
-      // it closes in front of them and shows what was entered, read only.
+      // They still have the form open, with something half-typed. Coming
+      // back to the tab is enough: it closes in front of them, says so,
+      // and shows the entry as the organizers have it, not as a form.
+      await page.getByLabel("Headline finding").fill("Typed but never saved");
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-      await expect(page.getByRole("status").filter({ hasText: "Prize entries are closed" })).toBeVisible();
-      await expect(page.getByRole("button", { name: /Enter for a prize|Take back/ })).toHaveCount(0);
-      await expect(page.getByText("Entered", { exact: true })).toBeVisible();
+      await expect(page.getByRole("status")).toContainText("Nominations are closed");
+      await expect(page.getByRole("status")).toContainText("It can no longer be changed.");
+      await expect(page.getByText("Entered before the close")).toBeVisible();
+      await expect(page.getByRole("textbox")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: /Update entry|Submit nomination/ })).toHaveCount(0);
+      // What they had not saved is not lost without a word.
+      await expect(page.getByText("What you were typing was not submitted")).toBeVisible();
+      await expect(page.getByText("Typed but never saved")).toBeVisible();
 
-      await organizer.page.getByRole("button", { name: "Reopen prize entries" }).click();
+      // The list of tracks says it too, at the top.
+      await page.goto("/nominate");
+      await expect(page.getByRole("status")).toContainText("Nominations are closed");
+      await expect(page.getByRole("status")).toContainText("can no longer be changed");
+      await expect(page.getByText("change an entry until nominations close")).toHaveCount(0);
+      // The entry made is there to read. A track never entered goes nowhere.
+      await expect(page.getByRole("link", { name: /Adversarial/ })).toContainText("read only");
+      await expect(page.getByRole("link", { name: /Dual-use/ })).toHaveCount(0);
+
+      // Going to a track directly is no way round it, and neither is
+      // sending the form without the page.
+      await page.goto("/nominate/dual_use");
+      await expect(page.getByRole("status")).toContainText(
+        "No entry was submitted for this track, and one can no longer be made.",
+      );
+      await expect(page.getByRole("textbox")).toHaveCount(0);
+      const [{ count: entries }] = await sql`
+        select count(*)::int as count from nomination n
+        join "user" u on u.id = n.user_id where u.email = ${participant.email}
+      `;
+      expect(entries).toBe(1);
+
+      await organizer.page.getByRole("button", { name: "Reopen nominations" }).click();
       await expect(
-        organizer.page.getByRole("button", { name: "Close prize entries now" }),
+        organizer.page.getByRole("button", { name: "Close nominations now" }),
       ).toBeVisible();
-      await page.reload();
-      await page.getByRole("button", { name: "Take back" }).click();
-      await expect(page.getByTestId("prize-count")).toHaveText(/0 of 3 entries used/);
+
+      await page.goto("/nominate/adversarial");
+      await page.getByLabel("Headline finding").fill("Changed after reopening");
+      await page.getByRole("button", { name: "Update entry" }).click();
+      await expect(page.getByText("Saved. You can change this until nominations close.")).toBeVisible();
     } finally {
       await sql`update event_settings set nominations_locked = false where id = 1`;
       await participant.context.close();

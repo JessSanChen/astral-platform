@@ -2378,6 +2378,35 @@ README said Node 20 where the libraries need 22.
 
 ---
 
+## Round 23: more of the organizer's changes after trying it
+
+- **Intake, form A-1.3.** Fewer ways not to answer. The role, each kind
+  of work and the use of AI assistants no longer offer "prefer not to
+  say", and AI use is required. The question about AI safety and
+  biosecurity is required, with "Neither" as an answer. Primary area and
+  narrower specialization are removed. One "prefer not to say" is left,
+  in the list of subject areas.
+- **Reviewing starts under a placeholder policy.** Migration 0008
+  publishes it as version 1 where no policy exists. The organizer replaces
+  it from Organize → Policy. Reviews record the version they were made
+  under, so those made under the placeholder can be told apart.
+- **Rules are optional.** A policy with no numbered rules does not ask
+  reviewers which criterion supports their answer; the answer is stored
+  as `not_asked`. The rules box in the console is folded away.
+- **Nominations are back; the click-to-enter prizes are gone.** A prize
+  entry is a written finding, as before v1.1: one entry per track on the
+  Submit page, with a headline, the finding and an optional link to
+  slides. The pages, the console tab and their tests are restored from
+  before v1.1 unchanged. The `prize_entry_at` column stays in the
+  database, unused.
+- The Folder button has a plus, like Conversation.
+
+Not changed, because they were questions rather than requests: authors
+still do not label their own conversations (the specification removed
+that), and "real or invented" is still asked when starting.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge
