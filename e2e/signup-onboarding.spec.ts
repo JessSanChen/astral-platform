@@ -126,7 +126,13 @@ test.describe("getting in", () => {
     await expect(page.getByRole("heading", { name: "Before you start" })).toBeVisible();
 
     // The role comes first, then the subject areas with the rating beside them.
-    const sections = await page.getByRole("heading", { level: 3 }).allInnerTexts();
+    // Counted within the background questions: the terms above them have
+    // headings of their own, whatever text an organizer has published.
+    const sections = await page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "About your background" }) })
+      .getByRole("heading", { level: 3 })
+      .allInnerTexts();
     expect(sections).toEqual([
       "Current role",
       "Subject background",
@@ -175,7 +181,11 @@ test.describe("getting in", () => {
     const email = uniqueEmail("agree");
     await signUp(page, "Agnes Agrees", email);
     // One agreement, worded as the terms word it. No second box.
-    await expect(page.getByRole("heading", { name: "Participant Terms and Conditions" })).toBeVisible();
+    // Exactly this: the published terms may have a title of their own
+    // that contains these words.
+    await expect(
+      page.getByRole("heading", { name: "Participant Terms and Conditions", exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("checkbox", { name: /stated research/ })).toHaveCount(0);
     await expect(page.getByRole("main").getByText(/study information/i)).toHaveCount(0);
     await fillIntake(page);
