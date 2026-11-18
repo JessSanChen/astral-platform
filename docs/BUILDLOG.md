@@ -3246,6 +3246,51 @@ person can do: reading the record and the answer side by side.
 
 ---
 
+## Round 40: after the event, the analysis
+
+The event ran. The organizer asked for a list of what to do next, and
+for the data to be turned into something that can be analysed, with the
+structured data first: who took part, with the strongest backgrounds
+picked out to contact, and a shortlist of work for experts to read
+chosen from what is known about it, not from its text.
+
+- **`docs/TODO.md`** has an "After the event" section: what was asked
+  for, what the day showed (the database plan ran out and took the site
+  down; no testers were marked; reviews were unevenly spread; nothing
+  measures a review's quality), and what to settle before analysing.
+- **`npm run analysis -- <export file>`** (`scripts/analysis/`). Reads
+  the export a line at a time and writes `analysis-out/<time>/`:
+  - `report.html`: who is counted and who is not, who took part, what
+    they made, reviewing, agreement between reviewers (with the same
+    numbers recomputed without trivial records, without fast reviews,
+    and on first answers), verdicts by the reviewer's background,
+    reviewers against authors' expectations, matched sets, and folders
+    read whole against session by session;
+  - `tables/`: seven CSV files of the same data, with people as
+    P-numbers and no names or text;
+  - `identified/contact-log.csv`: everyone, strongest background
+    first, with columns to record outreach;
+  - `identified/reading-list.html` and `.csv`: work scored on who wrote
+    it, how long it is and what reviewers and the author said, each
+    reason shown with its points, and a view of only the authors with a
+    strong background.
+- It needs no database and no keys: one file in, one folder out. The
+  folder is kept out of git.
+- `docs/ANALYSIS.md` says how to run it, every rule it applies and how
+  it was checked.
+
+Five files, each with one job: `load.ts` reads the export, `measure.ts`
+holds every rule and calculation, `outputs.ts` writes the tables and
+the two identified files, `report.ts` writes the report, `main.ts` reads
+the options and calls the rest.
+
+Checked against a real export from the local application and an
+invented one of the event's size; agreement figures recomputed
+independently from the written tables match. Not run on the event's
+data, which has stayed with the organizers.
+
+---
+
 ## Starting over
 
 To wipe all accounts and their data while keeping settings, terms and judge

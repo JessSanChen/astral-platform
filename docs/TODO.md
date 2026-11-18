@@ -81,6 +81,21 @@ live list. Nothing in it is built yet unless it says so.
   `scripts/verify-overview.sql`). Merge when convenient; nothing on the
   live site changes.
 
+### Analysis
+
+- **Built: `npm run analysis -- <export file>`** writes the tables, the
+  report, the contact log and the reading list. `docs/ANALYSIS.md` says
+  how to run it and what rules it applies. Not yet run on the event's
+  own export.
+- **Next: light content coding** with an open-weight model through
+  OpenRouter (Kimi was suggested). Needs the categories deciding.
+- **Then:** expert reading of the reading list, and outreach from the
+  contact log.
+- The background score and the reading-list points are my first guess
+  at what "a strong background" and "worth reading" mean. Both are
+  short lists of numbers in `scripts/analysis/measure.ts`; say what to
+  change.
+
 ### Before analysing the data
 
 - Mark the tester accounts, then take one export and keep it as the

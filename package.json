@@ -20,6 +20,7 @@
     "prod:set-password": "node scripts/with-env.mjs .env.production.local npx tsx scripts/set-password.ts",
     "prod:review-audit": "node scripts/with-env.mjs .env.production.local npx tsx scripts/review-audit.ts",
     "review-audit": "tsx --env-file=.env.local scripts/review-audit.ts",
+    "analysis": "tsx scripts/analysis/main.ts",
     "set-password": "tsx --env-file=.env.local scripts/set-password.ts",
     "load-test": "tsx --env-file=.env.local scripts/load-test.ts",
     "mock-openrouter": "node scripts/mock-openrouter.mjs 4010",

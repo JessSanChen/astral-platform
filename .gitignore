@@ -272,3 +272,7 @@ next-env.d.ts
 # Spot-check pages written by scripts/review-audit.ts. They hold
 # participants' conversations and names.
 /audits/
+
+# What scripts/analysis writes: tables, a report, and files with
+# participants' names, email addresses and conversations.
+/analysis-out/
