@@ -84,7 +84,7 @@ live list. Nothing in it is built yet unless it says so.
 ### Before analysing the data
 
 - Mark the tester accounts, then take one export and keep it as the
-  fixed copy the analysis is run on (Organize → Submissions → export).
+  fixed copy the analysis is run on (Organize → Settings has the export links).
   Pause chat and lock nominations first so nothing changes under it.
 - Decide what is left out: testers, sessions with no reviewer view,
   records that are not attempts ("test"), and whether reviews done very
