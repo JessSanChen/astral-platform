@@ -14,6 +14,89 @@ The first section is the only one that actually blocks the event.
 
 ---
 
+## After the event (started 18 November 2026)
+
+The event has happened. Everything below this section was written before
+it and is kept as a record; some of it is now moot. This section is the
+live list. Nothing in it is built yet unless it says so.
+
+### Asked for by the organizer
+
+- **Views of what people did, for judging.** During the event the
+  console could rank people by counts but could not show the things a
+  judge wanted to see. Needs defining before building; what was reached
+  for on the day, and had to be done by hand or by script, was:
+  - one reviewer's work read record by record beside their answers
+    (now `npm run prod:review-audit`, a script on the organizer's
+    machine; it belongs in the console);
+  - several reviewers side by side: pace, share of Yes, agreement with
+    other reviewers (same script, `--all`);
+  - where reviewers of the same record disagree;
+  - who did the most comparisons (the Participants page sorts by it,
+    but it was not obvious).
+- **Move an existing conversation into a folder afterwards.** Today a
+  conversation becomes a folder by adding a session to it, and a new
+  session can be started inside a folder, but a conversation that
+  already exists cannot be put into a folder that already exists. To
+  settle first: what happens if the conversation is already submitted,
+  what happens to its own answers (they would become the session's),
+  and to a related-conversation link (it stays on the conversation).
+
+### What the day showed
+
+- **The site went down when the database plan ran out.** Neon refused
+  every connection once the free plan's quota was exceeded, and each
+  page showed the framework's bare "This page couldn't load". Wanted:
+  the right plan chosen before an event, a usage alert, a page that
+  says "we are having trouble, your work is saved" instead of the bare
+  error, and a health check an organizer can look at. Also decide
+  whether to stay on the paid plan now.
+- **Migrations are run by hand**, and the Review pages failed on the
+  live site when one was missing. Run them as part of the deployment.
+- **No account was marked as a tester**, so accounts and submissions
+  from testing before the event are counted with the participants'.
+  Mark them (Organize → Participants) before any analysis. Better: an
+  event start time in Settings, with accounts made before it treated as
+  testers without anyone having to remember.
+- **Some submitted sessions have no reviewer view** (183 sessions
+  against 175 views on the day). Query 4 in
+  `scripts/verify-overview.sql` says which; they are expected to be
+  test submissions from before v1.1.
+- **Reviews were spread unevenly**: 19 of 175 views had all three
+  reviews while 22 had none. Hand out so that every view gets one
+  review before any gets a second.
+- **Nothing measures the quality of a review.** One person completed
+  83 reviews at a median of 43 seconds each. Wanted: time per record
+  and agreement shown in the console, a rule for what makes a review
+  count toward an award, and possibly a few records with a known
+  answer mixed in.
+- **Comparisons were barely used**: 6 related conversations submitted
+  and 5 comparisons completed. Worth asking participants why before
+  changing anything.
+- **"Spend today" on the Overview is the last 24 hours**, not since
+  midnight. Rename it or change it.
+- **Forgotten passwords** still need an organizer (item 10 below).
+- **The working branch is ahead of `main`** by scripts and documents
+  only (`scripts/reviewer-quality.sql`, `scripts/review-audit.ts`,
+  `scripts/verify-overview.sql`). Merge when convenient; nothing on the
+  live site changes.
+
+### Before analysing the data
+
+- Mark the tester accounts, then take one export and keep it as the
+  fixed copy the analysis is run on (Organize → Submissions → export).
+  Pause chat and lock nominations first so nothing changes under it.
+- Decide what is left out: testers, sessions with no reviewer view,
+  records that are not attempts ("test"), and whether reviews done very
+  fast are kept.
+- Decide whether a changed review is analysed by its first answer or
+  its last. Both are in the export (`review_revision`).
+- Check what terms participants actually agreed to before sharing
+  transcripts with anyone outside the organizers, a model provider
+  included. Appendix A was unfinished in the default text.
+
+---
+
 ## Blocking the event, since specification v1.1
 
 These come from `docs/SPEC-V1.1-STATUS.md`, which has the detail.
