@@ -96,6 +96,14 @@ live list. Nothing in it is built yet unless it says so.
   short lists of numbers in `scripts/analysis/measure.ts`; say what to
   change.
 
+- **Cleaning checklist: `docs/DATA-CLEANING.md`.** Ten steps, with
+  the decisions each needs and where the data differs from the
+  proposal.
+- **Not built: grouping conversations into folders afterwards.** Some
+  people forgot to use a folder. The checklist (step 5) has the
+  groupings recorded in a file, `folders-added.csv`; the analysis needs
+  teaching to read it and treat each group as a folder.
+
 ### Before analysing the data
 
 - Mark the tester accounts, then take one export and keep it as the
